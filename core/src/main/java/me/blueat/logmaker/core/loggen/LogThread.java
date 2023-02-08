@@ -1,16 +1,15 @@
 package me.blueat.logmaker.core.loggen;
 
-import com.cloudbees.syslog.Facility;
-import com.cloudbees.syslog.MessageFormat;
-import com.cloudbees.syslog.Severity;
-import com.cloudbees.syslog.sender.UdpSyslogMessageSender;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
-import me.blueat.logmaker.plugin.api.Maker;
+import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
-import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeServices;
 import org.apache.velocity.runtime.RuntimeSingleton;
@@ -19,34 +18,37 @@ import org.apache.velocity.runtime.parser.node.SimpleNode;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.compiler.STLexer;
 
-import java.io.IOException;
 import java.io.StringReader;
-import java.io.StringWriter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 public class LogThread extends Thread {
+    private final static ObjectMapper objectMapper = new ObjectMapper();
+
     private Instant start = null;
 
     public AtomicLong count = new AtomicLong(0);
     private final Set<String> expressions;
-    private final List<UdpSyslogMessageSender> messageSenderList;
+    private final List<String> senders;
     private VelocityEngine ve;
     private Template vTemplate;
     private String vFormat;
     private Map makerConcurrentHashMap = new ConcurrentHashMap<>();
     private MakerService makerService;
+    private SenderService senderService;
 
     private LogDto logDto;
 
-    public LogThread(MakerService makerService, LogDto logDto) {
+    public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) throws JsonProcessingException {
         this.makerService = makerService;
+        this.senderService = senderService;
         this.logDto = logDto;
         super.setName(logDto.getName());
-        this.messageSenderList = new LinkedList<>();
+        this.senders = logDto.getSenders();
         ST template = new ST(logDto.getFormat());
         expressions = new HashSet<>();
         TokenStream tokens = template.impl.tokens;
@@ -81,47 +83,6 @@ public class LogThread extends Thread {
         vTemplate.setRuntimeServices(rs);
         vTemplate.setData(sn);
         vTemplate.initDocument();
-
-        for (String deviceIp : logDto.getDevices()) {
-            for (SyslogDto syslogDto : logDto.getSyslog()) {
-                Facility facility;
-
-                try {
-                    facility = Facility.fromNumericalCode(syslogDto.getFacility());
-                }
-                catch (IllegalArgumentException iae) {
-                    facility = Facility.USER;
-                }
-
-                Severity severity;
-
-                try {
-                    severity = Severity.fromNumericalCode(syslogDto.getSeverity());
-                }
-                catch (IllegalArgumentException iae) {
-                    severity = Severity.INFORMATIONAL;
-                }
-
-                MessageFormat messageFormat;
-
-                try {
-                    messageFormat = MessageFormat.valueOf(syslogDto.getMessageFormat());
-                }
-                catch (IllegalArgumentException iae) {
-                    messageFormat = MessageFormat.RFC_3164;
-                }
-
-                UdpSyslogMessageSender udpSyslogMessageSender = new UdpSyslogMessageSender();
-                udpSyslogMessageSender.setDefaultMessageHostname(logDto.getIpPrefix() + deviceIp);
-                udpSyslogMessageSender.setDefaultAppName(logDto.getName());
-                udpSyslogMessageSender.setDefaultFacility(facility);
-                udpSyslogMessageSender.setDefaultSeverity(severity);
-                udpSyslogMessageSender.setSyslogServerHostname(syslogDto.getIp());
-                udpSyslogMessageSender.setSyslogServerPort(syslogDto.getPort());
-                udpSyslogMessageSender.setMessageFormat(messageFormat);
-                messageSenderList.add(udpSyslogMessageSender);
-            }
-        }
     }
 
     @Override
@@ -138,8 +99,8 @@ public class LogThread extends Thread {
         }
     }
 
-    private String generator(String deviceIp) {
-        VelocityContext context = new VelocityContext();
+    private Map<String, Object> templateData() {
+        Map<String, Object> result = new HashMap<>();
 
         for (String string : expressions) {
             if (!makerConcurrentHashMap.containsKey(string)) {
@@ -149,18 +110,11 @@ public class LogThread extends Thread {
             Maker<?> cacheMaker = (Maker<?>) makerConcurrentHashMap.get(string);
 
             if (cacheMaker != null) {
-                context.put(string, cacheMaker.getData());
+                result.put(string, cacheMaker.getData());
             }
-            else {
-                return null;
-            }
-            context.put("DEVICE_IP", deviceIp);
         }
 
-        StringWriter writer = new StringWriter();
-        vTemplate.merge(context, writer);
-
-        return writer.toString();
+        return result;
     }
 
     @Override
@@ -172,12 +126,12 @@ public class LogThread extends Thread {
             Instant currentStart = Instant.now();
 
             while(createCount.get() < logDto.getEps()) {
-                try {
-                    for (UdpSyslogMessageSender udpSyslogMessageSender : messageSenderList) {
-                        String generateLog = generator(udpSyslogMessageSender.getDefaultMessageHostname().replace(logDto.getIpPrefix(), ""));
-                        udpSyslogMessageSender.sendMessage(generateLog);
+                senders.forEach(senderName ->  {
+                    Sender sender = senderService.getSender(senderName);
+                    if (sender != null) {
+                        sender.sendData(vTemplate, templateData());
                     }
-                } catch (IOException e) {}
+                });
 
                 createCount.incrementAndGet();
                 count.incrementAndGet();
@@ -208,21 +162,13 @@ public class LogThread extends Thread {
     public LogDto getLogDto() {
         this.logDto.setCount(count.get());
         this.logDto.setCurrentEps(getCurrentEps());
-        this.logDto.setSample(generator("0.0.0.0"));
+        this.logDto.setSample(templateData());
         return this.logDto;
     }
 
 
     @Override
     public void interrupt() {
-        for (UdpSyslogMessageSender udpSyslogMessageSender : messageSenderList) {
-            try {
-                udpSyslogMessageSender.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
         super.interrupt();
     }
 }

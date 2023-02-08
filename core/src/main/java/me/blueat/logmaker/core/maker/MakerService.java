@@ -2,8 +2,8 @@ package me.blueat.logmaker.core.maker;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.blueat.logmaker.plugin.api.Maker;
-import me.blueat.logmaker.plugin.api.MakerPlugin;
+import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
 import org.pf4j.spring.SpringPluginManager;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class MakerService {
-    private HashMap<MakerDto, Maker<?>> makerMap;
+    private HashMap<String, Maker<?>> makerMap;
     private HashMap<String, MakerPlugin> makerPluginMap;
 
     private final SpringPluginManager springPluginManager;
@@ -26,14 +26,13 @@ public class MakerService {
         makerMap = new HashMap<>();
         makerPluginMap = new HashMap<>();
 
-        springPluginManager.getExtensions(MakerPlugin.class).forEach(makerPlugin -> {
-            makerPluginMap.put(makerPlugin.getType(), makerPlugin);
-        });
+        springPluginManager.getExtensions(MakerPlugin.class).forEach(makerPlugin ->
+                makerPluginMap.put(makerPlugin.getType(), makerPlugin));
 
         log.info("{}", springPluginManager.getExtensions(MakerPlugin.class));
     }
 
-    public HashMap<MakerDto, Maker<?>> getMakerMap() {
+    public HashMap<String, Maker<?>> getMakerMap() {
         return makerMap;
     }
 
@@ -42,26 +41,28 @@ public class MakerService {
     }
 
     public List<MakerDto> getMaker() {
-        return makerMap.entrySet().stream().map(e -> {
-            e.getKey().setSample(e.getValue().getData());
-            e.getKey().setSize(e.getValue().getSize());
-            return e.getKey();
-        }).collect(Collectors.toList());
+        return makerMap.values().stream()
+                .map(v -> MakerDto.builder()
+                        .name(v.getMakerName())
+                        .type(v.getType())
+                        .args(new HashMap<>())
+                        .sample(v.getData())
+                        .size(v.getSize()).build())
+                .collect(Collectors.toList());
     }
 
     public Maker<?> getMaker(String name) {
-        Optional<MakerDto> optionalMakerDto = makerMap.keySet().stream().filter(f -> f.getName().equals(name)).findAny();
-        return makerMap.get(makerMap.containsKey(optionalMakerDto.get()));
+        return makerMap.get(name);
     }
 
     public boolean removeMaker(String name) {
-        Optional<MakerDto> optionalMakerDto = makerMap.keySet().stream().filter(f -> f.getName().equals(name)).findAny();
+        Optional<Maker> optionalMaker = Optional.ofNullable(makerMap.get(name));
 
-        if (optionalMakerDto.isPresent()) {
-            if (makerMap.get(optionalMakerDto.get()).isThread()) {
-                ((Thread)makerMap.get(optionalMakerDto.get())).interrupt();
+        if (optionalMaker.isPresent()) {
+            if (optionalMaker.get().isThread()) {
+                ((Thread)makerMap.get(optionalMaker.get())).interrupt();
             }
-            makerMap.remove(optionalMakerDto.get());
+            makerMap.remove(name);
             return true;
         }
 
@@ -69,10 +70,10 @@ public class MakerService {
     }
 
     public boolean addMaker(MakerDto makerDto, Maker maker) {
-        Optional<MakerDto> optionalMakerDto = makerMap.keySet().stream().filter(f -> f.getName().equals(makerDto.getName())).findAny();
+        Optional<Maker> optionalMaker = Optional.ofNullable(makerMap.get(makerDto.getName()));
 
-        if (optionalMakerDto.isEmpty()) {
-            makerMap.put(makerDto, maker);
+        if (optionalMaker.isEmpty()) {
+            makerMap.put(makerDto.getName(), maker);
             if (maker.isThread()) {
                 ((Thread)maker).start();
             }
@@ -85,7 +86,7 @@ public class MakerService {
 
     public Set<String> getMakerNames() {
         Set<String> makerNames = new HashSet<>();
-        makerMap.keySet().forEach((k) -> makerNames.add(k.getName()));
+        makerMap.keySet().forEach((k) -> makerNames.add(k));
         return makerNames;
     }
 

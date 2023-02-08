@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -13,13 +14,10 @@ public class LogDto {
     private String format;
     @Schema(example = "10")
     private long eps;
-    private List<String> devices;
-    @Schema(example = "devices=")
-    private String ipPrefix;
-    private List<SyslogDto> syslog;
+    private List<String> senders;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
-    private String sample;
+    private Map<String, Object> sample;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private long currentEps;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)

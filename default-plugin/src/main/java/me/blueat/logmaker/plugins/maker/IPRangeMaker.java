@@ -1,6 +1,6 @@
-package me.blueat.logmaker.plugins;
+package me.blueat.logmaker.plugins.maker;
 
-import me.blueat.logmaker.plugin.api.Maker;
+import me.blueat.logmaker.plugin.api.maker.Maker;
 
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;

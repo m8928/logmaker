@@ -15,8 +15,11 @@ import java.util.Map;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class MakerDto {
+    @Schema(example = "sample_maker")
     String name;
+    @Schema(example = "IP")
     String type;
+    @Schema(example = "{}")
     Map<String, Object> args;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)

@@ -1,29 +1,28 @@
-package me.blueat.logmaker.plugins;
+package me.blueat.logmaker.plugins.maker;
 
-import com.github.curiousoddman.rgxgen.RgxGen;
-import me.blueat.logmaker.plugin.api.Maker;
+import me.blueat.logmaker.plugin.api.maker.Maker;
 
+import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 
-public class RegexMaker extends Thread implements Maker<String> {
+public class IPMaker extends Thread implements Maker<String> {
     private String makerName;
     private String type;
-    private String regex;
     private ArrayBlockingQueue<String> queue;
 
-    public RegexMaker(String makerName, String regex) {
+    public IPMaker(String makerName) {
         super.setName(makerName);
         this.queue = new ArrayBlockingQueue<>(1000000);
         this.type = this.getClass().getName();
         this.makerName = makerName;
-        this.regex = regex;
     }
 
     @Override
     public void run() {
+        Random r = new Random();
         while(!Thread.currentThread().isInterrupted()) {
             try {
-                queue.put(getRegexRandomString(regex));
+                queue.put(r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -37,12 +36,6 @@ public class RegexMaker extends Thread implements Maker<String> {
         } catch (InterruptedException e) {
             return null;
         }
-    }
-
-    private static String getRegexRandomString(String regex) {
-        RgxGen rgxGen = new RgxGen(regex);
-        String s = rgxGen.generate();
-        return s;
     }
 
     @Override

@@ -1,4 +1,4 @@
-package me.blueat.logmaker.plugin.api;
+package me.blueat.logmaker.plugin.api.maker;
 
 public interface Maker<T> {
     T getData();

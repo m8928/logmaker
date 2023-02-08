@@ -1,6 +1,6 @@
-package me.blueat.logmaker.plugins;
+package me.blueat.logmaker.plugins.maker;
 
-import me.blueat.logmaker.plugin.api.Maker;
+import me.blueat.logmaker.plugin.api.maker.Maker;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;

@@ -1,4 +1,4 @@
-package me.blueat.logmaker.plugin.api;
+package me.blueat.logmaker.plugin.api.maker;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,14 +10,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MakerArgs {
-    public enum Type {
-        STRING, INT, LONG, DOUBLE, LIST, BOOLEAN
-    }
-
-    private Type type;
+    private Class type;
     private String description;
 
-    public Type getType() {
+    public Class getType() {
         return type;
     }
 

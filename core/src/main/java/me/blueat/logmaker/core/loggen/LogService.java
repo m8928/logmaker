@@ -1,6 +1,8 @@
 package me.blueat.logmaker.core.loggen;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
+import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.support.Result;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,7 @@ public class LogService {
     private ConcurrentHashMap<String, LogThread> logThreadMap;
 
     private final MakerService makerService;
+    private final SenderService senderService;
 
     @PostConstruct
     protected void init() {
@@ -23,16 +26,17 @@ public class LogService {
 
     public Result createLog(LogDto logDto) {
         if (!logThreadMap.containsKey(logDto.getName())) {
-            LogThread logThread =
-                    new LogThread(makerService, logDto);
-
             try {
+                LogThread logThread =
+                        new LogThread(makerService, senderService, logDto);
                 logThread.start();
                 logThreadMap.put(logDto.getName(), logThread);
                 return Result.createResultSet(Result.Type.SUCCESS, "maker create success");
             }
             catch (IllegalStateException ise) {
                 return Result.createResultSet(Result.Type.ERROR, ise.getMessage());
+            } catch (JsonProcessingException e) {
+                return Result.createResultSet(Result.Type.ERROR, e.getMessage());
             }
         }
         else {

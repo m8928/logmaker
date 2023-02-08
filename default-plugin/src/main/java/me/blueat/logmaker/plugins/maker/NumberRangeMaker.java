@@ -1,6 +1,6 @@
-package me.blueat.logmaker.plugins;
+package me.blueat.logmaker.plugins.maker;
 
-import me.blueat.logmaker.plugin.api.Maker;
+import me.blueat.logmaker.plugin.api.maker.Maker;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
