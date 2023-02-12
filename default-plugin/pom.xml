@@ -15,7 +15,7 @@
         <project.reporting.outputEncoding>utf-8</project.reporting.outputEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <plugin.id>default-maker</plugin.id>
+        <plugin.id>default-plugin</plugin.id>
         <plugin.class>me.blueat.logmaker.plugins.DefaultPlugin</plugin.class>
         <plugin.version>${parent.version}</plugin.version>
         <plugin.provider>m8928</plugin.provider>
@@ -63,6 +63,12 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.14.1</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>RELEASE</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 

@@ -4,7 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import org.pf4j.ExtensionPoint;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 public abstract class SenderPlugin  implements ExtensionPoint {
@@ -19,20 +21,27 @@ public abstract class SenderPlugin  implements ExtensionPoint {
      * @return
      */
     public boolean checkArgs(Map<String, SenderArgs> senderArgsMap, Map<String, Object> args) throws ArgumentsNotValidException {
-        boolean check = true;
-
         log.info("{}", senderArgsMap);
         log.info("{}", args);
 
-        if (!senderArgsMap.keySet().containsAll(args.keySet())) throw new ArgumentsNotValidException();
+        if (!args.keySet().containsAll(senderArgsMap.entrySet().stream()
+                .filter(e -> e.getValue().isRequired())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList()))) throw new ArgumentsNotValidException();
 
         args.keySet().forEach(key -> {
-            Class argsClass = senderArgsMap.get(key).getType();
-            if (!argsClass.isInstance(args.get(key))) {
-                throw new ArgumentsNotValidException(key);
+            if (senderArgsMap.containsKey(key)) {
+                Class argsClass = senderArgsMap.get(key).getType();
+                if (args.get(key) == null || !argsClass.isInstance(args.get(key))) {
+                    throw new ArgumentsNotValidException(key);
+                }
+
+                if (senderArgsMap.get(key).isRequired() && List.class.isInstance(args.get(key)) && ((List)args.get(key)).size() == 0) {
+                    throw new ArgumentsNotValidException(key);
+                }
             }
         });
 
-        return check;
+        return true;
     }
 }

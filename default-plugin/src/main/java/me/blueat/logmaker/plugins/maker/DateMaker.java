@@ -1,20 +1,26 @@
 package me.blueat.logmaker.plugins.maker;
 
+import lombok.Data;
 import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 
-public class DateMaker implements Maker<String> {
+@Data
+public class DateMaker extends Maker<String> {
     private final String makerName;
-    private final String format;
+    private String format;
     private final String type;
+    private Map<String, Object> args;
 
-    public DateMaker(String makerName, String format) {
+    public DateMaker(String makerName, String type, Map<String, Object> args) {
         this.makerName = makerName;
-        this.format = format;
-        this.type = this.getClass().getName();
+        this.args = args;
+        this.format = MakerArgs.toString(args.get("format"));
+        this.type = type;
     }
 
     @Override
@@ -39,7 +45,23 @@ public class DateMaker implements Maker<String> {
     }
 
     @Override
+    public Thread getThread() {
+        return null;
+    }
+
+    @Override
     public boolean isThread() {
         return false;
+    }
+
+    @Override
+    public void update(Map<String, Object> args) {
+        this.args = args;
+        this.format = MakerArgs.toString(args.get("format"));
+    }
+
+    @Override
+    public Map<String, Object> getArgs() {
+        return this.args;
     }
 }

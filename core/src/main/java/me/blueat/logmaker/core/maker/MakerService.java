@@ -1,81 +1,110 @@
 package me.blueat.logmaker.core.maker;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.blueat.logmaker.core.model.MakerDto;
+import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
+import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Data
 public class MakerService {
-    private HashMap<String, Maker<?>> makerMap;
-    private HashMap<String, MakerPlugin> makerPluginMap;
-
     private final SpringPluginManager springPluginManager;
+    private Table<String, String, Maker<?>> makerTable;
+    private Table<String, String, MakerPlugin> makerPluginTable;
 
     @PostConstruct
     protected void init() {
-        makerMap = new HashMap<>();
-        makerPluginMap = new HashMap<>();
-
-        springPluginManager.getExtensions(MakerPlugin.class).forEach(makerPlugin ->
-                makerPluginMap.put(makerPlugin.getType(), makerPlugin));
-
-        log.info("{}", springPluginManager.getExtensions(MakerPlugin.class));
-    }
-
-    public HashMap<String, Maker<?>> getMakerMap() {
-        return makerMap;
-    }
-
-    public HashMap<String, MakerPlugin> getMakerPluginMap() {
-        return makerPluginMap;
+        makerTable = HashBasedTable.create();
+        makerPluginTable = HashBasedTable.create();
+        loadPlugin();
     }
 
     public List<MakerDto> getMaker() {
-        return makerMap.values().stream()
-                .map(v -> MakerDto.builder()
-                        .name(v.getMakerName())
-                        .type(v.getType())
-                        .args(new HashMap<>())
-                        .sample(v.getData())
-                        .size(v.getSize()).build())
-                .collect(Collectors.toList());
+        return makerTable.cellSet().stream().map(v ->
+            MakerDto.builder()
+                    .name(v.getColumnKey())
+                    .type(v.getValue().getType())
+                    .args(v.getValue().getArgs())
+                    .sample(v.getValue().getData())
+                    .ref(v.getValue().getRef())
+                    .size(v.getValue().getSize()).build()).collect(Collectors.toList());
     }
 
-    public Maker<?> getMaker(String name) {
-        return makerMap.get(name);
+    public Optional<Map.Entry<String, Maker<?>>> getMaker(String name) {
+        return makerTable.column(name).entrySet().stream().findFirst();
     }
 
-    public boolean removeMaker(String name) {
-        Optional<Maker> optionalMaker = Optional.ofNullable(makerMap.get(name));
+    public Optional<Map.Entry<String, MakerPlugin>> getMakerPlugin(String name) {
+        return makerPluginTable.column(name).entrySet().stream().findFirst();
+    }
 
-        if (optionalMaker.isPresent()) {
-            if (optionalMaker.get().isThread()) {
-                ((Thread)makerMap.get(optionalMaker.get())).interrupt();
+    public Result deleteMaker(String name) {
+        Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(name);
+
+        if (existsMaker.isPresent()) {
+            if (existsMaker.get().getValue().isThread()) {
+                existsMaker.get().getValue().getThread().interrupt();
             }
-            makerMap.remove(name);
-            return true;
+            makerTable.remove(existsMaker.get().getKey(), name);
+            return Result.createResultSet(Result.Type.SUCCESS);
         }
 
-        return false;
+        return Result.createResultSet(Result.Type.ERROR);
     }
 
-    public boolean addMaker(MakerDto makerDto, Maker maker) {
-        Optional<Maker> optionalMaker = Optional.ofNullable(makerMap.get(makerDto.getName()));
+    public Result createMaker(MakerDto makerDto) {
+        Result result;
+        Optional<Map.Entry<String, MakerPlugin>> makerPlugin = getMakerPlugin(makerDto.getType());
 
-        if (optionalMaker.isEmpty()) {
-            makerMap.put(makerDto.getName(), maker);
+        if (makerPlugin.isPresent()) {
+            try {
+                Maker maker = makerPlugin.get().getValue().getMaker(makerDto.getName(), makerDto.getArgs());
+
+                if (maker != null) {
+                    if (addMaker(makerDto, makerPlugin.get().getKey(), maker)) {
+                        result = Result.createResultSet(Result.Type.SUCCESS);
+                    }
+                    else {
+                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is already used", makerDto.getName()));
+                    }
+                }
+                else {
+                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", makerDto.getName()));
+                }
+            }
+            catch (ArgumentsNotValidException anve) {
+                result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", makerDto.getName()));
+            }
+        }
+        else {
+            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is not support", makerDto.getType()));
+        }
+
+        return result;
+    }
+
+    public boolean addMaker(MakerDto makerDto, String pluginId, Maker maker) {
+        Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(makerDto.getName());
+
+        if (existsMaker.isEmpty()) {
+            makerTable.put(pluginId, makerDto.getName(), maker);
             if (maker.isThread()) {
-                ((Thread)maker).start();
+                maker.getThread().start();
             }
             return true;
         }
@@ -86,16 +115,35 @@ public class MakerService {
 
     public Set<String> getMakerNames() {
         Set<String> makerNames = new HashSet<>();
-        makerMap.keySet().forEach((k) -> makerNames.add(k));
+        makerTable.columnKeySet().forEach((k) -> makerNames.add(k));
         return makerNames;
     }
 
-    public void loadPlugin(Path path) {
-        String pluginId = springPluginManager.loadPlugin(path);
-        springPluginManager.startPlugin(pluginId);
+    public void loadPlugin() {
+        loadPlugin(null);
+    }
+    public void loadPlugin(String pluginId) {
+        springPluginManager.getPlugins(PluginState.STARTED).stream()
+                .filter(p -> (pluginId == null) || (pluginId != null && p.getPluginId().equals(pluginId)))
+                .forEach(pluginWrapper -> springPluginManager.getExtensions(MakerPlugin.class)
+                        .forEach(makerPlugin -> {
+                            log.info("{}", makerPlugin.getType());
+                            getMakerPluginTable().put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
+        }));
+    }
 
-        springPluginManager.getExtensions(MakerPlugin.class, pluginId).forEach(makerPlugin -> {
-            makerPluginMap.put(makerPlugin.getType(), makerPlugin);
-        });
+    public Result updateMaker(MakerDto makerDto) {
+        Result result;
+        Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(makerDto.getName());
+
+        if (existsMaker.isPresent()) {
+            existsMaker.get().getValue().update(makerDto.getArgs());
+            result = Result.createResultSet(Result.Type.SUCCESS);
+        }
+        else {
+            result = Result.createResultSet(Result.Type.ERROR);
+        }
+
+        return result;
     }
 }

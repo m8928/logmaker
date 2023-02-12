@@ -1,19 +1,28 @@
 package me.blueat.logmaker.plugins.maker;
 
+import lombok.Data;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-public class UUIDMaker extends Thread implements Maker<String> {
+@Data
+public class UUIDMaker extends Maker<String> implements Runnable {
     private String makerName;
     private String type;
     private ArrayBlockingQueue<String> queue;
+    private Thread thread;
+    private Lock updateLock;
 
-    public UUIDMaker(String makerName) {
-        super.setName(makerName);
+    public UUIDMaker(String makerName, String type) {
+        thread = new Thread(this);
+        thread.setName(String.format("THREAD_%s", makerName));
+        this.updateLock = new ReentrantLock(true);
         this.queue = new ArrayBlockingQueue<>(1000000);
-        this.type = this.getClass().getName();
+        this.type = type;
         this.makerName = makerName;
     }
 
@@ -55,5 +64,15 @@ public class UUIDMaker extends Thread implements Maker<String> {
     @Override
     public boolean isThread() {
         return true;
+    }
+
+    @Override
+    public void update(Map<String, Object> args) {
+        updateLock.lock();
+        try {
+            // NOTHING
+        } finally {
+            updateLock.unlock();
+        }
     }
 }

@@ -1,11 +1,17 @@
 package me.blueat.logmaker.plugins.maker;
 
+import lombok.Data;
 import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-public class NumberRangeMaker extends Thread implements Maker<Long> {
+@Data
+public class NumberRangeMaker extends Maker<Long> implements Runnable {
     private String makerName;
     private String type;
     private long start;
@@ -13,15 +19,25 @@ public class NumberRangeMaker extends Thread implements Maker<Long> {
     private boolean random;
     private ArrayBlockingQueue<Long> queue;
     private AtomicLong atomicLong;
+    private Map<String, Object> args;
+    private Thread thread;
+    private Lock updateLock;
 
-    public NumberRangeMaker(String makerName, long start, long end, boolean random) {
-        super.setName(makerName);
+    public NumberRangeMaker(String makerName, String type, Map<String, Object> args) {
+        thread = new Thread(this);
+        thread.setName(String.format("THREAD_%s", makerName));
+        this.updateLock = new ReentrantLock(true);
         this.makerName = makerName;
-        this.type = this.getClass().getName();
+        this.type = type;
+        this.args = args;
         this.queue = new ArrayBlockingQueue<>(1000000);
-        this.start = start;
-        this.end = end;
-        this.random = random;
+        init();
+    }
+
+    public void init() {
+        this.start = MakerArgs.toLong(args.get("start"));
+        this.end = MakerArgs.toLong(args.get("end"));
+        this.random = MakerArgs.toBoolean(args.getOrDefault("random", true));
 
         if (!random) {
             atomicLong = new AtomicLong(start);
@@ -31,21 +47,30 @@ public class NumberRangeMaker extends Thread implements Maker<Long> {
     @Override
     public void run() {
         while(!Thread.currentThread().isInterrupted()) {
+            updateLock.lock();
+            long number;
             try {
                 if (random) {
-                    queue.put((long) ((Math.random() * (end - start)) + start));
+                    number = (long) ((Math.random() * (end - start + 1)) + start);
                 }
                 else {
                     long value = atomicLong.getAndIncrement();
 
                     if (value > end) {
                         atomicLong.set(start);
-                        queue.put(start);
+                        number = start;
                     }
                     else {
-                        queue.put(value);
+                        number = value;
                     }
                 }
+            }
+            finally {
+                updateLock.unlock();
+            }
+
+            try {
+                queue.put(number);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -79,5 +104,23 @@ public class NumberRangeMaker extends Thread implements Maker<Long> {
     @Override
     public boolean isThread() {
         return true;
+    }
+
+    @Override
+    public Map<String, Object> getArgs() {
+        return this.args;
+    }
+
+    @Override
+    public void update(Map<String, Object> args) {
+        updateLock.lock();
+        try {
+            this.args = args;
+            init();
+            this.getQueue().clear();
+            // NOTHING
+        } finally {
+            updateLock.unlock();
+        }
     }
 }

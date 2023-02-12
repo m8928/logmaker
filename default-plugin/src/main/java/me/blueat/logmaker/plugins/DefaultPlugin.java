@@ -40,8 +40,7 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
-            makerArgsMap.put("regex", new MakerArgs(String.class, ""));
+            makerArgsMap.put("regex", new MakerArgs(String.class, "", true));
         }
 
         public String getType() {
@@ -51,7 +50,7 @@ public class DefaultPlugin extends Plugin {
         @Override
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(makerArgsMap, args)) {
-                return new RegexMaker(name, MakerArgs.toString(args.get("regex")));
+                return new RegexMaker(name, getType(), args);
             }
             else {
                 return null;
@@ -69,8 +68,7 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
-            makerArgsMap.put("picker", new MakerArgs(ArrayList.class, ""));
+            makerArgsMap.put("picker", new MakerArgs(ArrayList.class, "", true));
         }
 
         public String getType() {
@@ -79,7 +77,7 @@ public class DefaultPlugin extends Plugin {
 
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(makerArgsMap, args)) {
-                return new PickMaker(name, MakerArgs.toList(args.get("picker")));
+                return new PickMaker(name, getType(), args);
             }
             else {
                 return null;
@@ -97,10 +95,9 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
-            makerArgsMap.put("start", new MakerArgs(Number.class, "The smallest number returned."));
-            makerArgsMap.put("end", new MakerArgs(Number.class, "The largest number returned."));
-            makerArgsMap.put("random", new MakerArgs(Boolean.class, ""));
+            makerArgsMap.put("start", new MakerArgs(Number.class, "The smallest number returned.", true));
+            makerArgsMap.put("end", new MakerArgs(Number.class, "The largest number returned.", true));
+            makerArgsMap.put("random", new MakerArgs(Boolean.class, "", false));
         }
 
         public String getType() {
@@ -109,10 +106,7 @@ public class DefaultPlugin extends Plugin {
 
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(makerArgsMap, args)) {
-                return new NumberRangeMaker(name,
-                        MakerArgs.toLong(args.get("start")),
-                        MakerArgs.toLong(args.get("end")),
-                        MakerArgs.toBoolean(args.getOrDefault("random", true)));
+                return new NumberRangeMaker(name, getType(), args);
             }
             else {
                 return null;
@@ -130,8 +124,7 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
-            makerArgsMap.put("format", new MakerArgs(String.class, ""));
+            makerArgsMap.put("format", new MakerArgs(String.class, "", true));
         }
 
         public String getType() {
@@ -140,7 +133,7 @@ public class DefaultPlugin extends Plugin {
 
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(makerArgsMap, args)) {
-                return new DateMaker(name, MakerArgs.toString(args.get("format")));
+                return new DateMaker(name, getType(), args);
             }
             else {
                 return null;
@@ -158,7 +151,6 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
         }
 
         public String getType() {
@@ -166,7 +158,7 @@ public class DefaultPlugin extends Plugin {
         }
 
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
-            return new UUIDMaker(name);
+            return new UUIDMaker(name, getType());
         }
 
         @Override
@@ -180,7 +172,6 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
         }
 
         public String getType() {
@@ -188,7 +179,7 @@ public class DefaultPlugin extends Plugin {
         }
 
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
-            return new IPMaker(name);
+            return new IPMaker(name, getType());
         }
 
         @Override
@@ -202,10 +193,9 @@ public class DefaultPlugin extends Plugin {
         static Map<String, MakerArgs> makerArgsMap = new LinkedHashMap<>();
 
         static {
-            makerArgsMap.put("name", new MakerArgs(String.class, ""));
-            makerArgsMap.put("start", new MakerArgs(String.class, "The smallest number returned."));
-            makerArgsMap.put("end", new MakerArgs(String.class, "The largest number returned."));
-            makerArgsMap.put("deviation", new MakerArgs(Number.class, ""));
+            makerArgsMap.put("start", new MakerArgs(String.class, "The smallest number returned.", true));
+            makerArgsMap.put("end", new MakerArgs(String.class, "The largest number returned.", true));
+            makerArgsMap.put("deviation", new MakerArgs(Number.class, "", true));
         }
 
         public String getType() {
@@ -214,10 +204,7 @@ public class DefaultPlugin extends Plugin {
 
         public Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(makerArgsMap, args)) {
-                return new IPRangeMaker(name,
-                        MakerArgs.toString(args.get("start")),
-                        MakerArgs.toString(args.get("end")),
-                        MakerArgs.toLong(args.get("deviation")));
+                return new IPRangeMaker(name, getType(), args);
             }
             else {
                 return null;
@@ -235,14 +222,13 @@ public class DefaultPlugin extends Plugin {
         static Map<String, SenderArgs> senderArgsMap = new LinkedHashMap<>();
 
         static {
-            senderArgsMap.put("name", new SenderArgs(String.class, ""));
-            senderArgsMap.put("ip", new SenderArgs(String.class, ""));
-            senderArgsMap.put("port", new SenderArgs(Integer.class, ""));
-            senderArgsMap.put("facility", new SenderArgs(Integer.class, ""));
-            senderArgsMap.put("severity", new SenderArgs(Integer.class, ""));
-            senderArgsMap.put("messageFormat", new SenderArgs(String.class, ""));
-            senderArgsMap.put("hosts", new SenderArgs(ArrayList.class, ""));
-            senderArgsMap.put("hostPrefix", new SenderArgs(String.class, ""));
+            senderArgsMap.put("ip", new SenderArgs(String.class, "", true));
+            senderArgsMap.put("port", new SenderArgs(Integer.class, "", true));
+            senderArgsMap.put("facility", new SenderArgs(Integer.class, "", false));
+            senderArgsMap.put("severity", new SenderArgs(Integer.class, "", false));
+            senderArgsMap.put("messageFormat", new SenderArgs(String.class, "", false));
+            senderArgsMap.put("hosts", new SenderArgs(ArrayList.class, "", true));
+            senderArgsMap.put("hostPrefix", new SenderArgs(String.class, "", false));
         }
 
         public String getType() {
@@ -252,14 +238,7 @@ public class DefaultPlugin extends Plugin {
         @Override
         public Sender getSender(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(senderArgsMap, args)) {
-                return new SyslogSender(name,
-                        SenderArgs.toString(args.get("ip")),
-                        SenderArgs.toInt(args.get("port")),
-                        SenderArgs.toInt(args.get("facility")),
-                        SenderArgs.toInt(args.get("severity")),
-                        SenderArgs.toString(args.get("messageFormat")),
-                        SenderArgs.toList(args.get("hosts")),
-                        SenderArgs.toString(args.get("hostPrefix")));
+                return new SyslogSender(name, args);
             }
             else {
                 return null;
@@ -277,7 +256,6 @@ public class DefaultPlugin extends Plugin {
         static Map<String, SenderArgs> senderArgsMap = new LinkedHashMap<>();
 
         static {
-            senderArgsMap.put("name", new SenderArgs(String.class, ""));
         }
 
         public String getType() {

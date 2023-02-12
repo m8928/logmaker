@@ -1,35 +1,50 @@
 package me.blueat.logmaker.plugins.maker;
 
+import lombok.Data;
 import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-public class IPRangeMaker extends Thread implements Maker<String> {
-    private String makerName;
-    private String type;
+@Data
+public class IPRangeMaker extends Maker<String> implements Runnable {
+    private final String makerName;
+    private final String type;
 
     private long startIpLong;
     private long endIpLong;
     private long avg;
     private long deviation;
 
-    private ArrayBlockingQueue<String> queue;
+    private final ArrayBlockingQueue<String> queue;
+    private Map<String, Object> args;
 
-    public IPRangeMaker(String makerName, String startIp, String endIp, long deviation) {
-        super(makerName);
+    private Thread thread;
+    private Lock updateLock;
+
+    public IPRangeMaker(String makerName, String type, Map<String, Object> args) {
+        thread = new Thread(this);
+        thread.setName(String.format("THREAD_%s", makerName));
+        this.updateLock = new ReentrantLock(true);
         this.makerName = makerName;
-        this.type = this.getClass().getName();
+        this.args = args;
+        this.type = type;
         this.queue = new ArrayBlockingQueue<>(1000000);
-        this.startIpLong = convertIP2Long(startIp);
-        this.endIpLong = convertIP2Long(endIp);
+        init();
+    }
+
+    public void init() {
+        this.startIpLong = convertIP2Long(MakerArgs.toString(args.get("start")));
+        this.endIpLong = convertIP2Long(MakerArgs.toString(args.get("end")));
+        this.deviation = MakerArgs.toLong(args.getOrDefault("deviation", 0));
         this.avg = (endIpLong - startIpLong) / 2;
 
         if (deviation >= avg) {
             this.deviation = avg/2;
-        }
-        else {
-            this.deviation = deviation;
         }
     }
 
@@ -38,12 +53,19 @@ public class IPRangeMaker extends Thread implements Maker<String> {
         Random r = new Random();
 
         while(!Thread.currentThread().isInterrupted()) {
+            updateLock.lock();
+            int ip;
             try {
-                int ip;
                 do {
                     double val = r.nextGaussian() * deviation + avg;
                     ip = (int) Math.round(val);
                 } while (ip < 0 || (ip + startIpLong) > endIpLong);
+            }
+            finally {
+                updateLock.unlock();
+            }
+
+            try {
                 queue.put(convertLong2IP(ip + startIpLong));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -99,5 +121,23 @@ public class IPRangeMaker extends Thread implements Maker<String> {
     @Override
     public boolean isThread() {
         return true;
+    }
+
+    @Override
+    public Map<String, Object> getArgs() {
+        return this.args;
+    }
+
+    @Override
+    public void update(Map<String, Object> args) {
+        updateLock.lock();
+        try {
+            this.args = args;
+            init();
+            this.getQueue().clear();
+            // NOTHING
+        } finally {
+            updateLock.unlock();
+        }
     }
 }

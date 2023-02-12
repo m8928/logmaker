@@ -1,61 +1,111 @@
 package me.blueat.logmaker.core.sender;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.blueat.logmaker.core.model.SenderDto;
+import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderPlugin;
+import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Data
 public class SenderService {
-    private HashMap<String, Sender<?>> senderMap;
-    private HashMap<String, SenderPlugin> senderPluginMap;
+    private Table<String, String, Sender<?>> senderTable;
+    private Table<String, String, SenderPlugin> senderPluginTable;
 
     private final SpringPluginManager springPluginManager;
 
     @PostConstruct
     protected void init() {
-        senderMap = new HashMap<>();
-        senderPluginMap = new HashMap<>();
+        senderTable = HashBasedTable.create();
+        senderPluginTable = HashBasedTable.create();
+        loadPlugin();
+    }
 
-        springPluginManager.getExtensions(SenderPlugin.class)
-                .forEach(senderPlugin -> senderPluginMap.put(senderPlugin.getType(), senderPlugin));
+    public Optional<Map.Entry<String, Sender<?>>> getSender(String name) {
+        return senderTable.column(name).entrySet().stream().findFirst();
+    }
 
-        log.info("{}", springPluginManager.getExtensions(SenderPlugin.class));
+    public Optional<Map.Entry<String, SenderPlugin>> getSenderPlugin(String name) {
+        return senderPluginTable.column(name).entrySet().stream().findFirst();
     }
 
     public List<SenderDto> getSender() {
-        return senderMap.values().stream().map(v -> SenderDto.builder().name(v.getSenderName()).type(v.getType()).args(new HashMap<>()).build()).collect(Collectors.toList());
+        return senderTable.cellSet().stream().map(v ->
+                SenderDto.builder()
+                        .name(v.getValue().getSenderName())
+                        .type(v.getValue().getType())
+                        .args(v.getValue().getArgs())
+                        .ref(v.getValue().getRef())
+                        .count(v.getValue().getCount()).build())
+                .collect(Collectors.toList());
     }
 
-    public boolean removeSender(String name) {
-        Optional<Sender> optionalSender = Optional.ofNullable(senderMap.get(name));
+    public Result deleteSender(String name) {
+        Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
 
-        if (optionalSender.isPresent()) {
-            if (optionalSender.get().isThread()) {
-                ((Thread)senderMap.get(optionalSender.get())).interrupt();
+        if (existsSender.isPresent()) {
+            if (existsSender.get().getValue().isThread()) {
+                existsSender.get().getValue().getThread().interrupt();
             }
-            senderMap.remove(name);
-            return true;
+            senderTable.remove(existsSender.get().getKey(), name);
+            return Result.createResultSet(Result.Type.SUCCESS);
         }
 
-        return false;
+        return Result.createResultSet(Result.Type.ERROR);
     }
 
-    public boolean addSender(SenderDto senderDto, Sender sender) {
-        if (!senderMap.containsKey(senderDto.getName())) {
-            senderMap.put(senderDto.getName(), sender);
+    public Result createSender(SenderDto senderDto) {
+        Result result;
+        Optional<Map.Entry<String, SenderPlugin>> senderPlugin = getSenderPlugin(senderDto.getType());
+
+        if (senderPlugin.isPresent()) {
+            try {
+                Sender sender = senderPlugin.get().getValue().getSender(senderDto.getName(), senderDto.getArgs());
+
+                if (sender != null) {
+                    if (addSender(senderDto, senderPlugin.get().getKey(), sender)) {
+                        result = Result.createResultSet(Result.Type.SUCCESS);
+                    }
+                    else {
+                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is already used", senderDto.getName()));
+                    }
+                }
+                else {
+                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", senderDto.getName()));
+                }
+            }
+            catch (ArgumentsNotValidException anve) {
+                result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", senderDto.getName()));
+            }
+        }
+        else {
+            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is not support", senderDto.getType()));
+        }
+
+        return result;
+    }
+
+    public boolean addSender(SenderDto senderDto, String pluginId, Sender sender) {
+        Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(senderDto.getName());
+
+        if (existsSender.isEmpty()) {
+            senderTable.put(pluginId, senderDto.getName(), sender);
             if (sender.isThread()) {
-                ((Thread)sender).start();
+                sender.getThread().start();
             }
             return true;
         }
@@ -64,11 +114,38 @@ public class SenderService {
         }
     }
 
-    public Sender<?> getSender(String name) {
-        return senderMap.get(name);
+    public Set<String> getSenderNames() {
+        Set<String> senderNames = new HashSet<>();
+        senderTable.columnKeySet().forEach((k) -> senderNames.add(k));
+        return senderNames;
     }
 
-    public HashMap<String, SenderPlugin> getSenderPluginMap() {
-        return senderPluginMap;
+    public void loadPlugin() {
+        loadPlugin(null);
     }
+    public void loadPlugin(String pluginId) {
+        springPluginManager.getPlugins(PluginState.STARTED).stream()
+                .filter(p -> (pluginId == null) || (pluginId != null && p.getPluginId().equals(pluginId)))
+                .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class)
+                        .forEach(senderPlugin -> {
+                            log.info("{}", senderPlugin.getType());
+                            getSenderPluginTable().put(pluginWrapper.getPluginId(), senderPlugin.getType(), senderPlugin);
+                        }));
+    }
+
+    public Result updateSender(SenderDto senderDto) {
+        Result result;
+        Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(senderDto.getName());
+
+        if (existsSender.isPresent()) {
+            existsSender.get().getValue().update(senderDto.getArgs());
+            result = Result.createResultSet(Result.Type.SUCCESS);
+        }
+        else {
+            result = Result.createResultSet(Result.Type.ERROR);
+        }
+
+        return result;
+    }
+
 }

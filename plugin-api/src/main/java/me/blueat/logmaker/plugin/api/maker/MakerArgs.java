@@ -12,14 +12,7 @@ import java.util.List;
 public class MakerArgs {
     private Class type;
     private String description;
-
-    public Class getType() {
-        return type;
-    }
-
-    public String getDescription() {
-        return description;
-    }
+    private boolean required = true;
 
     @Override
     public boolean equals(Object o){
