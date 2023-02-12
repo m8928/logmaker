@@ -1,7 +1,12 @@
 <template>
-  <el-form-item :label="name.toString().toUpperCase()" :required="props.required">
+  <el-form-item
+    :label="name.toString().toUpperCase()"
+    :required="props.required"
+  >
     <el-input-number
-      v-if="props.type === 'java.lang.Number' || props.type === 'java.lang.Integer'"
+      v-if="
+        props.type === 'java.lang.Number' || props.type === 'java.lang.Integer'
+      "
       v-model="localValue"
     />
     <el-input v-if="props.type === 'java.lang.String'" v-model="localValue" />
@@ -38,10 +43,10 @@ import { Check, Close } from "@element-plus/icons-vue";
 import { computed } from "vue";
 
 interface Props {
-  modelValue: any
-  type: string
-  name: (string | number)
-  required: boolean
+  modelValue: any;
+  type: string;
+  name: string | number;
+  required: boolean;
 }
 
 const props = defineProps<Props>();

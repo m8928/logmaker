@@ -21,17 +21,32 @@
       <el-menu-item index="/plugin"
         ><el-icon><TurnOff /></el-icon>Plugin</el-menu-item
       >
+      <div class="flex-grow" />
+        <UseDark v-slot="{ isDark }">
+          <el-switch
+              :model-value="!isDark"
+              inline-prompt
+              :active-icon="Sunny"
+              :inactive-icon="Moon"
+              @click="toggleDark()"
+          />
+        </UseDark>
     </el-menu>
   </div>
 </template>
 
-<script lang="ts" setup></script>
+<script lang="ts" setup>
+import { useDark, useToggle } from '@vueuse/core'
+import {UseDark} from '@vueuse/components'
+import {
+  Sunny,
+  Moon
+} from "@element-plus/icons-vue";
 
-<style>
-.flex-grow {
-  flex-grow: 1;
-}
-</style>
+const isDark = useDark()
+const toggleDark = useToggle(isDark)
+
+</script>
 
 <style scoped>
 .menu {

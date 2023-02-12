@@ -12,7 +12,7 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  build:{
+  build: {
     outDir: "../core/src/main/resources/static",
   },
   server: {
