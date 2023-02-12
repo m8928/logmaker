@@ -42,7 +42,6 @@ public class PluginController {
         pluginService.deletePlugin(name);
     }
 
-
     @PostMapping(path="/plugin", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result uploadPlugin(@RequestPart("file") MultipartFile file) {
         return pluginService.uploadPlugin(file);

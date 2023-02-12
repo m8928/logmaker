@@ -117,7 +117,7 @@ const fetchData = async () => {
 const deleteData = async (name: string) => {
   waitRequest.value = true;
   axios
-    .delete("/api/v1/maker/" + name)
+    .delete("/api/v1/plugin/" + name)
     .then(() => {
       waitRequest.value = false;
       fetchData();

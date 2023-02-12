@@ -67,6 +67,8 @@ public class PluginService {
     }
 
     public void deletePlugin(String pluginId) {
+        makerService.getMakerPluginTable().row(pluginId).clear();
+        senderService.getSenderPluginTable().row(pluginId).clear();
         springPluginManager.stopPlugin(pluginId);
         springPluginManager.deletePlugin(pluginId);
     }
