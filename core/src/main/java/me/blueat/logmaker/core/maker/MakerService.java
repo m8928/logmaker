@@ -101,7 +101,7 @@ public class MakerService {
     public boolean addMaker(MakerDto makerDto, String pluginId, Maker maker) {
         Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(makerDto.getName());
 
-        if (existsMaker.isEmpty()) {
+        if (!existsMaker.isPresent()) {
             makerTable.put(pluginId, makerDto.getName(), maker);
             if (maker.isThread()) {
                 maker.getThread().start();

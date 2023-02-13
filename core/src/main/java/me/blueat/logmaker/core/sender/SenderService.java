@@ -102,7 +102,7 @@ public class SenderService {
     public boolean addSender(SenderDto senderDto, String pluginId, Sender sender) {
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(senderDto.getName());
 
-        if (existsSender.isEmpty()) {
+        if (!existsSender.isPresent()) {
             senderTable.put(pluginId, senderDto.getName(), sender);
             if (sender.isThread()) {
                 sender.getThread().start();

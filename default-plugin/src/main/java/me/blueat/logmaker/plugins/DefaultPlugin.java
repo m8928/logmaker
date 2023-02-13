@@ -227,7 +227,7 @@ public class DefaultPlugin extends Plugin {
             senderArgsMap.put("facility", new SenderArgs(Integer.class, "", false));
             senderArgsMap.put("severity", new SenderArgs(Integer.class, "", false));
             senderArgsMap.put("messageFormat", new SenderArgs(String.class, "", false));
-            senderArgsMap.put("hosts", new SenderArgs(ArrayList.class, "", true));
+            senderArgsMap.put("host", new SenderArgs(ArrayList.class, "", true));
             senderArgsMap.put("hostPrefix", new SenderArgs(String.class, "", false));
         }
 

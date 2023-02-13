@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Configuration
 public class PluginConfig {
@@ -20,10 +21,10 @@ public class PluginConfig {
         Path pluginRootPath;
 
         if (pluginRoot.isEmpty()) {
-            pluginRootPath = Path.of(System.getProperty("user.home"), ".logmaker-plugin");
+            pluginRootPath = Paths.get(System.getProperty("user.home"), ".logmaker-plugin");
         }
         else {
-            pluginRootPath = Path.of(pluginRoot);
+            pluginRootPath = Paths.get(pluginRoot);
         }
 
         try {

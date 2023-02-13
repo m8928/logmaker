@@ -354,4 +354,8 @@ fetchData();
   word-wrap: break-word;
   font-family: inherit;
 }
+
+.el-tag + .el-tag {
+  margin-left: 0.2rem;
+}
 </style>

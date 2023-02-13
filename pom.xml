@@ -11,8 +11,8 @@
         <javadoc.disabled>true</javadoc.disabled>
         <deploy.disabled>true</deploy.disabled>
         <source.disabled>true</source.disabled>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
     </properties>
 
     <build>

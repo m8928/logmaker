@@ -30,7 +30,7 @@ public class SyslogSender extends Sender<String> {
     private int facility;
     private int severity;
     private String messageFormat;
-    private List<String> hosts;
+    private List<String> host;
     private String hostPrefix;
     private Map<String, Object> args;
     private Lock updateLock = new ReentrantLock(true);
@@ -49,13 +49,13 @@ public class SyslogSender extends Sender<String> {
         this.facility = SenderArgs.toInt(args.getOrDefault("facility", 1));
         this.severity = SenderArgs.toInt(args.getOrDefault("severity", 6));
         this.messageFormat = SenderArgs.toString(args.getOrDefault("messageFormat", MessageFormat.RFC_3164));
-        this.hosts = SenderArgs.toList(args.get("hosts"));
+        this.host = SenderArgs.toList(args.get("host"));
         this.hostPrefix = SenderArgs.toString(args.getOrDefault("hostPrefix", ""));
     }
 
     public void initSyslogSender() {
         udpSyslogMessageSenderList = new LinkedList<>();
-        for (String deviceIp : hosts) {
+        for (String deviceIp : host) {
             Facility facility;
 
             try {
@@ -156,7 +156,6 @@ public class SyslogSender extends Sender<String> {
                 try {
                     sender.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
                 }
             });
             udpSyslogMessageSenderList.clear();

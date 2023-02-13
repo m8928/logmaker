@@ -19,6 +19,7 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class PluginService {
     public Result uploadPlugin(MultipartFile file) {
         Path pluginPath = null;
         try {
-            pluginPath = Path.of(pluginConfig.pluginManager().getPluginsRoot().toString(),file.getOriginalFilename());
+            pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(),file.getOriginalFilename());
             file.transferTo(pluginPath);
 
             String pluginId = springPluginManager.loadPlugin(pluginPath);
