@@ -93,7 +93,7 @@
     </dependencies>
 
     <build>
-        <finalName>logmaker-core</finalName>
+        <finalName>logmaker-core-${version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
