@@ -1,7 +1,9 @@
 package me.blueat.logmaker.plugin.api.sender;
 
 import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
 
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -12,8 +14,7 @@ public abstract class Sender<T> {
     private AtomicLong count = new AtomicLong(0);
 
     abstract public String getSenderName();
-    abstract public void sendData(Template vTemplate, Map<String, Object> data);
-    abstract public T generate(Template vTemplate, Map<String, Object> data);
+    abstract public void sendData(String data);
     public Map<String, Object> getArgs() {
         return new HashMap<>();
     }

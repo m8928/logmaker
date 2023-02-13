@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
@@ -24,6 +26,7 @@ import java.io.StringWriter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -34,13 +37,15 @@ public class LogThread extends Thread {
     private Instant start = null;
 
     public AtomicLong count = new AtomicLong(0);
-    private Set<String> expressions;
-    private List<String> sender;
+    private Set<String> makerName;
+    private List<String> senderName;
     private VelocityEngine ve;
     private Template vTemplate;
     private String vFormat;
     private MakerService makerService;
     private SenderService senderService;
+    private Map<String, Sender<?>> sender;
+    private Map<String, Maker<?>> maker;
 
     private Lock updateLock = new ReentrantLock(true);
 
@@ -50,24 +55,26 @@ public class LogThread extends Thread {
         this.makerService = makerService;
         this.senderService = senderService;
         this.logDto = logDto;
+        this.sender = new ConcurrentHashMap<>();
+        this.maker = new ConcurrentHashMap<>();
         super.setName(logDto.getName());
         init();
     }
 
     private void init() {
-        this.sender = logDto.getSender();
+        this.senderName = logDto.getSender();
         ST template = new ST(logDto.getFormat());
-        expressions = new HashSet<>();
+        makerName = new HashSet<>();
         TokenStream tokens = template.impl.tokens;
 
         for (int i = 0; i < tokens.range(); i++) {
             Token token = tokens.get(i);
             if (token.getType() == STLexer.ID) {
-                expressions.add(token.getText());
+                makerName.add(token.getText());
             }
         }
 
-        for (String string : expressions) {
+        for (String string : makerName) {
             template.add(string, "${" + string + "}");
         }
 
@@ -91,18 +98,25 @@ public class LogThread extends Thread {
         vTemplate.setData(sn);
         vTemplate.initDocument();
 
-        if (!makerService.getMakerNames().containsAll(expressions)) {
-            expressions.removeAll(makerService.getMakerNames());
-            throw new IllegalStateException("maker not found. " + expressions);
+        if (!makerService.getMakerNames().containsAll(makerName)) {
+            makerName.removeAll(makerService.getMakerNames());
+            throw new IllegalStateException("maker not found. " + makerName);
         }
 
-        if (!senderService.getSenderNames().containsAll(sender)) {
-            sender.removeAll(senderService.getSenderNames());
-            throw new IllegalStateException("sender not found. " + expressions);
+        if (!senderService.getSenderNames().containsAll(senderName)) {
+            senderName.removeAll(senderService.getSenderNames());
+            throw new IllegalStateException("sender not found. " + makerName);
         }
 
-        sender.forEach(s -> senderService.getSender(s).ifPresent(o -> o.getValue().increaseRef()));
-        expressions.forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().increaseRef()));
+        senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
+            o.getValue().increaseRef();
+            sender.put(s, o.getValue());
+        }));
+
+        makerName.forEach(m -> makerService.getMaker(m).ifPresent(o -> {
+            o.getValue().increaseRef();
+            maker.put(m, o.getValue());
+        }));
     }
 
     @Override
@@ -110,12 +124,11 @@ public class LogThread extends Thread {
         super.start();
     }
 
-    private Map<String, Object> templateData() {
+    private Map<String, Object> getTemplateData() {
         Map<String, Object> result = Maps.newHashMap();
 
-        for (String key : expressions) {
-            makerService.getMaker().stream().filter(m -> m.getName().equals(key)).findAny()
-                    .ifPresent(p -> makerService.getMaker(key).ifPresent(v -> result.put(key, v.getValue().getData())));
+        for (String key : makerName) {
+            result.put(key, maker.get(key).getData());
         }
 
         return result;
@@ -129,25 +142,25 @@ public class LogThread extends Thread {
             createCount.set(0);
             Instant currentStart = Instant.now();
 
-            if (sender.size() > 0) {
+            if (!senderName.isEmpty()) {
                 updateLock.lock();
+                String data;
                 try {
-                    while(createCount.get() < logDto.getEps()) {
-                        sender.forEach(senderName ->  {
-                            senderService.getSender(senderName).ifPresent(s -> {
-                                s.getValue().sendData(vTemplate, templateData());
-                                s.getValue().increaseCount();
-                            });
+                    data = generate(vTemplate, getTemplateData());
 
-                            createCount.incrementAndGet();
-                            count.incrementAndGet();
+                    while (createCount.get() < logDto.getEps()) {
+                        sender.values().forEach(sender -> {
+                            sender.sendData(data);
+                            sender.increaseCount();
                         });
+                        createCount.incrementAndGet();
+                        count.incrementAndGet();
                     }
-                }
-                finally {
+                } finally {
                     updateLock.unlock();
                 }
             }
+
             try {
                 long processingTime = 1000 - Duration.between(currentStart, Instant.now()).toMillis();
                 if (processingTime > 0) {
@@ -174,7 +187,7 @@ public class LogThread extends Thread {
     public LogDto getLogDto() {
         this.logDto.setCount(count.get());
         this.logDto.setCurrentEps(getCurrentEps());
-        this.logDto.setSample(getSample(this.vTemplate, this.templateData()));
+        this.logDto.setSample(getSample(this.vTemplate, this.getTemplateData()));
         return this.logDto;
     }
 
@@ -199,8 +212,16 @@ public class LogThread extends Thread {
         start = Instant.now();
         count.set(0);
         try {
-            expressions.forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
-            sender.forEach(s -> senderService.getSender(s).ifPresent(o -> o.getValue().decreaseRef()));
+            makerName.forEach(e -> makerService.getMaker(e).ifPresent(o -> {
+                o.getValue().decreaseRef();
+                maker.remove(e);
+            }));
+
+            senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
+                o.getValue().decreaseRef();
+                sender.remove(s);
+            }));
+
             LogDto backup = this.logDto;
             this.logDto = logDto;
 
@@ -209,7 +230,9 @@ public class LogThread extends Thread {
                 result = true;
             }
             catch (Exception e) {
-                expressions.clear();
+                makerName.clear();
+                maker.clear();
+                senderName.clear();
                 sender.clear();
                 this.logDto = backup;
                 updateLogDto(this.logDto);
@@ -220,6 +243,21 @@ public class LogThread extends Thread {
             updateLock.unlock();
         }
         return result;
+    }
+
+    public String generate(Template vTemplate, Map<String, Object> data) {
+        VelocityContext context = new VelocityContext();
+
+        data.keySet().forEach(key -> {
+            if (data.containsKey(key)) {
+                context.put(key, data.get(key));
+            }
+        });
+
+        StringWriter writer = new StringWriter();
+        vTemplate.merge(context, writer);
+
+        return writer.toString();
     }
 
     @Override

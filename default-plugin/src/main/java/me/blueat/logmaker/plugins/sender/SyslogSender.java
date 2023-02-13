@@ -8,21 +8,17 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderArgs;
-import org.apache.velocity.Template;
-import org.apache.velocity.VelocityContext;
 
-import java.io.IOException;
-import java.io.StringWriter;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
 @Data
 public class SyslogSender extends Sender<String> {
-
     private String name;
     private List<UdpSyslogMessageSender> udpSyslogMessageSenderList;
     private String ip;
@@ -36,7 +32,6 @@ public class SyslogSender extends Sender<String> {
     private Lock updateLock = new ReentrantLock(true);
 
     public SyslogSender(String name, Map<String, Object> args) {
-        //  String ip, int port, int facility, int severity, String messageFormat, List<String> hosts, String hostPrefix
         this.name = name;
         this.args = args;
         init();
@@ -101,13 +96,13 @@ public class SyslogSender extends Sender<String> {
     }
 
     @Override
-    public void sendData(Template vTemplate, Map<String, Object> data) {
+    public void sendData(String data) {
         updateLock.lock();
         try {
             udpSyslogMessageSenderList.forEach(sender -> {
                 try {
-                    sender.sendMessage(generate(vTemplate, data));
-                } catch (IOException e) {
+                    sender.sendMessage(data);
+                } catch (Exception e) {
                     //NOTHING
                 }
             });
@@ -115,22 +110,6 @@ public class SyslogSender extends Sender<String> {
         finally {
             updateLock.unlock();
         }
-    }
-
-    @Override
-    public String generate(Template vTemplate, Map<String, Object> data) {
-        VelocityContext context = new VelocityContext();
-
-        data.keySet().forEach(key -> {
-            if (data.containsKey(key)) {
-                context.put(key, data.get(key));
-            }
-        });
-
-        StringWriter writer = new StringWriter();
-        vTemplate.merge(context, writer);
-
-        return writer.toString();
     }
 
     @Override
@@ -155,7 +134,7 @@ public class SyslogSender extends Sender<String> {
             udpSyslogMessageSenderList.forEach(sender -> {
                 try {
                     sender.close();
-                } catch (IOException e) {
+                } catch (Exception e) {
                 }
             });
             udpSyslogMessageSenderList.clear();

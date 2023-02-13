@@ -94,7 +94,7 @@ public class LogService {
     public Result deleteLog(String name) {
         if (logThreadMap.containsKey(name)) {
             logThreadMap.get(name).interrupt();
-            logThreadMap.get(name).getExpressions().forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
+            logThreadMap.get(name).getMakerName().forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
             logThreadMap.remove(name);
             return Result.createResultSet(Result.Type.SUCCESS);
         }
