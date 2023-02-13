@@ -11,9 +11,9 @@ import java.util.List;
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class LogDto {
-    @NotEmpty
+    @NotEmpty(message = "Name field value is required")
     private String name;
-    @NotEmpty
+    @NotEmpty(message = "Format field value is required")
     private String format;
     @Schema(example = "10")
     private long eps;

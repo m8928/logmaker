@@ -3,7 +3,8 @@ package me.blueat.logmaker.core.maker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.MakerDto;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,22 +25,22 @@ public class MakerController {
     }
 
     @DeleteMapping("/maker/{name}")
-    public Result deleteMaker(@PathVariable("name") String name) {
+    public ResponseEntity<Result> deleteMaker(@PathVariable("name") String name) {
         return makerService.deleteMaker(name);
     }
 
     @PostMapping("/maker")
-    public Result createMaker(@RequestBody @Validated MakerDto makerDto) {
+    public ResponseEntity<Result> createMaker(@RequestBody @Validated MakerDto makerDto) {
         return makerService.createMaker(makerDto);
     }
 
     @PostMapping("/maker:import")
-    public List<Result> createMaker(@RequestBody @Validated MakerDto[] makerDto) {
+    public List<ResponseEntity<Result>> createMaker(@RequestBody @Validated MakerDto[] makerDto) {
         return Arrays.stream(makerDto).map(dto -> makerService.createMaker(dto)).collect(Collectors.toList());
     }
 
     @PutMapping("/maker/{name}")
-    public Result updateMaker(@PathVariable("name") String name, @RequestBody @Validated MakerDto makerDto) {
+    public ResponseEntity<Result> updateMaker(@PathVariable("name") String name, @RequestBody @Validated MakerDto makerDto) {
         makerDto.setName(name);
         return makerService.updateMaker(makerDto);
     }

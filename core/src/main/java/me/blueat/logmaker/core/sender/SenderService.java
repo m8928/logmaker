@@ -6,12 +6,13 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.SenderDto;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderPlugin;
 import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -54,7 +55,7 @@ public class SenderService {
                 .collect(Collectors.toList());
     }
 
-    public Result deleteSender(String name) {
+    public ResponseEntity<Result> deleteSender(String name) {
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
 
         if (existsSender.isPresent()) {
@@ -62,14 +63,14 @@ public class SenderService {
                 existsSender.get().getValue().getThread().interrupt();
             }
             senderTable.remove(existsSender.get().getKey(), name);
-            return Result.createResultSet(Result.Type.SUCCESS);
+            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
         }
 
-        return Result.createResultSet(Result.Type.ERROR);
+        return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
     }
 
-    public Result createSender(SenderDto senderDto) {
-        Result result;
+    public ResponseEntity<Result> createSender(SenderDto senderDto) {
+        ResponseEntity<Result> result;
         Optional<Map.Entry<String, SenderPlugin>> senderPlugin = getSenderPlugin(senderDto.getType());
 
         if (senderPlugin.isPresent()) {
@@ -78,22 +79,22 @@ public class SenderService {
 
                 if (sender != null) {
                     if (addSender(senderDto, senderPlugin.get().getKey(), sender)) {
-                        result = Result.createResultSet(Result.Type.SUCCESS);
+                        return Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
                     }
                     else {
-                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is already used", senderDto.getName()));
+                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the sender name already in use", senderDto.getName()));
                     }
                 }
                 else {
-                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", senderDto.getName()));
+                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is an unavailable sender type", senderDto.getType()));
                 }
             }
             catch (ArgumentsNotValidException anve) {
-                result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", senderDto.getName()));
+                result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid sender argument (%s)", senderDto.getArgs()));
             }
         }
         else {
-            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is not support", senderDto.getType()));
+            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is an unavailable sender type", senderDto.getType()));
         }
 
         return result;
@@ -133,16 +134,16 @@ public class SenderService {
                         }));
     }
 
-    public Result updateSender(SenderDto senderDto) {
-        Result result;
+    public ResponseEntity<Result> updateSender(SenderDto senderDto) {
+        ResponseEntity<Result> result;
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(senderDto.getName());
 
         if (existsSender.isPresent()) {
             existsSender.get().getValue().update(senderDto.getArgs());
-            result = Result.createResultSet(Result.Type.SUCCESS);
+            result = Result.createResultSet(Result.Type.SUCCESS, "Successfully updated sender");
         }
         else {
-            result = Result.createResultSet(Result.Type.ERROR);
+            result = Result.createResultSet(Result.Type.ERROR, "Update sender failed");
         }
 
         return result;

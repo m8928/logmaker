@@ -2,9 +2,9 @@ package me.blueat.logmaker.core.sender;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.SenderDto;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,22 +25,22 @@ public class SenderController {
     }
 
     @DeleteMapping("/sender/{name}")
-    public Result deleteSender(@PathVariable("name") String name) {
+    public ResponseEntity<Result> deleteSender(@PathVariable("name") String name) {
         return senderService.deleteSender(name);
     }
 
     @PostMapping("/sender")
-    public Result createSender(@RequestBody @Validated SenderDto senderDto) {
+    public ResponseEntity<Result> createSender(@RequestBody @Validated SenderDto senderDto) {
         return senderService.createSender(senderDto);
     }
 
     @PostMapping("/sender:import")
-    public List<Result> createMaker(@RequestBody @Validated SenderDto[] senderDto) {
+    public List<ResponseEntity<Result>> createMaker(@RequestBody @Validated SenderDto[] senderDto) {
         return Arrays.stream(senderDto).map(dto -> senderService.createSender(dto)).collect(Collectors.toList());
     }
 
     @PutMapping("/sender/{name}")
-    public Result updateSender(@PathVariable("name") String name, @RequestBody @Validated SenderDto senderDto) {
+    public ResponseEntity<Result> updateSender(@PathVariable("name") String name, @RequestBody @Validated SenderDto senderDto) {
         senderDto.setName(name);
         return senderService.updateSender(senderDto);
     }

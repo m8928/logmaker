@@ -18,7 +18,9 @@
         "
         >Add Maker</el-button
       >
-      <el-button :icon="Upload" :loading="waitRequest">Import Data</el-button>
+      <el-button v-if="false" :icon="Upload" :loading="waitRequest"
+        >Import Data</el-button
+      >
       <el-button :icon="Download" :loading="waitRequest" @click="downloadData()"
         >Export Data</el-button
       >

@@ -2,16 +2,15 @@ package me.blueat.logmaker.core.plugin;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.blueat.logmaker.core.config.PluginConfig;
 import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.PluginDto;
 import me.blueat.logmaker.core.model.SenderDto;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Path;
 import java.util.List;
 
 @RestController
@@ -20,7 +19,6 @@ import java.util.List;
 @Slf4j
 public class PluginController {
     private final PluginService pluginService;
-    private final PluginConfig pluginConfig;
 
     @GetMapping("/plugin")
     public List<PluginDto> getPlugin() {
@@ -38,12 +36,12 @@ public class PluginController {
     }
 
     @DeleteMapping("/plugin/{name}")
-    public void deletePlugin(@PathVariable("name") String name) {
-        pluginService.deletePlugin(name);
+    public ResponseEntity<Result> deletePlugin(@PathVariable("name") String name) {
+        return pluginService.deletePlugin(name);
     }
 
     @PostMapping(path="/plugin", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Result uploadPlugin(@RequestPart("file") MultipartFile file) {
+    public ResponseEntity<Result> uploadPlugin(@RequestPart("file") MultipartFile file) {
         return pluginService.uploadPlugin(file);
     }
 }

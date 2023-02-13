@@ -3,7 +3,8 @@ package me.blueat.logmaker.core.log;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.LogDto;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,23 +20,23 @@ public class LogController {
     private final LogService logService;
 
     @DeleteMapping("/log/{name}")
-    public Result deleteLog(@PathVariable("name") String name) {
+    public ResponseEntity<Result> deleteLog(@PathVariable("name") String name) {
         return logService.deleteLog(name);
     }
 
     @PutMapping("/log/{name}")
-    public Result updateLog(@PathVariable("name") String name, @RequestBody @Validated LogDto logDto) {
+    public ResponseEntity<Result> updateLog(@PathVariable("name") String name, @RequestBody @Validated LogDto logDto) {
         logDto.setName(name);
         return logService.updateLog(logDto);
     }
 
     @PostMapping("/log")
-    public Result createLog(@RequestBody @Validated LogDto logDto) {
+    public ResponseEntity<Result> createLog(@RequestBody @Validated LogDto logDto) {
         return logService.createLog(logDto);
     }
 
     @PostMapping("/log:import")
-    public List<Result> createLog(@RequestBody @Validated LogDto[] logDto) {
+    public List<ResponseEntity<Result>> createLog(@RequestBody @Validated LogDto[] logDto) {
         return Arrays.stream(logDto).map(dto -> logService.createLog(dto)).collect(Collectors.toList());
     }
 
@@ -45,8 +46,7 @@ public class LogController {
     }
 
     @PostMapping("/log:preview")
-    public LogDto previewLog(@RequestBody LogDto logDto) {
-        logDto.setSample(logService.previewLog(logDto.getFormat()));
-        return logDto;
+    public ResponseEntity<Result> previewLog(@RequestBody LogDto logDto) {
+        return logService.previewLog(logDto.getFormat());
     }
 }

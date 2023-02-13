@@ -16,7 +16,7 @@
         ><el-icon><Tickets /></el-icon>Log</el-menu-item
       >
       <el-menu-item index="/sender"
-        ><el-icon><Platform /></el-icon>Sender</el-menu-item
+        ><el-icon><Van /></el-icon>Sender</el-menu-item
       >
       <el-menu-item index="/plugin"
         ><el-icon><TurnOff /></el-icon>Plugin</el-menu-item

@@ -18,7 +18,7 @@ import java.util.Map;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class MakerDto {
-    @NotEmpty
+    @NotEmpty(message = "Name field value is required")
     @Schema(example = "sample_maker")
     String name;
     @Schema(example = "IP")

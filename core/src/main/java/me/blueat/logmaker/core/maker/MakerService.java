@@ -6,12 +6,13 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.MakerDto;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
 import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -53,7 +54,7 @@ public class MakerService {
         return makerPluginTable.column(name).entrySet().stream().findFirst();
     }
 
-    public Result deleteMaker(String name) {
+    public ResponseEntity<Result> deleteMaker(String name) {
         Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(name);
 
         if (existsMaker.isPresent()) {
@@ -61,14 +62,14 @@ public class MakerService {
                 existsMaker.get().getValue().getThread().interrupt();
             }
             makerTable.remove(existsMaker.get().getKey(), name);
-            return Result.createResultSet(Result.Type.SUCCESS);
+            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
         }
 
-        return Result.createResultSet(Result.Type.ERROR);
+        return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
     }
 
-    public Result createMaker(MakerDto makerDto) {
-        Result result;
+    public ResponseEntity<Result> createMaker(MakerDto makerDto) {
+        ResponseEntity<Result> result;
         Optional<Map.Entry<String, MakerPlugin>> makerPlugin = getMakerPlugin(makerDto.getType());
 
         if (makerPlugin.isPresent()) {
@@ -77,22 +78,22 @@ public class MakerService {
 
                 if (maker != null) {
                     if (addMaker(makerDto, makerPlugin.get().getKey(), maker)) {
-                        result = Result.createResultSet(Result.Type.SUCCESS);
+                        result = Result.createResultSet(Result.Type.SUCCESS, "Successful maker registration");
                     }
                     else {
-                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is already used", makerDto.getName()));
+                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the maker name already in use", makerDto.getName()));
                     }
                 }
                 else {
-                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", makerDto.getName()));
+                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is an unavailable maker type", makerDto.getType()));
                 }
             }
             catch (ArgumentsNotValidException anve) {
-                result = Result.createResultSet(Result.Type.ERROR, String.format("%s is invalid", makerDto.getName()));
+                result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid maker argument (%s)", makerDto.getArgs()));
             }
         }
         else {
-            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is not support", makerDto.getType()));
+            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is an unavailable maker type", makerDto.getType()));
         }
 
         return result;
@@ -132,16 +133,16 @@ public class MakerService {
         }));
     }
 
-    public Result updateMaker(MakerDto makerDto) {
-        Result result;
+    public ResponseEntity<Result> updateMaker(MakerDto makerDto) {
+        ResponseEntity<Result> result;
         Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(makerDto.getName());
 
         if (existsMaker.isPresent()) {
             existsMaker.get().getValue().update(makerDto.getArgs());
-            result = Result.createResultSet(Result.Type.SUCCESS);
+            result = Result.createResultSet(Result.Type.SUCCESS, "Successfully updated maker");
         }
         else {
-            result = Result.createResultSet(Result.Type.ERROR);
+            result = Result.createResultSet(Result.Type.ERROR, "Update maker failed");
         }
 
         return result;

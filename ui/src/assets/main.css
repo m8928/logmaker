@@ -5,7 +5,6 @@
   max-width: 1920px;
   margin: 0 auto;
   padding: 2rem;
-
   font-weight: normal;
 }
 
@@ -74,6 +73,41 @@
   flex-grow: 1;
 }
 
+.full-width {
+  width: 100%;
+}
+
 .el-table__expanded-cell {
   padding: 0px !important;
+}
+
+.helper-icon-margin {
+  margin-right: 0.2rem;
+}
+
+.helper-command-button {
+  padding: 0.2rem 0.5rem 0.2rem;
+  display: flex;
+  flex-wrap: nowrap;
+  border-right: none;
+}
+.helper-divider-margin {
+  margin-top: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.el-collapse-item__content {
+  padding-bottom: 10px;
+}
+
+.el-statistic {
+  --el-statistic-content-font-size: 28px;
+}
+
+.statistic-card {
+  height: 100%;
+  width: 200px;
+  padding: 20px;
+  border-radius: 5px;
+  background-color: var(--el-color-info-light-7);
 }

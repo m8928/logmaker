@@ -17,7 +17,7 @@ import java.util.Map;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SenderDto {
-    @NotEmpty
+    @NotEmpty(message = "Name field value is required")
     @Schema(example = "syslog")
     String name;
     @Schema(example = "Syslog")

@@ -18,7 +18,9 @@
         "
         >Add Log</el-button
       >
-      <el-button :icon="Upload" :loading="waitRequest">Import Data</el-button>
+      <el-button v-if="false" :icon="Upload" :loading="waitRequest"
+        >Import Data</el-button
+      >
       <el-button :icon="Download" :loading="waitRequest" @click="downloadData()"
         >Export Data</el-button
       >
@@ -133,7 +135,54 @@
             @input="previewLog"
             autosize
             type="textarea"
+            ref="logFormat"
+            @blur="previewLog"
           />
+        </el-form-item>
+        <el-form-item>
+          <el-collapse v-model="makerHelper" class="full-width">
+            <el-collapse-item name="1">
+              <template #title>
+                <el-icon class="helper-icon-margin"><EditPen /></el-icon> Maker
+              </template>
+              <div class="helper-command-button">
+                <div>
+                  <el-switch
+                    v-model="makerHelperToggle"
+                    inactive-text="Sample Value"
+                    active-text="Maker Name"
+                  />
+                </div>
+                <div class="flex-grow" />
+                <div>
+                  <el-button
+                    @click="fetchHelperData"
+                    :icon="Refresh"
+                    :loading="makerHelperRequest"
+                    >Reload</el-button
+                  >
+                </div>
+              </div>
+              <el-divider class="no-margin no-margin helper-divider-margin" />
+              <div>
+                <span
+                  class="helper"
+                  v-for="value in helperData"
+                  :key="value.name"
+                >
+                  <el-tooltip
+                    :content="
+                      makerHelperToggle ? value.sample.toString() : value.name
+                    "
+                  >
+                    <el-button @click="appendFormat(value.name)">
+                      {{ makerHelperToggle ? value.name : value.sample }}
+                    </el-button>
+                  </el-tooltip>
+                </span>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
         </el-form-item>
         <el-form-item label="Preview">
           <el-input
@@ -207,6 +256,7 @@ import {
   CopyDocument,
   Download,
   Upload,
+  EditPen,
 } from "@element-plus/icons-vue";
 
 interface Log {
@@ -247,14 +297,26 @@ class LogForm {
   }
 }
 
+interface Maker {
+  name: string;
+  type: string;
+  args: { [key: string]: any };
+  sample: string;
+  size: number;
+}
+
 const formData = reactive(new LogForm("", "", 0, []));
 
 const data = ref<Log[] | null>(null);
+const helperData = ref<Maker[] | null>(null);
 const supportData = ref<SupportData[] | null>(null);
 const dialogFormVisible = ref(false);
 const dialogEditMode = ref(false);
 const previewData = ref("");
 const waitRequest = ref(false);
+const makerHelper = ref("");
+const makerHelperToggle = ref(true);
+const makerHelperRequest = ref(false);
 
 const addLog = () => {
   console.log(formData);
@@ -280,11 +342,12 @@ const previewLog = () => {
   axios
     .post("/api/v1/log:preview", formData)
     .then((response) => {
-      previewData.value = response.data.sample;
+      console.log(response.data);
+      previewData.value = response.data.message;
     })
     .catch((error) => {
-      previewData.value = "ERROR!";
-      console.error(error);
+      console.error(error.response.data);
+      previewData.value = error.response.data.message;
     });
 };
 
@@ -312,6 +375,13 @@ const fetchData = async () => {
   const response = await fetch("/api/v1/log");
   data.value = (await response.json()) as Log[];
   waitRequest.value = false;
+};
+
+const fetchHelperData = async () => {
+  makerHelperRequest.value = true;
+  const response = await fetch("/api/v1/maker");
+  helperData.value = (await response.json()) as Maker[];
+  makerHelperRequest.value = false;
 };
 
 const downloadData = async () => {
@@ -368,7 +438,15 @@ const transformExpandData = (log: Log): { [key: string]: any }[] => {
   return result;
 };
 
+const logFormat = ref<HTMLDivElement | null>(null);
+
+const appendFormat = (maker: string) => {
+  formData.format = formData.format.concat("<" + maker + ">");
+  previewLog();
+};
+
 fetchData();
+fetchHelperData();
 </script>
 
 <style scoped>
@@ -380,5 +458,10 @@ fetchData();
 
 .el-tag + .el-tag {
   margin-left: 0.2rem;
+}
+
+.helper + .helper {
+  margin-left: 0.2rem;
+  line-height: 35px;
 }
 </style>

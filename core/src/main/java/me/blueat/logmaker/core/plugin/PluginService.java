@@ -10,8 +10,9 @@ import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.PluginDto;
 import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.core.sender.SenderService;
-import me.blueat.logmaker.core.util.Result;
+import me.blueat.logmaker.core.model.Result;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -37,7 +38,7 @@ public class PluginService {
     protected void init() {
     }
 
-    public Result uploadPlugin(MultipartFile file) {
+    public ResponseEntity<Result> uploadPlugin(MultipartFile file) {
         Path pluginPath = null;
         try {
             pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(),file.getOriginalFilename());
@@ -47,7 +48,8 @@ public class PluginService {
             springPluginManager.startPlugin(pluginId);
             makerService.loadPlugin(pluginId);
             senderService.loadPlugin(pluginId);
-            return Result.createResultSet(Result.Type.SUCCESS);
+
+            return Result.createResultSet(Result.Type.SUCCESS, "Plugin uploaded successfully");
         }
         catch (Exception e) {
             if (pluginPath != null) {
@@ -58,7 +60,7 @@ public class PluginService {
                  //NOTHING
                 }
             }
-            return Result.createResultSet(Result.Type.ERROR, e.getMessage());
+            return Result.createResultSet(Result.Type.ERROR, String.format("Plugin upload failed (%s)", e.getMessage()));
         }
     }
 
@@ -67,11 +69,20 @@ public class PluginService {
                 senderService.getSenderTable().row(pluginId).values().size();
     }
 
-    public void deletePlugin(String pluginId) {
-        makerService.getMakerPluginTable().row(pluginId).clear();
-        senderService.getSenderPluginTable().row(pluginId).clear();
-        springPluginManager.stopPlugin(pluginId);
-        springPluginManager.deletePlugin(pluginId);
+    public ResponseEntity<Result> deletePlugin(String pluginId) {
+        ResponseEntity<Result> result;
+        try {
+            makerService.getMakerPluginTable().row(pluginId).clear();
+            senderService.getSenderPluginTable().row(pluginId).clear();
+            springPluginManager.stopPlugin(pluginId);
+            springPluginManager.deletePlugin(pluginId);
+            result = Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted plugin");
+        }
+        catch (Exception e) {
+            result = Result.createResultSet(Result.Type.ERROR, String.format("Plugin deletion failed (%s)", e.getMessage()));
+        }
+
+        return result;
     }
 
     public List<PluginDto> getPlugin() {
