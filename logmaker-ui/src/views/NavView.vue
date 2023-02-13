@@ -22,30 +22,26 @@
         ><el-icon><TurnOff /></el-icon>Plugin</el-menu-item
       >
       <div class="flex-grow" />
-        <UseDark v-slot="{ isDark }">
-          <el-switch
-              :model-value="!isDark"
-              inline-prompt
-              :active-icon="Sunny"
-              :inactive-icon="Moon"
-              @click="toggleDark()"
-          />
-        </UseDark>
+      <UseDark v-slot="{ isDark }">
+        <el-switch
+          :model-value="!isDark"
+          inline-prompt
+          :active-icon="Sunny"
+          :inactive-icon="Moon"
+          @click="toggleDark()"
+        />
+      </UseDark>
     </el-menu>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { useDark, useToggle } from '@vueuse/core'
-import {UseDark} from '@vueuse/components'
-import {
-  Sunny,
-  Moon
-} from "@element-plus/icons-vue";
+import { useDark, useToggle } from "@vueuse/core";
+import { UseDark } from "@vueuse/components";
+import { Sunny, Moon } from "@element-plus/icons-vue";
 
-const isDark = useDark()
-const toggleDark = useToggle(isDark)
-
+const isDark = useDark();
+const toggleDark = useToggle(isDark);
 </script>
 
 <style scoped>
