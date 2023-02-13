@@ -145,7 +145,7 @@
         <el-form-item label="Sender" :required="true">
           <el-select
             v-model="formData.sender"
-            :placeholder="waitRequest ? 'Sender Loading...' : 'Select Sender'"
+            :placeholder="formData.sender.length > 0 ? '' : waitRequest ? 'Sender Loading...' : 'Select Sender'"
             multiple
             :loading="waitRequest"
           >

@@ -2,6 +2,7 @@ package me.blueat.logmaker.core.log;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.util.Result;
@@ -31,6 +32,7 @@ import org.stringtemplate.v4.compiler.STLexer;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LogService {
     private ConcurrentHashMap<String, LogThread> logThreadMap;
 
@@ -102,57 +104,63 @@ public class LogService {
     }
 
     public String previewLog(String format) {
-        VelocityEngine ve;
-        Template vTemplate;
-        String vFormat;
-        ST template = new ST(format);
-        Set<String> expressions = new HashSet<>();
-        TokenStream tokens = template.impl.tokens;
-
-        for (int i = 0; i < tokens.range(); i++) {
-            Token token = tokens.get(i);
-            if (token.getType() == STLexer.ID) {
-                expressions.add(token.getText());
-            }
-        }
-
-        for (String string : expressions) {
-            template.add(string, "${" + string + "}");
-        }
-
-        vFormat = template.render();
-
-        ve = new VelocityEngine();
-        ve.setProperty("parser.pool.size", 1);
-        ve.init();
-
-        RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
-        StringReader sr = new StringReader(vFormat);
-        SimpleNode sn = null;
         try {
-            sn = rs.parse(sr, "preview");
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
+            VelocityEngine ve;
+            Template vTemplate;
+            String vFormat;
+            ST template = new ST(format);
+            Set<String> expressions = new HashSet<>();
+            TokenStream tokens = template.impl.tokens;
 
-        vTemplate = new Template();
-        vTemplate.setRuntimeServices(rs);
-        vTemplate.setData(sn);
-        vTemplate.initDocument();
-
-        VelocityContext context = new VelocityContext();
-        Map<String, Object> templateData = getTemplateData(expressions);
-
-        templateData.keySet().forEach(key -> {
-            if (templateData.containsKey(key)) {
-                context.put(key, templateData.get(key));
+            for (int i = 0; i < tokens.range(); i++) {
+                Token token = tokens.get(i);
+                if (token.getType() == STLexer.ID) {
+                    expressions.add(token.getText());
+                }
             }
-        });
 
-        StringWriter writer = new StringWriter();
-        vTemplate.merge(context, writer);
+            for (String string : expressions) {
+                template.add(string, "${" + string + "}");
+            }
 
-        return writer.toString();
+            vFormat = template.render();
+
+            ve = new VelocityEngine();
+            ve.setProperty("parser.pool.size", 1);
+            ve.init();
+
+            RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
+            StringReader sr = new StringReader(vFormat);
+            SimpleNode sn = null;
+            try {
+                sn = rs.parse(sr, "preview");
+            } catch (ParseException e) {
+                log.error("log template parsing error. {}", format);
+            }
+
+            vTemplate = new Template();
+            vTemplate.setRuntimeServices(rs);
+            vTemplate.setData(sn);
+            vTemplate.initDocument();
+
+            VelocityContext context = new VelocityContext();
+            Map<String, Object> templateData = getTemplateData(expressions);
+
+            templateData.keySet().forEach(key -> {
+                if (templateData.containsKey(key)) {
+                    context.put(key, templateData.get(key));
+                }
+            });
+
+            StringWriter writer = new StringWriter();
+            vTemplate.merge(context, writer);
+
+            return writer.toString();
+        }
+        catch (Exception e) {
+            log.error("log template parsing error. {}", format);
+            return "ERROR!";
+        }
     }
 
     private Map<String, Object> getTemplateData(Set<String> expressions) {

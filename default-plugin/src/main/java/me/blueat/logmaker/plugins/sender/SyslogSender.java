@@ -80,7 +80,7 @@ public class SyslogSender extends Sender<String> {
                 messageFormat = MessageFormat.valueOf(this.messageFormat);
             }
             catch (IllegalArgumentException iae) {
-                messageFormat = MessageFormat.RFC_3164;
+                messageFormat = MessageFormat.RFC_5424;
             }
 
             UdpSyslogMessageSender udpSyslogMessageSender = new UdpSyslogMessageSender();
