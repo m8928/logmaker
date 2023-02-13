@@ -18,17 +18,9 @@
         "
         >Add Log</el-button
       >
-      <el-button
-          :icon="Upload"
-          :loading="waitRequest"
-      >Import Data</el-button
-      >
-      <el-button
-          :icon="Download"
-          :loading="waitRequest"
-          @click="downloadData()
-        "
-      >Export Data</el-button
+      <el-button :icon="Upload" :loading="waitRequest">Import Data</el-button>
+      <el-button :icon="Download" :loading="waitRequest" @click="downloadData()"
+        >Export Data</el-button
       >
     </div>
     <el-divider class="no-margin no-padding" />
@@ -204,7 +196,7 @@
 </template>
 
 <script lang="ts" setup>
-import {saveAs} from "file-saver";
+import { saveAs } from "file-saver";
 import { ref, reactive } from "vue";
 import axios from "axios";
 import {
@@ -214,7 +206,7 @@ import {
   Edit,
   CopyDocument,
   Download,
-  Upload
+  Upload,
 } from "@element-plus/icons-vue";
 
 interface Log {
@@ -324,7 +316,11 @@ const fetchData = async () => {
 
 const downloadData = async () => {
   const response = await fetch("/api/v1/log");
-  const file = new File([JSON.stringify(await response.json(), null, 4)], "logmaker-log.json", {type: "text/plain;charset=utf-8"});
+  const file = new File(
+    [JSON.stringify(await response.json(), null, 4)],
+    "logmaker-log.json",
+    { type: "text/plain;charset=utf-8" }
+  );
   saveAs(file);
 };
 
