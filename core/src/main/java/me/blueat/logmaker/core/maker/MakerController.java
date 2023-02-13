@@ -7,7 +7,9 @@ import me.blueat.logmaker.core.util.Result;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -29,6 +31,11 @@ public class MakerController {
     @PostMapping("/maker")
     public Result createMaker(@RequestBody @Validated MakerDto makerDto) {
         return makerService.createMaker(makerDto);
+    }
+
+    @PostMapping("/maker:import")
+    public List<Result> createMaker(@RequestBody @Validated MakerDto[] makerDto) {
+        return Arrays.stream(makerDto).map(dto -> makerService.createMaker(dto)).collect(Collectors.toList());
     }
 
     @PutMapping("/maker/{name}")

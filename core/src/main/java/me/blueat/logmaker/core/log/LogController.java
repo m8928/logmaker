@@ -30,8 +30,13 @@ public class LogController {
     }
 
     @PostMapping("/log")
-    public Result createLog(@RequestBody LogDto logDto) {
+    public Result createLog(@RequestBody @Validated LogDto logDto) {
         return logService.createLog(logDto);
+    }
+
+    @PostMapping("/log:import")
+    public List<Result> createLog(@RequestBody @Validated LogDto[] logDto) {
+        return Arrays.stream(logDto).map(dto -> logService.createLog(dto)).collect(Collectors.toList());
     }
 
     @GetMapping("/log")

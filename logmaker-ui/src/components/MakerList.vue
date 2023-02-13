@@ -18,6 +18,18 @@
         "
         >Add Maker</el-button
       >
+      <el-button
+          :icon="Upload"
+          :loading="waitRequest"
+      >Import Data</el-button
+      >
+      <el-button
+          :icon="Download"
+          :loading="waitRequest"
+          @click="downloadData()
+        "
+      >Export Data</el-button
+      >
     </div>
     <el-divider class="no-margin no-padding" />
     <div class="inner">
@@ -159,8 +171,11 @@ import {
   Delete,
   Edit,
   CopyDocument,
+  Download,
+  Upload
 } from "@element-plus/icons-vue";
 import DynamicInput from "@/components/DynamicInput.vue";
+import {saveAs} from "file-saver";
 
 interface Argument {
   type: string;
@@ -255,6 +270,12 @@ const fetchData = async () => {
   const response = await fetch("/api/v1/maker");
   data.value = (await response.json()) as Maker[];
   waitRequest.value = false;
+};
+
+const downloadData = async () => {
+  const response = await fetch("/api/v1/maker");
+  const file = new File([JSON.stringify(await response.json(), null, 4)], "logmaker-maker.json", {type: "text/plain;charset=utf-8"});
+  saveAs(file);
 };
 
 interface SupportData {

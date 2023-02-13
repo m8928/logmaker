@@ -2,12 +2,15 @@ package me.blueat.logmaker.core.sender;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.core.util.Result;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -29,6 +32,11 @@ public class SenderController {
     @PostMapping("/sender")
     public Result createSender(@RequestBody @Validated SenderDto senderDto) {
         return senderService.createSender(senderDto);
+    }
+
+    @PostMapping("/sender:import")
+    public List<Result> createMaker(@RequestBody @Validated SenderDto[] senderDto) {
+        return Arrays.stream(senderDto).map(dto -> senderService.createSender(dto)).collect(Collectors.toList());
     }
 
     @PutMapping("/sender/{name}")
