@@ -90,6 +90,7 @@ public class LogService {
         if (logThreadMap.containsKey(name)) {
             logThreadMap.get(name).interrupt();
             logThreadMap.get(name).getMakerName().forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
+            logThreadMap.get(name).getSenderName().forEach(e -> senderService.getSender(e).ifPresent(s -> s.getValue().decreaseRef()));
             logThreadMap.remove(name);
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
         }
