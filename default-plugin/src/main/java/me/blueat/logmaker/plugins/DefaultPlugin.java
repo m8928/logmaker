@@ -10,6 +10,7 @@ import me.blueat.logmaker.plugin.api.sender.SenderArgs;
 import me.blueat.logmaker.plugin.api.sender.SenderPlugin;
 import me.blueat.logmaker.plugins.maker.*;
 import me.blueat.logmaker.plugins.sender.DebugSender;
+import me.blueat.logmaker.plugins.sender.KafkaSender;
 import me.blueat.logmaker.plugins.sender.SyslogSender;
 import org.pf4j.Extension;
 import org.pf4j.Plugin;
@@ -239,6 +240,35 @@ public class DefaultPlugin extends Plugin {
         public Sender getSender(String name, Map<String, Object> args) throws ArgumentsNotValidException {
             if (this.checkArgs(senderArgsMap, args)) {
                 return new SyslogSender(name, args);
+            }
+            else {
+                return null;
+            }
+        }
+
+        @Override
+        public Map<String, SenderArgs> getSenderArgsMap() {
+            return senderArgsMap;
+        }
+    }
+
+    @Extension
+    public static class KafkaSenderFactory extends SenderPlugin {
+        static Map<String, SenderArgs> senderArgsMap = new LinkedHashMap<>();
+
+        static {
+            senderArgsMap.put("bootstrap", new SenderArgs(String.class, "", true));
+            senderArgsMap.put("topic", new SenderArgs(String.class, "", true));
+        }
+
+        public String getType() {
+            return "Kafka";
+        }
+
+        @Override
+        public Sender getSender(String name, Map<String, Object> args) throws ArgumentsNotValidException {
+            if (this.checkArgs(senderArgsMap, args)) {
+                return new KafkaSender(name, args);
             }
             else {
                 return null;
