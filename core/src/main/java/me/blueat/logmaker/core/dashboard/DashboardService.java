@@ -33,7 +33,10 @@ public class DashboardService {
                 .eps(eps)
                 .actualEps(actualEps)
                 .cpu(getProcessCpuLoad())
-                .memory(0).build();
+                .memory((Runtime.getRuntime().totalMemory()
+                        - Runtime.getRuntime().freeMemory())/1024/1024)
+                .thread(Thread.activeCount())
+                .build();
     }
 
     public double getProcessCpuLoad() {

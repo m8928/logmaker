@@ -13,5 +13,6 @@ public class DashboardDto {
     private long eps;
     private long actualEps;
     private double cpu;
-    private int memory;
+    private long memory;
+    private int thread;
 }
