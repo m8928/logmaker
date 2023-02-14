@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,4 +27,7 @@ public class LogDto {
     private long currentEps;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private long count;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 }

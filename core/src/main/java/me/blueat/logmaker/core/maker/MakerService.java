@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.Result;
+import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
@@ -36,14 +37,18 @@ public class MakerService {
     }
 
     public List<MakerDto> getMaker() {
-        return makerTable.cellSet().stream().map(v ->
+        List<MakerDto> result = makerTable.cellSet().stream().map(v ->
             MakerDto.builder()
                     .name(v.getColumnKey())
                     .type(v.getValue().getType())
                     .args(v.getValue().getArgs())
                     .sample(v.getValue().getData())
                     .ref(v.getValue().getRef())
-                    .size(v.getValue().getSize()).build()).collect(Collectors.toList());
+                    .size(v.getValue().getSize())
+                    .regTime(v.getValue().getRegTime()).build())
+                .collect(Collectors.toList());
+        result.sort(Comparator.comparing(MakerDto::getRegTime).reversed());
+        return result;
     }
 
     public Optional<Map.Entry<String, Maker<?>>> getMaker(String name) {

@@ -5,6 +5,7 @@ import com.google.common.collect.Table;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
@@ -45,14 +46,18 @@ public class SenderService {
     }
 
     public List<SenderDto> getSender() {
-        return senderTable.cellSet().stream().map(v ->
-                SenderDto.builder()
-                        .name(v.getValue().getSenderName())
-                        .type(v.getValue().getType())
-                        .args(v.getValue().getArgs())
-                        .ref(v.getValue().getRef())
-                        .count(v.getValue().getCount()).build())
+        List<SenderDto> result = senderTable.cellSet().stream().map(v ->
+                        SenderDto.builder()
+                                .name(v.getValue().getSenderName())
+                                .type(v.getValue().getType())
+                                .args(v.getValue().getArgs())
+                                .ref(v.getValue().getRef())
+                                .count(v.getValue().getCount())
+                                .regTime(v.getValue().getRegTime())
+                                .build())
                 .collect(Collectors.toList());
+        result.sort(Comparator.comparing(SenderDto::getRegTime).reversed());
+        return result;
     }
 
     public ResponseEntity<Result> deleteSender(String name) {

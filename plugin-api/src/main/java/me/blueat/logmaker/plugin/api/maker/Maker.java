@@ -1,11 +1,15 @@
 package me.blueat.logmaker.plugin.api.maker;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class Maker<T> {
     private AtomicInteger ref = new AtomicInteger(0);
+    private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
+
     abstract public T getData();
     abstract public String getMakerName();
     abstract public String getType();
@@ -23,4 +27,7 @@ public abstract class Maker<T> {
     }
     public void decreaseRef() { ref.decrementAndGet(); }
     abstract public void update(Map<String, Object> args);
+    public long getRegTime() {
+        return this.regTime;
+    }
 }

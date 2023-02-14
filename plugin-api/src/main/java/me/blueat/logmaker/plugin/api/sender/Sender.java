@@ -4,6 +4,8 @@ import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 
 import java.io.StringWriter;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -12,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class Sender<T> {
     private AtomicInteger ref = new AtomicInteger(0);
     private AtomicLong count = new AtomicLong(0);
+    private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 
     abstract public String getSenderName();
     abstract public void sendData(String data);
@@ -38,4 +41,7 @@ public abstract class Sender<T> {
     public void decreaseCount() { count.decrementAndGet(); }
 
     abstract public void update(Map<String, Object> args);
+    public long getRegTime() {
+        return this.regTime;
+    }
 }

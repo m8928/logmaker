@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import org.checkerframework.common.value.qual.MinLen;
 
 import javax.validation.constraints.NotEmpty;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,4 +34,7 @@ public class MakerDto {
     Long size;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     Integer ref;
+    @Builder.Default
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 }

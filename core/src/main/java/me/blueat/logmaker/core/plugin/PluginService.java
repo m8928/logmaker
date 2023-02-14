@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -96,7 +97,6 @@ public class PluginService {
                     .ref(getRefPlugin(pluginWrapper.getPluginId()))
                     .build());
         });
-
         return result;
     }
 

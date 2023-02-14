@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.LogDto;
+import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.model.Result;
 import org.antlr.runtime.Token;
@@ -23,6 +24,7 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import me.blueat.logmaker.core.maker.MakerService;
 import org.stringtemplate.v4.ST;
@@ -75,8 +77,13 @@ public class LogService {
         }
     }
 
-    public LogThread[] getLog() {
-        return logThreadMap.values().toArray(new LogThread[]{});
+    public List<LogDto> getLog() {
+        List<LogDto> result = logThreadMap.values().stream()
+                .map(LogThread::getLogDto)
+                .collect(Collectors.toList());
+
+        result.sort(Comparator.comparing(LogDto::getRegTime).reversed());
+        return result;
     }
 
     public LogThread getLog(String name) {

@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.validation.constraints.NotEmpty;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,4 +33,8 @@ public class SenderDto {
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     Long count;
+
+    @Builder.Default
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 }

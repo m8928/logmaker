@@ -22,12 +22,12 @@ public class DashboardService {
     private final PluginService pluginService;
 
     public DashboardDto getDashboard() {
-        long eps = Arrays.stream(logService.getLog()).map(l -> l.getLogDto().getEps()).reduce(0l, Long::sum);
-        long actualEps = Arrays.stream(logService.getLog()).map(l -> l.getLogDto().getCurrentEps()).reduce(0l, Long::sum);
+        long eps = logService.getLog().stream().map(l -> l.getEps()).reduce(0l, Long::sum);
+        long actualEps = logService.getLog().stream().map(l -> l.getCurrentEps()).reduce(0l, Long::sum);
 
         return DashboardDto.builder()
                 .maker(makerService.getMaker().size())
-                .log(logService.getLog().length)
+                .log(logService.getLog().size())
                 .sender(senderService.getSender().size())
                 .plugin(pluginService.getPlugin().size())
                 .eps(eps)

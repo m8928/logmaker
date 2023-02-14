@@ -42,7 +42,7 @@ public class LogController {
 
     @GetMapping("/log")
     public List<LogDto> getLog() {
-        return Arrays.stream(logService.getLog()).map(LogThread::getLogDto).collect(Collectors.toList());
+        return logService.getLog();
     }
 
     @PostMapping("/log:preview")
