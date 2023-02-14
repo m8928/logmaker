@@ -144,11 +144,10 @@ public class LogThread extends Thread {
 
             if (!senderName.isEmpty()) {
                 updateLock.lock();
-                String data;
                 try {
-                    data = generate(vTemplate, getTemplateData());
-
                     while (createCount.get() < logDto.getEps()) {
+                        String data = generate(vTemplate, getTemplateData());
+
                         sender.values().forEach(sender -> {
                             sender.sendData(data);
                             sender.increaseCount();
