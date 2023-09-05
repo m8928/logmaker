@@ -259,6 +259,8 @@ public class DefaultPlugin extends Plugin {
         static {
             senderArgsMap.put("bootstrap", new SenderArgs(String.class, "", true));
             senderArgsMap.put("topic", new SenderArgs(String.class, "", true));
+            senderArgsMap.put("index", new SenderArgs(String.class, "", true));
+            senderArgsMap.put("indexPattern", new SenderArgs(String.class, "", true));
         }
 
         public String getType() {

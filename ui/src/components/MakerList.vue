@@ -18,7 +18,10 @@
         "
         >Add Maker</el-button
       >
-      <el-button v-if="false" :icon="Upload" :loading="waitRequest"
+      <el-button
+        :icon="Upload"
+        :loading="waitRequest"
+        @click="dialogImportVisible = true"
         >Import Data</el-button
       >
       <el-button :icon="Download" :loading="waitRequest" @click="downloadData()"
@@ -153,6 +156,40 @@
         </span>
       </template>
     </el-dialog>
+    <el-dialog
+        v-model="dialogImportVisible"
+        title="Import Maker"
+        :close-on-click-modal="false"
+        width="350px"
+        :show-close="!waitRequest"
+        :close-on-press-escape="!waitRequest"
+    >
+      <div>
+        <el-upload
+            drag
+            action="/api/v1/maker:import-file"
+            :show-file-list="false"
+            :on-success="importMaker"
+            :on-progress="importMakerProgress"
+            :disabled="waitRequest"
+            v-loading="waitRequest"
+        >
+          <div>
+            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <div class="el-upload__text">
+              Drop file here or <em>click to upload</em>
+            </div>
+          </div>
+        </el-upload>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button :loading="waitRequest" @click="dialogImportVisible = false"
+          >Cancel</el-button
+          >
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -219,6 +256,7 @@ const data = ref<Maker[]>([]);
 const supportData = ref<SupportData[]>([]);
 const dialogFormVisible = ref(false);
 const dialogEditMode = ref(false);
+const dialogImportVisible = ref(false);
 const waitRequest = ref(false);
 
 const addMaker = () => {
@@ -315,6 +353,21 @@ const filterSupportArgsData = (
 const updateModelValue = (name: string, value: any) => {
   formData.args[name] = value;
 };
+
+const importMakerProgress = () => {
+  waitRequest.value = true;
+};
+
+const importMaker = (response: { [key: string]: any }[]) => {
+  if (response.length === 1 && response[0].type === "ERROR") {
+    waitRequest.value = false;
+  } else {
+    waitRequest.value = false;
+    dialogImportVisible.value = false;
+    fetchData();
+  }
+};
+
 
 fetchData();
 </script>

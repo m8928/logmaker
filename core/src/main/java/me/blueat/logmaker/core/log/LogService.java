@@ -1,6 +1,8 @@
 package me.blueat.logmaker.core.log;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.LogDto;
@@ -20,6 +22,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import javax.xml.bind.DataBindingException;
+import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.*;
@@ -27,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import me.blueat.logmaker.core.maker.MakerService;
+import org.springframework.web.multipart.MultipartFile;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.compiler.STLexer;
 
@@ -34,6 +39,7 @@ import org.stringtemplate.v4.compiler.STLexer;
 @RequiredArgsConstructor
 @Slf4j
 public class LogService {
+    private final ObjectMapper mapper;
     private ConcurrentHashMap<String, LogThread> logThreadMap;
 
     private final MakerService makerService;
@@ -64,6 +70,16 @@ public class LogService {
         }
 
         return result;
+    }
+
+    public List<ResponseEntity<Result>> importLog(MultipartFile json) {
+        try {
+            LogDto[] logs = mapper.readValue(json.getBytes(), LogDto[].class);
+            return Arrays.stream(logs).map(dto -> createLog(dto)).collect(Collectors.toList());
+        }
+        catch (IOException | DataBindingException e) {
+            return Lists.newArrayList(Result.createResultSet(Result.Type.ERROR, "Log file import failed"));
+        }
     }
 
     public ResponseEntity<Result> updateLog(LogDto logDto) {

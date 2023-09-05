@@ -14,7 +14,6 @@
         :loading="waitRequest"
         @click="
           dialogFormVisible = true;
-          dialogEditMode = false;
         "
         >Add Plugin</el-button
       >
@@ -55,7 +54,7 @@
     </div>
     <el-dialog
       v-model="dialogFormVisible"
-      :title="dialogEditMode ? 'Edit Plugin' : 'Add Plugin'"
+      title="Add Plugin"
       :close-on-click-modal="false"
       width="350px"
       :show-close="!waitRequest"
@@ -104,7 +103,6 @@ interface Plugin {
 
 const data = ref<Plugin[] | null>(null);
 const dialogFormVisible = ref(false);
-const dialogEditMode = ref(false);
 const waitRequest = ref(false);
 
 const fetchData = async () => {

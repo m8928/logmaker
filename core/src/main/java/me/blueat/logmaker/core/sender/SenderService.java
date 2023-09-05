@@ -1,6 +1,8 @@
 package me.blueat.logmaker.core.sender;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +17,11 @@ import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.PostConstruct;
+import javax.xml.bind.DataBindingException;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,6 +33,7 @@ public class SenderService {
     private Table<String, String, Sender<?>> senderTable;
     private Table<String, String, SenderPlugin> senderPluginTable;
 
+    private final ObjectMapper mapper;
     private final SpringPluginManager springPluginManager;
 
     @PostConstruct
@@ -42,7 +48,12 @@ public class SenderService {
     }
 
     public Optional<Map.Entry<String, SenderPlugin>> getSenderPlugin(String name) {
-        return senderPluginTable.column(name).entrySet().stream().findFirst();
+        if (senderPluginTable.containsColumn(name)) {
+            return senderPluginTable.column(name).entrySet().stream().findFirst();
+        }
+        else {
+            return Optional.empty();
+        }
     }
 
     public List<SenderDto> getSender() {
@@ -72,6 +83,16 @@ public class SenderService {
         }
 
         return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
+    }
+
+    public List<ResponseEntity<Result>> importSender(MultipartFile json) {
+        try {
+            SenderDto[] logs = mapper.readValue(json.getBytes(), SenderDto[].class);
+            return Arrays.stream(logs).map(dto -> createSender(dto)).collect(Collectors.toList());
+        }
+        catch (IOException | DataBindingException e) {
+            return Lists.newArrayList(Result.createResultSet(Result.Type.ERROR, "Sender file import failed"));
+        }
     }
 
     public ResponseEntity<Result> createSender(SenderDto senderDto) {

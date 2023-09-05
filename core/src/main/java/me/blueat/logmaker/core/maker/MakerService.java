@@ -1,6 +1,9 @@
 package me.blueat.logmaker.core.maker;
 
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +18,11 @@ import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.PostConstruct;
+import javax.xml.bind.DataBindingException;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,6 +32,7 @@ import java.util.stream.Collectors;
 @Data
 public class MakerService {
     private final SpringPluginManager springPluginManager;
+    private final ObjectMapper mapper;
     private Table<String, String, Maker<?>> makerTable;
     private Table<String, String, MakerPlugin> makerPluginTable;
 
@@ -56,7 +63,12 @@ public class MakerService {
     }
 
     public Optional<Map.Entry<String, MakerPlugin>> getMakerPlugin(String name) {
-        return makerPluginTable.column(name).entrySet().stream().findFirst();
+        if (makerPluginTable.containsColumn(name)) {
+            return makerPluginTable.column(name).entrySet().stream().findFirst();
+        }
+        else {
+            return Optional.empty();
+        }
     }
 
     public ResponseEntity<Result> deleteMaker(String name) {
@@ -71,6 +83,16 @@ public class MakerService {
         }
 
         return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
+    }
+
+    public List<ResponseEntity<Result>> importMaker(MultipartFile json) {
+        try {
+            MakerDto[] makers = mapper.readValue(json.getBytes(), MakerDto[].class);
+            return Arrays.stream(makers).map(dto -> createMaker(dto)).collect(Collectors.toList());
+        }
+        catch (IOException | DataBindingException e) {
+            return Lists.newArrayList(Result.createResultSet(Result.Type.ERROR, "Maker file import failed"));
+        }
     }
 
     public ResponseEntity<Result> createMaker(MakerDto makerDto) {

@@ -4,9 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.Result;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +39,11 @@ public class MakerController {
     @PostMapping("/maker:import")
     public List<ResponseEntity<Result>> createMaker(@RequestBody @Validated MakerDto[] makerDto) {
         return Arrays.stream(makerDto).map(dto -> makerService.createMaker(dto)).collect(Collectors.toList());
+    }
+
+    @PostMapping(value = "/maker:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public List<ResponseEntity<Result>> uploadMakerFile(@RequestBody MultipartFile file) {
+        return makerService.importMaker(file);
     }
 
     @PutMapping("/maker/{name}")

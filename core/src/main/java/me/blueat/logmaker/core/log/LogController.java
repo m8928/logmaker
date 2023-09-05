@@ -4,9 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.model.Result;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +40,11 @@ public class LogController {
     @PostMapping("/log:import")
     public List<ResponseEntity<Result>> createLog(@RequestBody @Validated LogDto[] logDto) {
         return Arrays.stream(logDto).map(dto -> logService.createLog(dto)).collect(Collectors.toList());
+    }
+
+    @PostMapping(value = "/log:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public List<ResponseEntity<Result>> uploadLogFile(@RequestBody MultipartFile file) {
+        return logService.importLog(file);
     }
 
     @GetMapping("/log")

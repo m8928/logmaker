@@ -27,6 +27,7 @@ axios.interceptors.response.use(
         title: "Success",
         message: response.data.message,
         type: "success",
+        position: "top-left",
       });
     }
     return response;
@@ -37,6 +38,7 @@ axios.interceptors.response.use(
         title: "Error",
         message: error.response.data.message,
         type: "error",
+        position: "top-left",
       });
     }
     return Promise.reject(error);

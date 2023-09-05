@@ -18,8 +18,11 @@
         "
         >Add Log</el-button
       >
-      <el-button v-if="false" :icon="Upload" :loading="waitRequest"
-        >Import Data</el-button
+      <el-button
+          :icon="Upload"
+          :loading="waitRequest"
+          @click="dialogImportVisible = true"
+      >Import Data</el-button
       >
       <el-button :icon="Download" :loading="waitRequest" @click="downloadData()"
         >Export Data</el-button
@@ -241,6 +244,40 @@
         </span>
       </template>
     </el-dialog>
+    <el-dialog
+        v-model="dialogImportVisible"
+        title="Import Log"
+        :close-on-click-modal="false"
+        width="350px"
+        :show-close="!waitRequest"
+        :close-on-press-escape="!waitRequest"
+    >
+      <div>
+        <el-upload
+            drag
+            action="/api/v1/log:import-file"
+            :show-file-list="false"
+            :on-success="importLog"
+            :on-progress="importLogProgress"
+            :disabled="waitRequest"
+            v-loading="waitRequest"
+        >
+          <div>
+            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <div class="el-upload__text">
+              Drop file here or <em>click to upload</em>
+            </div>
+          </div>
+        </el-upload>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button :loading="waitRequest" @click="dialogImportVisible = false"
+          >Cancel</el-button
+          >
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -312,6 +349,7 @@ const helperData = ref<Maker[] | null>(null);
 const supportData = ref<SupportData[] | null>(null);
 const dialogFormVisible = ref(false);
 const dialogEditMode = ref(false);
+const dialogImportVisible = ref(false);
 const previewData = ref("");
 const waitRequest = ref(false);
 const makerHelper = ref("");
@@ -436,6 +474,20 @@ const transformExpandData = (log: Log): { [key: string]: any }[] => {
     },
   ];
   return result;
+};
+
+const importLogProgress = () => {
+  waitRequest.value = true;
+};
+
+const importLog = (response: { [key: string]: any }[]) => {
+  if (response.length === 1 && response[0].type === "ERROR") {
+    waitRequest.value = false;
+  } else {
+    waitRequest.value = false;
+    dialogImportVisible.value = false;
+    fetchData();
+  }
 };
 
 const logFormat = ref<HTMLDivElement | null>(null);
