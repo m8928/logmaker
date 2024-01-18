@@ -6,7 +6,7 @@ import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -19,12 +19,13 @@ public class RegexMaker extends Maker<String> implements Runnable {
     private Map<String, Object> args;
     private Thread thread;
     private Lock updateLock;
+    private RgxGen rgxGen;
 
     public RegexMaker(String makerName, String type, Map<String, Object> args) {
         thread = new Thread(this);
         thread.setName(String.format("THREAD_%s", makerName));
         this.updateLock = new ReentrantLock(true);
-        this.queue = new ArrayBlockingQueue<>(1000000);
+        this.queue = new ArrayBlockingQueue<>(getQueueSize());
         this.type = type;
         this.makerName = makerName;
         this.args = args;
@@ -33,6 +34,7 @@ public class RegexMaker extends Maker<String> implements Runnable {
 
     public void init() {
         this.regex = MakerArgs.toString(args.get("regex"));
+        this.rgxGen = new RgxGen(regex);
     }
 
     @Override
@@ -57,9 +59,16 @@ public class RegexMaker extends Maker<String> implements Runnable {
 
     private String getRegexRandomString(String regex) {
         updateLock.lock();
+        String s;
         try {
-            RgxGen rgxGen = new RgxGen(regex);
-            String s = rgxGen.generate();
+            CompletableFuture<String> withTimeout = CompletableFuture.supplyAsync(() -> rgxGen.generate());
+            try {
+                s = withTimeout.get(1, TimeUnit.SECONDS);
+            }
+            catch (ExecutionException | InterruptedException | TimeoutException e) {
+                s = "";
+            }
+
             return s;
         }
         finally {
@@ -79,7 +88,7 @@ public class RegexMaker extends Maker<String> implements Runnable {
 
     @Override
     public long getSize() {
-        return 1000000 - queue.remainingCapacity();
+        return getQueueSize() - queue.remainingCapacity();
     }
 
     @Override

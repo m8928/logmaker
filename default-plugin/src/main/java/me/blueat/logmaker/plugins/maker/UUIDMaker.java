@@ -21,7 +21,7 @@ public class UUIDMaker extends Maker<String> implements Runnable {
         thread = new Thread(this);
         thread.setName(String.format("THREAD_%s", makerName));
         this.updateLock = new ReentrantLock(true);
-        this.queue = new ArrayBlockingQueue<>(1000000);
+        this.queue = new ArrayBlockingQueue<>(getQueueSize());
         this.type = type;
         this.makerName = makerName;
     }
@@ -58,7 +58,7 @@ public class UUIDMaker extends Maker<String> implements Runnable {
 
     @Override
     public long getSize() {
-        return 1000000 - queue.remainingCapacity();
+        return getQueueSize() - queue.remainingCapacity();
     }
 
     @Override

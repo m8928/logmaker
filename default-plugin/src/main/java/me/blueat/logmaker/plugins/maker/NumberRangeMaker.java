@@ -30,7 +30,7 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
         this.makerName = makerName;
         this.type = type;
         this.args = args;
-        this.queue = new ArrayBlockingQueue<>(1000000);
+        this.queue = new ArrayBlockingQueue<>(getQueueSize());
         init();
     }
 
@@ -98,7 +98,7 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
 
     @Override
     public long getSize() {
-        return 1000000 - queue.remainingCapacity();
+        return getQueueSize() - queue.remainingCapacity();
     }
 
     @Override

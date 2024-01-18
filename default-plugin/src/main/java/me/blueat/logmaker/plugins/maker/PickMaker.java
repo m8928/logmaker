@@ -27,7 +27,7 @@ public class PickMaker extends Maker<String> implements Runnable {
         this.makerName = makerName;
         this.type = type;
         this.args = args;
-        queue = new ArrayBlockingQueue<>(1000000);
+        queue = new ArrayBlockingQueue<>(getQueueSize());
         init();
     }
 
@@ -76,7 +76,7 @@ public class PickMaker extends Maker<String> implements Runnable {
 
     @Override
     public long getSize() {
-        return 1000000 - queue.remainingCapacity();
+        return getQueueSize() - queue.remainingCapacity();
     }
 
     @Override

@@ -33,7 +33,7 @@ public class IPRangeMaker extends Maker<String> implements Runnable {
         this.makerName = makerName;
         this.args = args;
         this.type = type;
-        this.queue = new ArrayBlockingQueue<>(1000000);
+        this.queue = new ArrayBlockingQueue<>(getQueueSize());
         init();
     }
 
@@ -115,7 +115,7 @@ public class IPRangeMaker extends Maker<String> implements Runnable {
 
     @Override
     public long getSize() {
-        return 1000000 - queue.remainingCapacity();
+        return getQueueSize() - queue.remainingCapacity();
     }
 
     @Override

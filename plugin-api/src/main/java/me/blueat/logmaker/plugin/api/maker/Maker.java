@@ -1,5 +1,7 @@
 package me.blueat.logmaker.plugin.api.maker;
 
+import lombok.Getter;
+
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -9,6 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public abstract class Maker<T> {
     private AtomicInteger ref = new AtomicInteger(0);
     private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
+    @Getter
+    private int queueSize = Integer.parseInt(System.getProperty("maker.queue.size", "100000"));
 
     abstract public T getData();
     abstract public String getMakerName();
