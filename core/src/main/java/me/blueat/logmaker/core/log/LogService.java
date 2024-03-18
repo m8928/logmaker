@@ -61,7 +61,7 @@ public class LogService {
                 logThreadMap.put(logDto.getName(), logThread);
                 result = Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
             }
-            catch (IllegalStateException | JsonProcessingException e) {
+            catch (IllegalStateException e) {
                 result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid log argument (%s)",logDto.getFormat()));
             }
         }
@@ -75,7 +75,7 @@ public class LogService {
     public List<ResponseEntity<Result>> importLog(MultipartFile json) {
         try {
             LogDto[] logs = mapper.readValue(json.getBytes(), LogDto[].class);
-            return Arrays.stream(logs).map(dto -> createLog(dto)).collect(Collectors.toList());
+            return Arrays.stream(logs).map(this::createLog).collect(Collectors.toList());
         }
         catch (IOException | DataBindingException e) {
             return Lists.newArrayList(Result.createResultSet(Result.Type.ERROR, "Log file import failed"));
@@ -190,7 +190,8 @@ public class LogService {
 
         for (String key : expressions) {
             makerService.getMaker().stream().filter(m -> m.getName().equals(key)).findAny()
-                    .ifPresent(p -> makerService.getMaker(key).ifPresent(v -> result.put(key, v.getValue().getData())));
+                    .flatMap(p -> makerService.getMaker(key))
+                    .ifPresent(v -> result.put(key, v.getValue().getData()));
         }
 
         return result;

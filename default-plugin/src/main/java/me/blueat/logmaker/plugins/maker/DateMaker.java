@@ -1,6 +1,7 @@
 package me.blueat.logmaker.plugins.maker;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
@@ -9,6 +10,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class DateMaker extends Maker<String> {
     private final String makerName;

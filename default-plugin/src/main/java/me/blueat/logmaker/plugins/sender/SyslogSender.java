@@ -5,6 +5,7 @@ import com.cloudbees.syslog.MessageFormat;
 import com.cloudbees.syslog.Severity;
 import com.cloudbees.syslog.sender.UdpSyslogMessageSender;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderArgs;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@EqualsAndHashCode(callSuper = true)
 @Slf4j
 @Data
 public class SyslogSender extends Sender<String> {

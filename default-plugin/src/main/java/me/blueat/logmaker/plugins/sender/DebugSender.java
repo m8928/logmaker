@@ -1,10 +1,12 @@
 package me.blueat.logmaker.plugins.sender;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import java.util.Map;
 
+@EqualsAndHashCode(callSuper = true)
 @Slf4j
 @Data
 public class DebugSender extends Sender<String> {

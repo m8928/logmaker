@@ -1,8 +1,8 @@
 package me.blueat.logmaker.core.log;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Maps;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
@@ -31,12 +31,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@EqualsAndHashCode(callSuper = true)
 @Slf4j
 @Data
 public class LogThread extends Thread {
     private Instant start = null;
 
-    public AtomicLong count = new AtomicLong(0);
+    private AtomicLong count = new AtomicLong(0);
     private Set<String> makerName;
     private List<String> senderName;
     private VelocityEngine ve;
@@ -44,19 +45,19 @@ public class LogThread extends Thread {
     private String vFormat;
     private MakerService makerService;
     private SenderService senderService;
-    private Map<String, Sender<?>> sender;
-    private Map<String, Maker<?>> maker;
+    private Map<String, Sender<?>> senders;
+    private Map<String, Maker<?>> makers;
 
     private Lock updateLock = new ReentrantLock(true);
 
     private LogDto logDto;
 
-    public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) throws JsonProcessingException {
+    public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) {
         this.makerService = makerService;
         this.senderService = senderService;
         this.logDto = logDto;
-        this.sender = new ConcurrentHashMap<>();
-        this.maker = new ConcurrentHashMap<>();
+        this.senders = new ConcurrentHashMap<>();
+        this.makers = new ConcurrentHashMap<>();
         super.setName(logDto.getName());
         init();
     }
@@ -110,17 +111,17 @@ public class LogThread extends Thread {
 
         senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
             o.getValue().increaseRef();
-            sender.put(s, o.getValue());
+            senders.put(s, o.getValue());
         }));
 
         makerName.forEach(m -> makerService.getMaker(m).ifPresent(o -> {
             o.getValue().increaseRef();
-            maker.put(m, o.getValue());
+            makers.put(m, o.getValue());
         }));
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
         super.start();
     }
 
@@ -128,7 +129,7 @@ public class LogThread extends Thread {
         Map<String, Object> result = Maps.newHashMap();
 
         for (String key : makerName) {
-            result.put(key, maker.get(key).getData());
+            result.put(key, makers.get(key).getData());
         }
 
         return result;
@@ -148,7 +149,7 @@ public class LogThread extends Thread {
                     while (createCount.get() < logDto.getEps()) {
                         String data = generate(vTemplate, getTemplateData());
 
-                        sender.values().forEach(sender -> {
+                        senders.values().forEach(sender -> {
                             sender.sendData(data);
                             sender.increaseCount();
                         });
@@ -213,12 +214,12 @@ public class LogThread extends Thread {
         try {
             makerName.forEach(e -> makerService.getMaker(e).ifPresent(o -> {
                 o.getValue().decreaseRef();
-                maker.remove(e);
+                makers.remove(e);
             }));
 
             senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
                 o.getValue().decreaseRef();
-                sender.remove(s);
+                senders.remove(s);
             }));
 
             LogDto backup = this.logDto;
@@ -230,9 +231,9 @@ public class LogThread extends Thread {
             }
             catch (Exception e) {
                 makerName.clear();
-                maker.clear();
+                makers.clear();
                 senderName.clear();
-                sender.clear();
+                senders.clear();
                 this.logDto = backup;
                 updateLogDto(this.logDto);
                 result = false;

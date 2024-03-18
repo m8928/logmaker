@@ -39,7 +39,7 @@ public class LogController {
 
     @PostMapping("/log:import")
     public List<ResponseEntity<Result>> createLog(@RequestBody @Validated LogDto[] logDto) {
-        return Arrays.stream(logDto).map(dto -> logService.createLog(dto)).collect(Collectors.toList());
+        return Arrays.stream(logDto).map(logService::createLog).collect(Collectors.toList());
     }
 
     @PostMapping(value = "/log:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -9,7 +9,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <artifactId>plugin-api</artifactId>
-    <version>${parent.version}</version>
+    <version>${project.parent.version}</version>
     <packaging>jar</packaging>
     <name>logmaker-api</name>
 

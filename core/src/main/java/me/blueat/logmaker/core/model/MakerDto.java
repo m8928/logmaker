@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.checkerframework.common.value.qual.MinLen;
 
 import javax.validation.constraints.NotEmpty;
 import java.time.LocalDateTime;
@@ -26,6 +25,7 @@ public class MakerDto {
     @Schema(example = "IP")
     String type;
     @Schema(example = "{}")
+    @Builder.Default
     Map<String, Object> args = new HashMap<>();
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)

@@ -22,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -34,10 +33,6 @@ public class PluginService {
     private final MakerService makerService;
     private final SenderService senderService;
     private final SpringPluginManager springPluginManager;
-
-    @PostConstruct
-    protected void init() {
-    }
 
     public ResponseEntity<Result> uploadPlugin(MultipartFile file) {
         Path pluginPath = null;
@@ -88,22 +83,20 @@ public class PluginService {
 
     public List<PluginDto> getPlugin() {
         List<PluginDto> result = new ArrayList<>();
-        springPluginManager.getPlugins().forEach(pluginWrapper -> {
-            result.add(PluginDto.builder()
-                    .name(pluginWrapper.getPluginId())
-                    .version(pluginWrapper.getDescriptor().getVersion())
-                    .provider(pluginWrapper.getDescriptor().getProvider())
-                    .filename(pluginWrapper.getPluginPath().getFileName().toString())
-                    .ref(getRefPlugin(pluginWrapper.getPluginId()))
-                    .build());
-        });
+        springPluginManager.getPlugins().forEach(pluginWrapper -> result.add(PluginDto.builder()
+                .name(pluginWrapper.getPluginId())
+                .version(pluginWrapper.getDescriptor().getVersion())
+                .provider(pluginWrapper.getDescriptor().getProvider())
+                .filename(pluginWrapper.getPluginPath().getFileName().toString())
+                .ref(getRefPlugin(pluginWrapper.getPluginId()))
+                .build()));
         return result;
     }
 
     public List<SenderDto> getSender() {
         List<SenderDto> result = new ArrayList<>();
 
-        senderService.getSenderPluginTable().values().forEach((v) -> {
+        senderService.getSenderPluginTable().values().forEach(v -> {
             SenderDto.SenderDtoBuilder makerDtoBuilder = SenderDto.builder().type(v.getType());
             makerDtoBuilder.args(Maps.newLinkedHashMap(v.getSenderArgsMap()));
             result.add(makerDtoBuilder.build());
@@ -114,8 +107,8 @@ public class PluginService {
 
     public List<MakerDto> getMaker() {
         List<MakerDto> result = new ArrayList<>();
-        makerService.getMakerPluginTable().columnMap().values().forEach((v) ->
-                v.values().stream().forEach(iv -> {
+        makerService.getMakerPluginTable().columnMap().values().forEach(v ->
+                v.values().forEach(iv -> {
                     MakerDto.MakerDtoBuilder makerDtoBuilder = MakerDto.builder().type(iv.getType());
                     makerDtoBuilder.args(Maps.newLinkedHashMap(iv.getMakerArgsMap()));
                     result.add(makerDtoBuilder.build());

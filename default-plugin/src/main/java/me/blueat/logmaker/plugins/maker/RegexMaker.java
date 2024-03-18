@@ -2,6 +2,7 @@ package me.blueat.logmaker.plugins.maker;
 
 import com.github.curiousoddman.rgxgen.RgxGen;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
@@ -10,6 +11,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class RegexMaker extends Maker<String> implements Runnable {
     private String makerName;

@@ -88,7 +88,7 @@ public class SenderService {
     public List<ResponseEntity<Result>> importSender(MultipartFile json) {
         try {
             SenderDto[] logs = mapper.readValue(json.getBytes(), SenderDto[].class);
-            return Arrays.stream(logs).map(dto -> createSender(dto)).collect(Collectors.toList());
+            return Arrays.stream(logs).map(this::createSender).collect(Collectors.toList());
         }
         catch (IOException | DataBindingException e) {
             return Lists.newArrayList(Result.createResultSet(Result.Type.ERROR, "Sender file import failed"));
@@ -143,7 +143,7 @@ public class SenderService {
 
     public Set<String> getSenderNames() {
         Set<String> senderNames = new HashSet<>();
-        senderTable.columnKeySet().forEach((k) -> senderNames.add(k));
+        senderNames.addAll(senderTable.columnKeySet());
         return senderNames;
     }
 
@@ -152,11 +152,16 @@ public class SenderService {
     }
     public void loadPlugin(String pluginId) {
         springPluginManager.getPlugins(PluginState.STARTED).stream()
-                .filter(p -> (pluginId == null) || (pluginId != null && p.getPluginId().equals(pluginId)))
+                .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
                 .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class)
                         .forEach(senderPlugin -> {
                             log.info("{}", senderPlugin.getType());
-                            getSenderPluginTable().put(pluginWrapper.getPluginId(), senderPlugin.getType(), senderPlugin);
+                            if (!getSenderPluginTable().contains(pluginWrapper.getPluginId(), senderPlugin.getType())) {
+                                getSenderPluginTable().put(pluginWrapper.getPluginId(), senderPlugin.getType(), senderPlugin);
+                            }
+                            else {
+                                log.warn("Plugin is already loaded. id={}, type={}", pluginWrapper.getPluginId(), senderPlugin.getType());
+                            }
                         }));
     }
 

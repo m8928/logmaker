@@ -88,7 +88,7 @@ public class MakerService {
     public List<ResponseEntity<Result>> importMaker(MultipartFile json) {
         try {
             MakerDto[] makers = mapper.readValue(json.getBytes(), MakerDto[].class);
-            return Arrays.stream(makers).map(dto -> createMaker(dto)).collect(Collectors.toList());
+            return Arrays.stream(makers).map(this::createMaker).collect(Collectors.toList());
         }
         catch (IOException | DataBindingException e) {
             return Lists.newArrayList(Result.createResultSet(Result.Type.ERROR, "Maker file import failed"));
@@ -142,9 +142,7 @@ public class MakerService {
     }
 
     public Set<String> getMakerNames() {
-        Set<String> makerNames = new HashSet<>();
-        makerTable.columnKeySet().forEach((k) -> makerNames.add(k));
-        return makerNames;
+        return new HashSet<>(makerTable.columnKeySet());
     }
 
     public void loadPlugin() {
@@ -152,11 +150,16 @@ public class MakerService {
     }
     public void loadPlugin(String pluginId) {
         springPluginManager.getPlugins(PluginState.STARTED).stream()
-                .filter(p -> (pluginId == null) || (pluginId != null && p.getPluginId().equals(pluginId)))
+                .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
                 .forEach(pluginWrapper -> springPluginManager.getExtensions(MakerPlugin.class)
                         .forEach(makerPlugin -> {
                             log.info("{}", makerPlugin.getType());
-                            getMakerPluginTable().put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
+                            if (!getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType())) {
+                                getMakerPluginTable().put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
+                            }
+                            else {
+                                log.warn("Plugin is already loaded. id={}, type={}", pluginWrapper.getPluginId(), makerPlugin.getType());
+                            }
         }));
     }
 

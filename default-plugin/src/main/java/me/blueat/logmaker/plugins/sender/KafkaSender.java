@@ -1,6 +1,7 @@
 package me.blueat.logmaker.plugins.sender;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderArgs;
@@ -16,6 +17,7 @@ import java.util.Properties;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Slf4j
 public class KafkaSender extends Sender<String> {

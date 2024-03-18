@@ -38,7 +38,7 @@ public class SenderController {
 
     @PostMapping("/sender:import")
     public List<ResponseEntity<Result>> createMaker(@RequestBody @Validated SenderDto[] senderDto) {
-        return Arrays.stream(senderDto).map(dto -> senderService.createSender(dto)).collect(Collectors.toList());
+        return Arrays.stream(senderDto).map(senderService::createSender).collect(Collectors.toList());
     }
 
     @PostMapping(value = "/sender:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

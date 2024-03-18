@@ -9,7 +9,7 @@
     </parent>
     <groupId>me.blueat.logmaker</groupId>
     <artifactId>core</artifactId>
-    <version>${parent.version}</version>
+    <version>${project.parent.version}</version>
     <name>logmaker-core</name>
     <description>LogMaker</description>
     <packaging>jar</packaging>
@@ -69,7 +69,7 @@
         <dependency>
             <groupId>me.blueat.logmaker</groupId>
             <artifactId>plugin-api</artifactId>
-            <version>${parent.version}</version>
+            <version>${project.parent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -98,7 +98,7 @@
     </dependencies>
 
     <build>
-        <finalName>logmaker-core-${version}</finalName>
+        <finalName>logmaker-core-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

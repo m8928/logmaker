@@ -9,15 +9,15 @@
 
     <modelVersion>4.0.0</modelVersion>
     <artifactId>default-plugin</artifactId>
-    <version>${parent.version}</version>
+    <version>${project.parent.version}</version>
     <properties>
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>utf-8</project.reporting.outputEncoding>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
         <plugin.id>default-plugin</plugin.id>
         <plugin.class>me.blueat.logmaker.plugins.DefaultPlugin</plugin.class>
-        <plugin.version>${parent.version}</plugin.version>
+        <plugin.version>${project.parent.version}</plugin.version>
         <plugin.provider>m8928</plugin.provider>
         <plugin.dependencies />
     </properties>
@@ -34,7 +34,7 @@
         <dependency>
             <groupId>me.blueat.logmaker</groupId>
             <artifactId>plugin-api</artifactId>
-            <version>${parent.version}</version>
+            <version>${project.parent.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

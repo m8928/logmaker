@@ -1,6 +1,7 @@
 package me.blueat.logmaker.plugins.maker;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
@@ -10,6 +11,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class IPRangeMaker extends Maker<String> implements Runnable {
     private final String makerName;

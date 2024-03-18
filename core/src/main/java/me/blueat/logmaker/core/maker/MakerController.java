@@ -38,7 +38,7 @@ public class MakerController {
 
     @PostMapping("/maker:import")
     public List<ResponseEntity<Result>> createMaker(@RequestBody @Validated MakerDto[] makerDto) {
-        return Arrays.stream(makerDto).map(dto -> makerService.createMaker(dto)).collect(Collectors.toList());
+        return Arrays.stream(makerDto).map(makerService::createMaker).collect(Collectors.toList());
     }
 
     @PostMapping(value = "/maker:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

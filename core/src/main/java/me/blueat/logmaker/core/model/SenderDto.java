@@ -26,6 +26,7 @@ public class SenderDto {
     String type;
     //String ip, int port, int facility, int severity, String messageFormat, List<String> hosts, String hostPrefix
     @Schema(example = "{\"ip\":\"127.0.0.1\", \"port\":9898, \"facility\":1, \"severity\":6, \"messageFormat\":\"RFC_3164\", \"hosts\":[\"127.0.0.1\"], \"hostPrefix\":\"\"}")
+    @Builder.Default
     Map<String, Object> args = new HashMap<>();
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
