@@ -2,12 +2,14 @@ package me.blueat.logmaker.plugins.maker;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import me.blueat.logmaker.plugin.api.exception.MakerTimeoutException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -78,9 +80,9 @@ public class IPRangeMaker extends Maker<String> implements Runnable {
     @Override
     public String getData() {
         try {
-            return queue.take();
+            return queue.poll(1, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            return null;
+            throw new MakerTimeoutException();
         }
     }
 

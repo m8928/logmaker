@@ -29,7 +29,7 @@ public class KafkaSender extends Sender<String> {
     private String index;
     private Map<String, Object> args;
     private DateTimeFormatter dateTimeFormatter;
-    private DateTimeFormatter readTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private DateTimeFormatter readTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
     public KafkaSender(String name, Map<String, Object> args) {
         this.name = name;
@@ -62,7 +62,7 @@ public class KafkaSender extends Sender<String> {
         updateLock.lock();
         try {
             ProducerRecord<String, byte[]> producerRecord = new ProducerRecord<>(topic, data.getBytes());
-            producerRecord.headers().add("index", this.index.concat( dateTimeFormatter.format(LocalDateTime.now())).getBytes());
+            producerRecord.headers().add("index", this.index.concat(dateTimeFormatter.format(LocalDateTime.now())).getBytes());
             producerRecord.headers().add("read_time", readTimeFormatter.format(LocalDateTime.now()).getBytes());
             producerRecord.headers().add("module", "LogMaker".getBytes());
             producerRecord.headers().add("pointer", "0".getBytes());

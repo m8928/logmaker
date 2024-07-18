@@ -1,5 +1,6 @@
 <template>
   <div class="section">
+    <el-affix>
     <div class="inner-bottom">
       <span
         style="font-size: var(--el-font-size-extra-large); font-weight: bold"
@@ -29,6 +30,7 @@
       >
     </div>
     <el-divider class="no-margin no-padding" />
+    </el-affix>
     <div class="inner">
       <el-table
         :data="data"
@@ -255,7 +257,7 @@
       <div>
         <el-upload
             drag
-            action="/api/v1/log:import-file"
+            :http-request="uploadFiles"
             :show-file-list="false"
             :on-success="importLog"
             :on-progress="importLogProgress"
@@ -488,6 +490,17 @@ const importLog = (response: { [key: string]: any }[]) => {
     dialogImportVisible.value = false;
     fetchData();
   }
+};
+
+const uploadFiles = (data: any) => {
+  return axios({
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    url: "/api/v1/log:import-file",
+    method: "POST",
+    data: data,
+  });
 };
 
 const logFormat = ref<HTMLDivElement | null>(null);

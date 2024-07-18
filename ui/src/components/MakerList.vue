@@ -1,5 +1,6 @@
 <template>
   <div class="section">
+    <el-affix>
     <div class="inner-bottom">
       <span
         style="font-size: var(--el-font-size-extra-large); font-weight: bold"
@@ -29,6 +30,7 @@
       >
     </div>
     <el-divider class="no-margin no-padding" />
+    </el-affix>
     <div class="inner">
       <el-table
         :data="data"
@@ -167,11 +169,11 @@
       <div>
         <el-upload
             drag
-            action="/api/v1/maker:import-file"
             :show-file-list="false"
             :on-success="importMaker"
             :on-progress="importMakerProgress"
             :disabled="waitRequest"
+            :http-request="uploadFiles"
             v-loading="waitRequest"
         >
           <div>
@@ -368,6 +370,16 @@ const importMaker = (response: { [key: string]: any }[]) => {
   }
 };
 
+const uploadFiles = (data: any) => {
+  return axios({
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    url: "/api/v1/maker:import-file",
+    method: "POST",
+    data: data,
+  });
+};
 
 fetchData();
 </script>

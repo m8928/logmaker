@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.plugin.api.exception.MakerTimeoutException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.antlr.runtime.Token;
@@ -83,6 +84,7 @@ public class LogThread extends Thread {
 
         ve = new VelocityEngine();
         ve.setProperty("parser.pool.size", 20);
+        ve.setProperty("runtime.log", "logs/velocity.log");
         ve.init();
 
         RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
@@ -91,7 +93,6 @@ public class LogThread extends Thread {
         try {
             sn = rs.parse(sr, logDto.getName());
         } catch (ParseException e) {
-            e.printStackTrace();
         }
 
         vTemplate = new Template();
@@ -147,14 +148,17 @@ public class LogThread extends Thread {
                 updateLock.lock();
                 try {
                     while (createCount.get() < logDto.getEps()) {
-                        String data = generate(vTemplate, getTemplateData());
+                        try {
+                            String data = generate(vTemplate, getTemplateData());
 
-                        senders.values().forEach(sender -> {
-                            sender.sendData(data);
-                            sender.increaseCount();
-                        });
-                        createCount.incrementAndGet();
-                        count.incrementAndGet();
+                            senders.values().forEach(sender -> {
+                                sender.sendData(data);
+                                sender.increaseCount();
+                            });
+                            createCount.incrementAndGet();
+                            count.incrementAndGet();
+                        }
+                        catch (MakerTimeoutException ignored) {}
                     }
                 } finally {
                     updateLock.unlock();

@@ -2,11 +2,13 @@ package me.blueat.logmaker.plugins.maker;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import me.blueat.logmaker.plugin.api.exception.MakerTimeoutException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -82,9 +84,9 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
     @Override
     public Long getData() {
         try {
-            return queue.take().longValue();
+            return queue.poll(1, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            return null;
+            throw new MakerTimeoutException();
         }
     }
 

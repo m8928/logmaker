@@ -12,6 +12,7 @@ import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
+import me.blueat.logmaker.plugin.api.exception.MakerTimeoutException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
 import org.pf4j.PluginState;
@@ -24,6 +25,7 @@ import javax.annotation.PostConstruct;
 import javax.xml.bind.DataBindingException;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,18 +46,26 @@ public class MakerService {
     }
 
     public List<MakerDto> getMaker() {
-        List<MakerDto> result = makerTable.cellSet().stream().map(v ->
-            MakerDto.builder()
-                    .name(v.getColumnKey())
-                    .type(v.getValue().getType())
-                    .args(v.getValue().getArgs())
-                    .sample(v.getValue().getData())
-                    .ref(v.getValue().getRef())
-                    .size(v.getValue().getSize())
-                    .regTime(v.getValue().getRegTime()).build())
+        return makerTable.cellSet().stream().map(v ->{
+            MakerDto.MakerDtoBuilder makerDtoBuilder = MakerDto.builder();
+                    makerDtoBuilder.name(v.getColumnKey())
+                            .type(v.getValue().getType())
+                            .args(v.getValue().getArgs())
+                            .ref(v.getValue().getRef())
+                            .size(v.getValue().getSize())
+                            .regTime(v.getValue().getRegTime());
+
+                    Object sample = null;
+                    try {
+                        sample = v.getValue().getData();
+                    }
+                    catch (MakerTimeoutException mte) {
+                        log.warn("maker timeout.", mte);
+                    }
+                    makerDtoBuilder.sample(sample);
+               return makerDtoBuilder.build();
+        }).sorted(Comparator.comparing(MakerDto::getRegTime).reversed())
                 .collect(Collectors.toList());
-        result.sort(Comparator.comparing(MakerDto::getRegTime).reversed());
-        return result;
     }
 
     public Optional<Map.Entry<String, Maker<?>>> getMaker(String name) {
@@ -151,9 +161,9 @@ public class MakerService {
     public void loadPlugin(String pluginId) {
         springPluginManager.getPlugins(PluginState.STARTED).stream()
                 .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
-                .forEach(pluginWrapper -> springPluginManager.getExtensions(MakerPlugin.class)
+                .forEach(pluginWrapper ->  springPluginManager.getExtensions(MakerPlugin.class, pluginWrapper.getPluginId())
                         .forEach(makerPlugin -> {
-                            log.info("{}", makerPlugin.getType());
+                            log.info("{}/{}/{}", pluginWrapper.getPluginId(), makerPlugin.getType(), getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType()));
                             if (!getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType())) {
                                 getMakerPluginTable().put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
                             }

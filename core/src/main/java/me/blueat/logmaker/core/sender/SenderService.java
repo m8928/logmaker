@@ -153,7 +153,7 @@ public class SenderService {
     public void loadPlugin(String pluginId) {
         springPluginManager.getPlugins(PluginState.STARTED).stream()
                 .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
-                .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class)
+                .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class, pluginWrapper.getPluginId())
                         .forEach(senderPlugin -> {
                             log.info("{}", senderPlugin.getType());
                             if (!getSenderPluginTable().contains(pluginWrapper.getPluginId(), senderPlugin.getType())) {

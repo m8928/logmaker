@@ -1,5 +1,6 @@
 <template>
   <div class="section">
+    <el-affix>
     <div class="inner-bottom">
       <span
         style="font-size: var(--el-font-size-extra-large); font-weight: bold"
@@ -19,6 +20,7 @@
       >
     </div>
     <el-divider class="no-margin no-padding" />
+    </el-affix>
     <div class="inner">
       <el-table
         :data="data"

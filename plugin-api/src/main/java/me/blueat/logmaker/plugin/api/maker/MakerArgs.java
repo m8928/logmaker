@@ -18,7 +18,7 @@ public class MakerArgs {
     public boolean equals(Object o){
         boolean isT = false;
         MakerArgs makerArgs = (MakerArgs)o;
-        if(makerArgs.type.equals(this.type)){
+        if(makerArgs != null && this.type.equals(makerArgs.type)){
             isT = true;
         }
         return isT;

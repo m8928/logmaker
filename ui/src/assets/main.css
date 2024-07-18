@@ -55,6 +55,7 @@
   display: flex;
   flex-wrap: nowrap;
   border-right: none;
+  background-color: var(--el-bg-color);
 }
 
 .no-margin {

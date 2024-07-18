@@ -22,21 +22,44 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 axios.interceptors.response.use(
   function (response) {
-    if (response.data.notification) {
-      ElNotification({
-        title: "Success",
-        message: response.data.message,
-        type: "success",
-        position: "top-left",
-      });
+
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      if (response.data[0].body.type === "ERROR") {
+        ElNotification({
+          title: "Error",
+          message: response.data[0].body.message,
+          type: "error",
+          position: "top-left",
+        });
+      }
+    } else {
+      if (response.data.notification) {
+        ElNotification({
+          title: "Success",
+          message: response.data.message,
+          type: "success",
+          position: "top-left",
+        });
+      }
     }
     return response;
   },
   function (error) {
-    if (error.response.data.notification) {
+    console.log(error);
+    if (
+      Object.hasOwn(error.response.data, "notification") &&
+      error.response.data.notification
+    ) {
       ElNotification({
         title: "Error",
         message: error.response.data.message,
+        type: "error",
+        position: "top-left",
+      });
+    } else if (!Object.hasOwn(error.response.data, "notification")) {
+      ElNotification({
+        title: "Error",
+        message: error.message,
         type: "error",
         position: "top-left",
       });
