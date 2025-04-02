@@ -85,16 +85,18 @@ public class LogThread extends Thread {
         ve.setProperty("parser.pool.size", 20);
         ve.init();
 
+        vTemplate = new Template();
+        vTemplate.setName(logDto.getName());
+
         RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
         StringReader sr = new StringReader(vFormat);
         SimpleNode sn = null;
         try {
-            sn = rs.parse(sr, logDto.getName());
+            sn = rs.parse(sr, vTemplate);
         } catch (ParseException e) {
             e.printStackTrace();
         }
 
-        vTemplate = new Template();
         vTemplate.setRuntimeServices(rs);
         vTemplate.setData(sn);
         vTemplate.initDocument();

@@ -2,6 +2,7 @@ package me.blueat.logmaker.core.log;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import jakarta.xml.bind.DataBindingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.config.LogMakerConfig;
@@ -22,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import javax.xml.bind.DataBindingException;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
@@ -172,15 +172,18 @@ public class LogService {
 
             RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
             StringReader sr = new StringReader(vFormat);
+
+            vTemplate = new Template();
+            vTemplate.setName("preview");
+            vTemplate.setRuntimeServices(rs);
+
             SimpleNode sn = null;
             try {
-                sn = rs.parse(sr, "preview");
+                sn = rs.parse(sr, vTemplate);
             } catch (ParseException e) {
                 log.error("log template parsing error. {}", format);
             }
 
-            vTemplate = new Template();
-            vTemplate.setRuntimeServices(rs);
             vTemplate.setData(sn);
             vTemplate.initDocument();
 
