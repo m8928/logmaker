@@ -1,12 +1,11 @@
 package me.blueat.logmaker.core.log;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.blueat.logmaker.core.config.LogMakerConfig;
 import me.blueat.logmaker.core.model.LogDto;
-import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.model.Result;
 import org.antlr.runtime.Token;
@@ -18,11 +17,13 @@ import org.apache.velocity.runtime.RuntimeServices;
 import org.apache.velocity.runtime.RuntimeSingleton;
 import org.apache.velocity.runtime.parser.ParseException;
 import org.apache.velocity.runtime.parser.node.SimpleNode;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import javax.xml.bind.DataBindingException;
+import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -35,22 +36,35 @@ import org.springframework.web.multipart.MultipartFile;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.compiler.STLexer;
 
+import static me.blueat.logmaker.core.util.FileUtil.loadFromFile;
+import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Order(3)
 public class LogService {
     private final ObjectMapper mapper;
     private ConcurrentHashMap<String, LogThread> logThreadMap;
 
+    private final LogMakerConfig logMakerConfig;
     private final MakerService makerService;
     private final SenderService senderService;
 
     @PostConstruct
     protected void init() {
         logThreadMap = new ConcurrentHashMap<>();
+        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json")
+                        , LogDto[].class)))
+                .forEach(logDto -> createLog(logDto, true));
+        log.info("Initializing Log Service");
     }
 
     public ResponseEntity<Result> createLog(LogDto logDto) {
+        return createLog(logDto, false);
+    }
+
+    public ResponseEntity<Result> createLog(LogDto logDto, boolean isImport) {
         ResponseEntity<Result> result;
 
         if (!logThreadMap.containsKey(logDto.getName())) {
@@ -60,6 +74,10 @@ public class LogService {
                 logThread.start();
                 logThreadMap.put(logDto.getName(), logThread);
                 result = Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
+
+                if (!isImport) {
+                    saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+                }
             }
             catch (IllegalStateException e) {
                 result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid log argument (%s)",logDto.getFormat()));
@@ -86,6 +104,7 @@ public class LogService {
         Optional<LogThread> existsLog = Optional.ofNullable(logThreadMap.get(logDto.getName()));
 
         if (existsLog.isPresent() && existsLog.get().updateLogDto(logDto)) {
+            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated log");
         }
         else {
@@ -96,9 +115,9 @@ public class LogService {
     public List<LogDto> getLog() {
         List<LogDto> result = logThreadMap.values().stream()
                 .map(LogThread::getLogDto)
+                .sorted(Comparator.comparing(LogDto::getRegTime).reversed())
                 .collect(Collectors.toList());
 
-        result.sort(Comparator.comparing(LogDto::getRegTime).reversed());
         return result;
     }
 
@@ -115,6 +134,7 @@ public class LogService {
             logThreadMap.get(name).getMakerName().forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
             logThreadMap.get(name).getSenderName().forEach(e -> senderService.getSender(e).ifPresent(s -> s.getValue().decreaseRef()));
             logThreadMap.remove(name);
+            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
         }
         else {

@@ -7,7 +7,7 @@ import com.google.common.collect.Table;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.blueat.logmaker.core.model.LogDto;
+import me.blueat.logmaker.core.config.LogMakerConfig;
 import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
@@ -15,32 +15,43 @@ import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderPlugin;
 import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.PostConstruct;
 import javax.xml.bind.DataBindingException;
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static me.blueat.logmaker.core.util.FileUtil.loadFromFile;
+import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Data
+@Order(2)
 public class SenderService {
     private Table<String, String, Sender<?>> senderTable;
     private Table<String, String, SenderPlugin> senderPluginTable;
 
     private final ObjectMapper mapper;
     private final SpringPluginManager springPluginManager;
+    private final LogMakerConfig logMakerConfig;
 
     @PostConstruct
     protected void init() {
         senderTable = HashBasedTable.create();
         senderPluginTable = HashBasedTable.create();
         loadPlugin();
+        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json")
+                        , SenderDto[].class)))
+                .forEach(senderDto -> createSender(senderDto, true));
+        log.info("Initialized Sender Service");
     }
 
     public Optional<Map.Entry<String, Sender<?>>> getSender(String name) {
@@ -58,16 +69,15 @@ public class SenderService {
 
     public List<SenderDto> getSender() {
         List<SenderDto> result = senderTable.cellSet().stream().map(v ->
-                        SenderDto.builder()
-                                .name(v.getValue().getSenderName())
-                                .type(v.getValue().getType())
-                                .args(v.getValue().getArgs())
-                                .ref(v.getValue().getRef())
-                                .count(v.getValue().getCount())
-                                .regTime(v.getValue().getRegTime())
-                                .build())
-                .collect(Collectors.toList());
-        result.sort(Comparator.comparing(SenderDto::getRegTime).reversed());
+                SenderDto.builder()
+                        .name(v.getValue().getSenderName())
+                        .type(v.getValue().getType())
+                        .args(v.getValue().getArgs())
+                        .ref(v.getValue().getRef())
+                        .count(v.getValue().getCount())
+                        .regTime(v.getValue().getRegTime())
+                        .build())
+                .sorted(Comparator.comparing(SenderDto::getRegTime).reversed()).collect(Collectors.toList());
         return result;
     }
 
@@ -79,6 +89,7 @@ public class SenderService {
                 existsSender.get().getValue().getThread().interrupt();
             }
             senderTable.remove(existsSender.get().getKey(), name);
+            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
         }
 
@@ -96,6 +107,10 @@ public class SenderService {
     }
 
     public ResponseEntity<Result> createSender(SenderDto senderDto) {
+        return createSender(senderDto, false);
+    }
+
+    public ResponseEntity<Result> createSender(SenderDto senderDto, boolean isImport) {
         ResponseEntity<Result> result;
         Optional<Map.Entry<String, SenderPlugin>> senderPlugin = getSenderPlugin(senderDto.getType());
 
@@ -105,7 +120,11 @@ public class SenderService {
 
                 if (sender != null) {
                     if (addSender(senderDto, senderPlugin.get().getKey(), sender)) {
-                        return Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
+                        result = Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
+
+                        if (!isImport) {
+                            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
+                        }
                     }
                     else {
                         result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the sender name already in use", senderDto.getName()));
@@ -171,6 +190,7 @@ public class SenderService {
 
         if (existsSender.isPresent()) {
             existsSender.get().getValue().update(senderDto.getArgs());
+            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
             result = Result.createResultSet(Result.Type.SUCCESS, "Successfully updated sender");
         }
         else {

@@ -1,3 +1,3 @@
-PID=`ps -ef | grep "logmaker-core-2.0.0-exec.jar" | grep -v grep | awk '{print $2}'`
+PID=`ps -ef | grep "logmaker-core-2.0.1-exec.jar" | grep -v grep | awk '{print $2}'`
 
 kill -15 $PID

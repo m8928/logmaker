@@ -1,6 +1,5 @@
 package me.blueat.logmaker.core.maker;
 
-import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
@@ -8,30 +7,37 @@ import com.google.common.collect.Table;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.blueat.logmaker.core.config.LogMakerConfig;
 import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.Result;
-import me.blueat.logmaker.core.model.SenderDto;
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
 import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.PostConstruct;
 import javax.xml.bind.DataBindingException;
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static me.blueat.logmaker.core.util.FileUtil.loadFromFile;
+import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Data
+@Order(1)
 public class MakerService {
     private final SpringPluginManager springPluginManager;
+    private final LogMakerConfig logMakerConfig;
     private final ObjectMapper mapper;
     private Table<String, String, Maker<?>> makerTable;
     private Table<String, String, MakerPlugin> makerPluginTable;
@@ -41,21 +47,24 @@ public class MakerService {
         makerTable = HashBasedTable.create();
         makerPluginTable = HashBasedTable.create();
         loadPlugin();
+        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json")
+                        , MakerDto[].class)))
+                .forEach(makerDto -> createMaker(makerDto, true));
+        log.info("Initialized Maker Service");
     }
 
     public List<MakerDto> getMaker() {
-        List<MakerDto> result = makerTable.cellSet().stream().map(v ->
-            MakerDto.builder()
-                    .name(v.getColumnKey())
-                    .type(v.getValue().getType())
-                    .args(v.getValue().getArgs())
-                    .sample(v.getValue().getData())
-                    .ref(v.getValue().getRef())
-                    .size(v.getValue().getSize())
-                    .regTime(v.getValue().getRegTime()).build())
+        return makerTable.cellSet().stream().map(v ->
+                MakerDto.builder()
+                        .name(v.getColumnKey())
+                        .type(v.getValue().getType())
+                        .args(v.getValue().getArgs())
+                        .sample(v.getValue().getData())
+                        .ref(v.getValue().getRef())
+                        .size(v.getValue().getSize())
+                        .regTime(v.getValue().getRegTime()).build())
+                .sorted(Comparator.comparing(MakerDto::getRegTime).reversed())
                 .collect(Collectors.toList());
-        result.sort(Comparator.comparing(MakerDto::getRegTime).reversed());
-        return result;
     }
 
     public Optional<Map.Entry<String, Maker<?>>> getMaker(String name) {
@@ -79,6 +88,7 @@ public class MakerService {
                 existsMaker.get().getValue().getThread().interrupt();
             }
             makerTable.remove(existsMaker.get().getKey(), name);
+            saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
         }
 
@@ -96,6 +106,10 @@ public class MakerService {
     }
 
     public ResponseEntity<Result> createMaker(MakerDto makerDto) {
+        return createMaker(makerDto, false);
+    }
+
+    public ResponseEntity<Result> createMaker(MakerDto makerDto, boolean isImport) {
         ResponseEntity<Result> result;
         Optional<Map.Entry<String, MakerPlugin>> makerPlugin = getMakerPlugin(makerDto.getType());
 
@@ -106,6 +120,10 @@ public class MakerService {
                 if (maker != null) {
                     if (addMaker(makerDto, makerPlugin.get().getKey(), maker)) {
                         result = Result.createResultSet(Result.Type.SUCCESS, "Successful maker registration");
+
+                        if (!isImport) {
+                            saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
+                        }
                     }
                     else {
                         result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the maker name already in use", makerDto.getName()));
@@ -169,6 +187,7 @@ public class MakerService {
 
         if (existsMaker.isPresent()) {
             existsMaker.get().getValue().update(makerDto.getArgs());
+            saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
             result = Result.createResultSet(Result.Type.SUCCESS, "Successfully updated maker");
         }
         else {

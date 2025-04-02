@@ -173,6 +173,10 @@ public class LogThread extends Thread {
     }
 
     private long getCurrentEps() {
+        if (start == null) {
+            return 0;
+        }
+
         Instant end = Instant.now();
         long timing = Duration.between(start, end).toMillis();
 
