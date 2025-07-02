@@ -169,9 +169,9 @@ public class MakerService {
     public void loadPlugin(String pluginId) {
         springPluginManager.getPlugins(PluginState.STARTED).stream()
                 .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
-                .forEach(pluginWrapper -> springPluginManager.getExtensions(MakerPlugin.class)
+                .forEach(pluginWrapper -> springPluginManager.getExtensions(MakerPlugin.class, pluginWrapper.getPluginId())
                         .forEach(makerPlugin -> {
-                            log.info("{}", makerPlugin.getType());
+                            log.info("{}/{}", makerPlugin.getType(), getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType()));
                             if (!getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType())) {
                                 getMakerPluginTable().put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
                             }
