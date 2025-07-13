@@ -72,7 +72,10 @@ public class UUIDMaker extends Maker<String> implements Runnable {
     public void update(Map<String, Object> args) {
         updateLock.lock();
         try {
-            // NOTHING
+            this.getThread().interrupt();
+            this.queue.clear();
+            this.thread = new Thread(this);
+            this.thread.start();
         } finally {
             updateLock.unlock();
         }

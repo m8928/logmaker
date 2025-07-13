@@ -68,7 +68,7 @@ public class SenderService {
     }
 
     public List<SenderDto> getSender() {
-        List<SenderDto> result = senderTable.cellSet().stream().map(v ->
+        return senderTable.cellSet().stream().map(v ->
                 SenderDto.builder()
                         .name(v.getValue().getSenderName())
                         .type(v.getValue().getType())
@@ -78,7 +78,6 @@ public class SenderService {
                         .regTime(v.getValue().getRegTime())
                         .build())
                 .sorted(Comparator.comparing(SenderDto::getRegTime).reversed()).collect(Collectors.toList());
-        return result;
     }
 
     public ResponseEntity<Result> deleteSender(String name) {
@@ -146,9 +145,7 @@ public class SenderService {
     }
 
     public boolean addSender(SenderDto senderDto, String pluginId, Sender sender) {
-        Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(senderDto.getName());
-
-        if (!existsSender.isPresent()) {
+        if (getSender(senderDto.getName()).isEmpty()) {
             senderTable.put(pluginId, senderDto.getName(), sender);
             if (sender.isThread()) {
                 sender.getThread().start();
@@ -161,9 +158,7 @@ public class SenderService {
     }
 
     public Set<String> getSenderNames() {
-        Set<String> senderNames = new HashSet<>();
-        senderNames.addAll(senderTable.columnKeySet());
-        return senderNames;
+        return new HashSet<>(senderTable.columnKeySet());
     }
 
     public void loadPlugin() {
