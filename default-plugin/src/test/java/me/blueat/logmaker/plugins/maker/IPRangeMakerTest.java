@@ -11,17 +11,28 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+
 class IPRangeMakerTest {
 
     private IPRangeMaker ipRangeMaker;
+    private static final String START_IP_1 = "192.168.0.1";
+    private static final long START_IP_1_LONG = 3232235521L;
+    private static final String END_IP_1 = "192.168.0.255";
+    private static final long END_IP_1_LONG = 3232235775L;
+    private static final String START_IP_2 = "10.0.0.1";
+    private static final long START_IP_2_LONG = 167772161L;
+    private static final String END_IP_2 = "10.0.0.10";
+    private static final long END_IP_2_LONG = 167772170L;
+
     // This is the corrected regex pattern for Java.
-    private final Pattern ipPattern = Pattern.compile("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+    private final Pattern ipPattern = Pattern.compile("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.)\\{3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
 
     @BeforeEach
     void setUp() {
         Map<String, Object> args = new HashMap<>();
-        args.put("start", "192.168.0.1");
-        args.put("end", "192.168.0.255");
+        args.put("start", START_IP_1);
+        args.put("end", END_IP_1);
         args.put("deviation", 50L);
 
         ipRangeMaker = new IPRangeMaker("test-ip-range", "ip-range", args);
@@ -39,10 +50,12 @@ class IPRangeMakerTest {
     @Test
     @DisplayName("IP 주소와 Long 변환 테스트")
     void testIPAddressConversion() {
-        assertThat(ipRangeMaker.convertLong2IP(3232235521L)).isEqualTo("192.168.0.1");
-        assertThat(ipRangeMaker.convertLong2IP(3232235775L)).isEqualTo("192.168.0.255");
-        assertThat(ipRangeMaker.convertLong2IP(0L)).isEqualTo("0.0.0.0");
-        assertThat(ipRangeMaker.convertLong2IP(4294967295L)).isEqualTo("255.255.255.255");
+        assertDoesNotThrow(() -> {
+            assertThat(ipRangeMaker.convertLong2IP(START_IP_1_LONG)).isEqualTo(START_IP_1);
+            assertThat(ipRangeMaker.convertLong2IP(END_IP_1_LONG)).isEqualTo(END_IP_1);
+            assertThat(ipRangeMaker.convertLong2IP(0L)).isEqualTo("0.0.0.0");
+            assertThat(ipRangeMaker.convertLong2IP(4294967295L)).isEqualTo("255.255.255.255");
+        });
     }
 
     @Test
@@ -60,7 +73,7 @@ class IPRangeMakerTest {
             String ip = ipRangeMaker.getData();
             assertThat(ip).isNotNull();
             long ipAsLong = convertIP2Long(ip);
-            assertThat(ipAsLong).isBetween(3232235521L, 3232235775L);
+            assertThat(ipAsLong).isBetween(START_IP_1_LONG, END_IP_1_LONG);
         }
     }
 
@@ -68,8 +81,8 @@ class IPRangeMakerTest {
     @DisplayName("업데이트 후에도 IP가 새 범위 내에서 생성되는지 테스트")
     void testGetDataAfterUpdate() throws InterruptedException {
         Map<String, Object> newArgs = new HashMap<>();
-        newArgs.put("start", "10.0.0.1");
-        newArgs.put("end", "10.0.0.10");
+        newArgs.put("start", START_IP_2);
+        newArgs.put("end", END_IP_2);
         newArgs.put("deviation", 2L);
 
         ipRangeMaker.update(newArgs);
@@ -81,9 +94,10 @@ class IPRangeMakerTest {
             String ip = ipRangeMaker.getData();
             assertThat(ip).isNotNull();
             long ipAsLong = convertIP2Long(ip);
-            assertThat(ipAsLong).isBetween(167772161L, 167772170L);
+            assertThat(ipAsLong).isBetween(START_IP_2_LONG, END_IP_2_LONG);
         }
     }
+
 
     // Helper method to convert IP to long for assertion
     private long convertIP2Long(String ip) {

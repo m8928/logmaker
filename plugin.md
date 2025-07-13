@@ -155,6 +155,7 @@ public class RandomNumberMaker extends Maker<Integer> {
 
 **예시: `MyMakerPluginFactory.java`**
 ```java
+```java
 package com.mycompany.logmaker.plugins.maker;
 
 import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
@@ -195,6 +196,7 @@ public class MyMakerPluginFactory extends MakerPlugin {
         return argsMap;
     }
 }
+```
 ```
 
 ---
