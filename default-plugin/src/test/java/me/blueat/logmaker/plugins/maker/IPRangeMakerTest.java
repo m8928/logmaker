@@ -26,7 +26,7 @@ class IPRangeMakerTest {
     private static final long END_IP_2_LONG = 167772170L;
 
     // This is the corrected regex pattern for Java.
-    private final Pattern ipPattern = Pattern.compile("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.)\\{3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+    private final Pattern ipPattern = Pattern.compile("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
 
     @BeforeEach
     void setUp() {
