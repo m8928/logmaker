@@ -134,10 +134,12 @@ public class IPRangeMaker extends Maker<String> implements Runnable {
     public void update(Map<String, Object> args) {
         updateLock.lock();
         try {
+            this.getThread().interrupt();
             this.args = args;
             init();
             this.getQueue().clear();
-            // NOTHING
+            this.thread = new Thread(this);
+            this.thread.start();
         } finally {
             updateLock.unlock();
         }
