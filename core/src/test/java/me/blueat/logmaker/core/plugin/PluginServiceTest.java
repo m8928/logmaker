@@ -60,6 +60,39 @@ class PluginServiceTest {
     }
 
     @Test
+    void uploadPlugin_IOException() throws IOException {
+        // Given
+        MockMultipartFile file = Mockito.mock(MockMultipartFile.class);
+        when(file.getOriginalFilename()).thenReturn("test.jar");
+        SpringPluginManager pluginManager = Mockito.mock(SpringPluginManager.class);
+        when(pluginConfig.pluginManager()).thenReturn(pluginManager);
+        when(pluginManager.getPluginsRoot()).thenReturn(Paths.get("."));
+        Mockito.doThrow(new IOException("Test IOException")).when(file).transferTo(any(Path.class));
+
+        // When
+        ResponseEntity<Result> response = pluginService.uploadPlugin(file);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void uploadPlugin_LoadPluginException() throws IOException {
+        // Given
+        MockMultipartFile file = new MockMultipartFile("file", "test.jar", "application/java-archive", new byte[0]);
+        SpringPluginManager pluginManager = Mockito.mock(SpringPluginManager.class);
+        when(pluginConfig.pluginManager()).thenReturn(pluginManager);
+        when(pluginManager.getPluginsRoot()).thenReturn(Paths.get("."));
+        when(springPluginManager.loadPlugin(any(Path.class))).thenThrow(new RuntimeException("Test LoadPluginException"));
+
+        // When
+        ResponseEntity<Result> response = pluginService.uploadPlugin(file);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
     void deletePlugin() {
         // Given
         when(makerService.getMakerPluginTable()).thenReturn(com.google.common.collect.HashBasedTable.create());
@@ -71,6 +104,20 @@ class PluginServiceTest {
 
         // Then
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void deletePlugin_Failure() {
+        // Given
+        when(makerService.getMakerPluginTable()).thenReturn(com.google.common.collect.HashBasedTable.create());
+        when(senderService.getSenderPluginTable()).thenReturn(com.google.common.collect.HashBasedTable.create());
+        when(springPluginManager.deletePlugin(any(String.class))).thenReturn(false);
+
+        // When
+        ResponseEntity<Result> response = pluginService.deletePlugin("testPlugin");
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
     }
 
 }

@@ -36,7 +36,7 @@ public class RegexMaker extends Maker<String> implements Runnable {
 
     public void init() {
         this.regex = MakerArgs.toString(args.get("regex"));
-        this.rgxGen = new RgxGen(regex);
+        this.rgxGen = RgxGen.parse(regex);
     }
 
     @Override
