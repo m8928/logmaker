@@ -71,8 +71,12 @@ public class PluginService {
             makerService.getMakerPluginTable().row(pluginId).clear();
             senderService.getSenderPluginTable().row(pluginId).clear();
             springPluginManager.stopPlugin(pluginId);
-            springPluginManager.deletePlugin(pluginId);
-            result = Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted plugin");
+            if (springPluginManager.deletePlugin(pluginId)) {
+                result = Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted plugin");
+            }
+            else {
+                result = Result.createResultSet(Result.Type.ERROR, "Plugin deletion failed");
+            }
         }
         catch (Exception e) {
             result = Result.createResultSet(Result.Type.ERROR, String.format("Plugin deletion failed (%s)", e.getMessage()));

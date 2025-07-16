@@ -16,11 +16,18 @@ public class Result {
 
     private Type type;
     private String message;
+    private Object data;
     private boolean notification = true;
 
     public Result(Type type, String message) {
         this.type = type;
         this.message = message;
+    }
+
+    public Result(Type type, String message, Object data) {
+        this.type = type;
+        this.message = message;
+        this.data = data;
     }
 
     public Result(Type type) {
@@ -37,6 +44,10 @@ public class Result {
 
     public static ResponseEntity<Result> createResultSet(Type type, String message, boolean notification) {
         return createResponseEntity(new Result(type, message).withNotification(notification));
+    }
+
+    public static ResponseEntity<Result> createResultSet(Type type, String message, Object data) {
+        return createResponseEntity(new Result(type, message, data));
     }
 
     public static ResponseEntity<Result> createResponseEntity(Result result) {
