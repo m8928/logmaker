@@ -673,7 +673,7 @@
 	/* ── Pipeline grid ── */
 	.pipeline-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+		grid-template-columns: 1fr;
 		gap: 1rem;
 	}
 

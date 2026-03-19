@@ -4,14 +4,7 @@
 	import Toast from '$lib/components/Toast.svelte';
 
 	let { children } = $props();
-
-	// Apply saved theme on mount
-	$effect(() => {
-		const saved = localStorage.getItem('theme');
-		if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-			document.documentElement.classList.add('dark');
-		}
-	});
+	// Theme is applied in app.html inline script (before render) to prevent FOUC
 </script>
 
 <div class="app-shell">
