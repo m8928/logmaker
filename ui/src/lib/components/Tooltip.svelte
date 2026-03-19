@@ -140,7 +140,7 @@
 		display: grid;
 		grid-template-columns: auto 1fr;
 		gap: 1px 0.5rem;
-		padding: 0.25rem 0.5rem;
+		padding: 0.125rem 0.5rem 0.1875rem;
 		font-size: 0.6875rem;
 	}
 
