@@ -121,6 +121,7 @@
 		min-width: 140px;
 		max-width: 320px;
 		box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+		overflow: hidden;
 	}
 
 	.tooltip-title {
