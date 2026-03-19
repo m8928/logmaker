@@ -10,26 +10,16 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MakerArgs {
-    private Class type;
+    private Class<?> type;
     private String description;
     private boolean required = true;
-
-    @Override
-    public boolean equals(Object o){
-        boolean isT = false;
-        MakerArgs makerArgs = (MakerArgs)o;
-        if(makerArgs.type.equals(this.type)){
-            isT = true;
-        }
-        return isT;
-    }
 
     public static String toString(Object o) {
         return o.toString();
     }
 
-    public static List toList(Object o) {
-        return (List) o;
+    public static List<?> toList(Object o) {
+        return (List<?>) o;
     }
 
     public static int toInt(Object o) {

@@ -40,13 +40,14 @@ public class SyslogSender extends Sender<String> {
         initSyslogSender();
     }
 
+    @SuppressWarnings("unchecked")
     public void init() {
         this.ip = SenderArgs.toString(args.get("ip"));
         this.port = SenderArgs.toInt(args.get("port"));
         this.facility = SenderArgs.toInt(args.getOrDefault("facility", 1));
         this.severity = SenderArgs.toInt(args.getOrDefault("severity", 6));
         this.messageFormat = SenderArgs.toString(args.getOrDefault("messageFormat", MessageFormat.RFC_3164));
-        this.host = SenderArgs.toList(args.get("host"));
+        this.host = (List<String>) SenderArgs.toList(args.get("host"));
         this.hostPrefix = SenderArgs.toString(args.getOrDefault("hostPrefix", ""));
     }
 
@@ -105,7 +106,7 @@ public class SyslogSender extends Sender<String> {
                 try {
                     sender.sendMessage(data);
                 } catch (Exception e) {
-                    //NOTHING
+                    log.warn("Failed to send syslog message", e);
                 }
             });
         }

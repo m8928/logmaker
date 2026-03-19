@@ -15,7 +15,7 @@ import java.util.Collections;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(SenderController.class)
 class SenderControllerTest {
@@ -51,7 +51,8 @@ class SenderControllerTest {
         mockMvc.perform(post("/api/v1/sender")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(senderDto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"));
     }
 
     @Test
@@ -66,7 +67,8 @@ class SenderControllerTest {
         mockMvc.perform(put("/api/v1/sender/testSender")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(senderDto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"));
     }
 
     @Test
@@ -76,6 +78,37 @@ class SenderControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/sender/testSender"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"));
+    }
+
+    @Test
+    void createSender_returnsError() throws Exception {
+        // Given
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("testSender");
+        senderDto.setType("testType");
+        when(senderService.createSender(any(SenderDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Duplicate"));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/sender")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(senderDto)))
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testCreateSender_missingName_returnsError() throws Exception {
+        // Given: SenderDto with no name (violates @NotEmpty)
+        // ValidExceptionHandler returns ERROR/406 (not 400)
+        SenderDto senderDto = new SenderDto();
+        senderDto.setType("testType");
+        // name is null
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/sender")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(senderDto)))
+                .andExpect(jsonPath("$.type").value("ERROR"));
     }
 }

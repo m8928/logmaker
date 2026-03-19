@@ -33,8 +33,9 @@ public class PickMaker extends Maker<String> implements Runnable {
         init();
     }
 
+    @SuppressWarnings("unchecked")
     public void init() {
-        this.picker = MakerArgs.toList(args.get("picker"));
+        this.picker = (List<String>) MakerArgs.toList(args.get("picker"));
     }
 
     @Override
@@ -62,7 +63,8 @@ public class PickMaker extends Maker<String> implements Runnable {
         try {
             return queue.take();
         } catch (InterruptedException e) {
-            return null;
+            Thread.currentThread().interrupt();
+            return "";
         }
     }
 
