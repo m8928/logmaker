@@ -125,12 +125,11 @@
 	}
 
 	.tooltip-title {
-		padding: 0.1875rem 0.5rem;
+		padding: 2px 8px;
 		font-weight: 700;
-		font-size: 0.6875rem;
+		font-size: 11px;
 		color: var(--accent);
 		background: var(--bg-raised);
-		border-bottom: 1px solid var(--border);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -140,10 +139,10 @@
 		display: grid;
 		grid-template-columns: auto 1fr;
 		align-items: baseline;
-		gap: 0 0.5rem;
-		padding: 0.125rem 0.5rem 0.1875rem;
-		font-size: 0.6875rem;
-		line-height: 1.5;
+		gap: 0 8px;
+		padding: 2px 8px 3px;
+		font-size: 11px;
+		line-height: 1.3;
 	}
 
 	.entry-key {
@@ -151,22 +150,23 @@
 		white-space: nowrap;
 		text-transform: uppercase;
 		font-weight: 600;
-		font-size: 0.625rem;
+		font-size: 10px;
 		letter-spacing: 0.04em;
 	}
 
 	.entry-val {
 		color: var(--text-primary);
 		font-family: var(--font-mono);
+		font-size: 11px;
 		word-break: break-all;
 	}
 
 	.tooltip-body {
-		padding: 0.25rem 0.5rem;
+		padding: 2px 8px 3px;
 		white-space: pre-wrap;
 		word-break: break-word;
 		color: var(--text-secondary);
-		font-size: 0.6875rem;
+		font-size: 11px;
 	}
 
 	@keyframes tooltip-fade {
