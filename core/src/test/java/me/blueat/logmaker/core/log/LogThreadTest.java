@@ -107,9 +107,10 @@ class LogThreadTest {
 
     @Test
     void testInterrupt_stopsThread() throws InterruptedException {
-        // Given: simple log with no senders (run loop does nothing but sleep)
+        // Given: LogThread is now Runnable, wrap in a Thread to test interrupt behavior
         LogDto dto = simpleLogDto();
-        LogThread thread = new LogThread(makerService, senderService, dto);
+        LogThread logThread = new LogThread(makerService, senderService, dto);
+        Thread thread = new Thread(logThread);
         thread.start();
 
         // Allow thread to start
@@ -145,14 +146,8 @@ class LogThreadTest {
     @Test
     void testUpdateLogDto_failure_rollsBack() {
         // Given: initial log with maker reference (ST syntax: <makerName>)
-        @SuppressWarnings("unchecked")
-        Maker<Object> maker = mock(Maker.class);
-        Map.Entry<String, Maker<?>> makerEntry = Map.entry("plugin", maker);
-
         when(makerService.getMakerNames()).thenReturn(Set.of("myMaker"));
         when(senderService.getSenderNames()).thenReturn(Set.of());
-        when(makerService.getMaker("myMaker")).thenReturn(Optional.of(makerEntry));
-        when(maker.getData()).thenReturn("1.2.3.4");
 
         LogDto initial = logDtoWithMaker("myMaker");
         LogThread thread = new LogThread(makerService, senderService, initial);

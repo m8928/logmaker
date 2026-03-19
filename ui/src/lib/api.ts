@@ -30,9 +30,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-	const res = await fetch(`${BASE}${path}`);
-	if (!res.ok) throw new Error(`HTTP ${res.status}`);
-	return res.json();
+	try {
+		const res = await fetch(`${BASE}${path}`);
+		if (!res.ok) {
+			addToast('error', `Failed to load data (${res.status})`);
+			throw new Error(`HTTP ${res.status}`);
+		}
+		return await res.json();
+	} catch (err) {
+		if (err instanceof TypeError) {
+			addToast('error', 'Network error — server may be offline');
+		}
+		throw err;
+	}
 }
 
 export const api = {

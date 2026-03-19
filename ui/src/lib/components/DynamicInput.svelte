@@ -4,10 +4,19 @@
 		type: string;
 		value: string | number | boolean | string[];
 		required?: boolean;
+		description?: string;
 		onchange: (name: string, value: string | number | boolean | string[]) => void;
 	}
 
-	let { name, type, value, required = false, onchange }: Props = $props();
+	let { name, type, value, required = false, description, onchange }: Props = $props();
+
+	// Convert camelCase to spaced Title Case: connectionTimeout → Connection Timeout
+	const displayName = $derived(
+		name
+			.replace(/([A-Z])/g, ' $1')
+			.replace(/^./, (s) => s.toUpperCase())
+			.trim()
+	);
 
 	// For ArrayList tag input
 	let tagInput = $state('');
@@ -44,7 +53,7 @@
 
 <div class="field">
 	<label class="field-label" for="input-{name}">
-		{name.toUpperCase()}
+		{displayName}
 		{#if required}<span class="required">*</span>{/if}
 	</label>
 
@@ -86,7 +95,7 @@
 						<span class="tag">
 							{tag}
 							<button type="button" class="tag-remove" onclick={() => removeTag(tag)} aria-label="Remove {tag}">
-								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
 									<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
 								</svg>
 							</button>
@@ -106,6 +115,10 @@
 			</div>
 		</div>
 	{/if}
+
+	{#if description}
+		<p class="field-description">{description}</p>
+	{/if}
 </div>
 
 <style>
@@ -121,6 +134,13 @@
 		font-weight: 600;
 		color: var(--text-secondary);
 		letter-spacing: 0.04em;
+	}
+
+	.field-description {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		margin: 0;
+		line-height: 1.4;
 	}
 
 	.required {

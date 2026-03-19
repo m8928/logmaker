@@ -67,7 +67,7 @@ class SenderServiceTest {
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
 
         when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
-        when(springPluginManager.getExtensions(eq(SenderPlugin.class))).thenReturn(List.of(senderPlugin));
+        when(springPluginManager.getExtensions(eq(SenderPlugin.class), any())).thenReturn(List.of(senderPlugin));
 
         senderService.loadPlugin();
         return senderPlugin;
@@ -118,7 +118,7 @@ class SenderServiceTest {
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
 
         when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
-        when(springPluginManager.getExtensions(eq(SenderPlugin.class))).thenReturn(List.of(senderPlugin));
+        when(springPluginManager.getExtensions(eq(SenderPlugin.class), any())).thenReturn(List.of(senderPlugin));
 
         senderService.loadPlugin();
 

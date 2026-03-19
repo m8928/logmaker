@@ -9,6 +9,9 @@ export function getToasts() {
 
 export function addToast(type: ToastType, message: string, duration = 3500) {
 	const id = ++nextId;
+	if (toasts.length >= 5) {
+		toasts = toasts.slice(1);
+	}
 	toasts = [...toasts, { id, type, message }];
 	setTimeout(() => removeToast(id), duration);
 }

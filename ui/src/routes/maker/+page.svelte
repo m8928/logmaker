@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { api } from '$lib/api';
 	import DynamicInput from '$lib/components/DynamicInput.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -21,6 +22,18 @@
 	let formName = $state('');
 	let formType = $state('');
 	let formArgs = $state<Record<string, string | number | boolean | string[]>>({});
+	let errors = $state<Record<string, string>>({});
+
+	// Focus restore
+	let triggerElement = $state<HTMLElement | null>(null);
+
+	function validate(): boolean {
+		errors = {};
+		if (!formName.trim()) errors.name = 'Name is required';
+		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName)) errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
+		if (!formType) errors.type = 'Type is required';
+		return Object.keys(errors).length === 0;
+	}
 
 	async function fetchItems() {
 		loading = true;
@@ -39,36 +52,53 @@
 		} catch { /* ignored */ }
 	}
 
-	function openAdd() {
+	function openAdd(e?: MouseEvent) {
+		triggerElement = (e?.currentTarget as HTMLElement) ?? null;
 		editMode = false;
 		formName = '';
 		formType = '';
 		formArgs = {};
+		errors = {};
 		dialogOpen = true;
 		fetchTypes();
 	}
 
-	function openEdit(item: Maker) {
+	function openEdit(item: Maker, e?: MouseEvent) {
+		triggerElement = (e?.currentTarget as HTMLElement) ?? null;
 		editMode = true;
 		formName = item.name;
 		formType = item.type;
 		formArgs = { ...item.args };
+		errors = {};
 		dialogOpen = true;
 		fetchTypes();
 	}
 
-	function openCopy(item: Maker) {
+	function openCopy(item: Maker, e?: MouseEvent) {
+		triggerElement = (e?.currentTarget as HTMLElement) ?? null;
 		editMode = false;
 		formName = 'copy-of-' + item.name;
 		formType = item.type;
 		formArgs = { ...item.args };
+		errors = {};
 		dialogOpen = true;
 		fetchTypes();
 	}
 
 	function closeDialog() {
 		dialogOpen = false;
+		triggerElement?.focus();
+		triggerElement = null;
 	}
+
+	$effect(() => {
+		if (dialogOpen) {
+			tick().then(() => {
+				const firstInput = document.querySelector<HTMLElement>('.dialog input:not([disabled]), .dialog select');
+				firstInput?.focus();
+			});
+		}
+	});
 
 	function getCurrentArgs() {
 		const t = types.find((t) => t.type === formType);
@@ -84,10 +114,7 @@
 	}
 
 	async function submit() {
-		if (!formName.trim() || !formType) {
-			addToast('warning', 'Name and Type are required');
-			return;
-		}
+		if (!validate()) return;
 		loading = true;
 		try {
 			const payload = { name: formName, type: formType, args: formArgs };
@@ -122,10 +149,12 @@
 	async function exportData() {
 		const data = await api.getMakers();
 		const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
-		a.href = URL.createObjectURL(blob);
+		a.href = url;
 		a.download = 'logmaker-maker.json';
 		a.click();
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
 	}
 
 	let importInput = $state<HTMLInputElement | null>(null);
@@ -140,7 +169,11 @@
 			const res = await fetch('/api/v1/maker:import-file', { method: 'POST', body: formData });
 			const result = await res.json();
 			if (Array.isArray(result) && result.some((r: { type: string }) => r.type === 'ERROR')) {
-				addToast('error', 'Import failed for some entries');
+				const failed = result
+					.filter((r: { type: string; message?: string }) => r.type === 'ERROR')
+					.map((r: { type: string; message?: string }) => r.message ?? 'unknown')
+					.join(', ');
+				addToast('error', `Import failed for: ${failed}`);
 			} else {
 				addToast('success', 'Import successful');
 				importOpen = false;
@@ -163,7 +196,11 @@
 		<h1 class="page-title">Maker</h1>
 		<div class="actions">
 			<button class="btn btn-ghost" onclick={fetchItems} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+				{#if loading}
+					<span class="spinner-muted"></span>
+				{:else}
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+				{/if}
 				Reload
 			</button>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
@@ -174,7 +211,7 @@
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 				Export
 			</button>
-			<button class="btn btn-primary" onclick={openAdd} disabled={loading}>
+			<button class="btn btn-primary" onclick={(e) => openAdd(e)} disabled={loading}>
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 				Add Maker
 			</button>
@@ -182,7 +219,7 @@
 	</header>
 
 	<div class="table-wrap">
-		<table class="table">
+		<table class="table" aria-label="Maker list">
 			<thead>
 				<tr>
 					<th>Name</th>
@@ -197,7 +234,21 @@
 				{#if loading && items.length === 0}
 					<tr><td colspan="6" class="empty">Loading…</td></tr>
 				{:else if items.length === 0}
-					<tr><td colspan="6" class="empty">No makers configured yet</td></tr>
+					<tr>
+						<td colspan="6">
+							<div class="empty-state">
+								<div class="empty-state-icon">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+								</div>
+								<p class="empty-state-title">No makers yet</p>
+								<p class="empty-state-desc">Create your first data generator to start building log templates</p>
+								<button class="btn btn-primary" onclick={(e) => openAdd(e)}>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+									Add Maker
+								</button>
+							</div>
+						</td>
+					</tr>
 				{:else}
 					{#each items as item}
 						<tr>
@@ -275,6 +326,7 @@
 								type={arg.type}
 								value={formArgs[key] ?? (arg.type === 'java.lang.Boolean' ? false : arg.type === 'java.util.ArrayList' ? [] : arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long' ? 0 : '')}
 								required={arg.required}
+								description={arg.description}
 								onchange={handleArgChange}
 							/>
 						{/each}
@@ -327,266 +379,6 @@
 />
 
 <style>
-	.page { display: flex; flex-direction: column; gap: 1.5rem; }
-
-	.page-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 1rem;
-	}
-
-	.page-title { font-size: 1.5rem; font-weight: 800; margin: 0; letter-spacing: -0.03em; }
-
-	.actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-
-	.table-wrap {
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		overflow: hidden;
-		box-shadow: var(--shadow-sm);
-	}
-
-	.table {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: 0.875rem;
-	}
-
-	.table th {
-		padding: 0.75rem 1rem;
-		text-align: left;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		border-bottom: 1px solid var(--border);
-		background: var(--bg-raised);
-	}
-
-	.table th.right { text-align: right; }
-
-	.table td {
-		padding: 0.875rem 1rem;
-		border-bottom: 1px solid var(--border);
-		color: var(--text-primary);
-		vertical-align: middle;
-	}
-
-	.table tr:last-child td { border-bottom: none; }
-
-	.table tr:hover td { background: var(--bg-raised); }
-
-	.table td.right { text-align: right; }
-
-	.name-cell { font-weight: 600; }
-
-	.text-muted { color: var(--text-muted); }
-
+	/* Page-specific styles only — shared rules live in app.css */
 	.mono { font-family: var(--font-mono); font-size: 0.8125rem; }
-
-	.empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
-
-	.badge {
-		display: inline-block;
-		padding: 0.2rem 0.6rem;
-		background: var(--accent-light);
-		color: var(--accent);
-		border-radius: 100px;
-		font-size: 0.75rem;
-		font-weight: 600;
-	}
-
-	.badge-ref {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 22px;
-		height: 22px;
-		background: var(--warning-light);
-		color: var(--warning);
-		border-radius: 50%;
-		font-size: 0.75rem;
-		font-weight: 700;
-	}
-
-	.row-actions { display: flex; gap: 0.25rem; justify-content: flex-end; }
-
-	.icon-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 30px;
-		height: 30px;
-		border: none;
-		background: none;
-		border-radius: var(--radius-sm);
-		color: var(--text-secondary);
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-
-	.icon-btn:hover { background: var(--bg-raised); color: var(--text-primary); }
-	.icon-btn.danger:hover:not(:disabled) { background: var(--danger-light); color: var(--danger); }
-	.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-	/* Buttons */
-	.btn {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 0.5rem 0.875rem;
-		border-radius: var(--radius-sm);
-		font-size: 0.8125rem;
-		font-weight: 500;
-		border: 1px solid transparent;
-		cursor: pointer;
-		transition: all 0.15s;
-		white-space: nowrap;
-	}
-
-	.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-	.btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
-	.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-
-	.btn-ghost { background: transparent; border-color: var(--border); color: var(--text-secondary); }
-	.btn-ghost:hover:not(:disabled) { background: var(--bg-raised); color: var(--text-primary); }
-
-	/* Dialog */
-	.overlay {
-		position: fixed; inset: 0;
-		background: var(--bg-overlay);
-		display: flex; align-items: center; justify-content: center;
-		z-index: 500; backdrop-filter: blur(2px);
-	}
-
-	.dialog {
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		width: 90%;
-		max-width: 440px;
-		max-height: 90vh;
-		display: flex;
-		flex-direction: column;
-		box-shadow: var(--shadow-lg);
-		animation: pop-in 0.15s ease-out;
-	}
-
-	.dialog.narrow { max-width: 380px; }
-
-	@keyframes pop-in {
-		from { opacity: 0; transform: scale(0.97); }
-		to { opacity: 1; transform: scale(1); }
-	}
-
-	.dialog-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1.25rem 1.5rem 1rem;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.dialog-title { font-size: 1rem; font-weight: 700; margin: 0; }
-
-	.close-btn {
-		background: none; border: none; cursor: pointer;
-		color: var(--text-muted); padding: 0.25rem;
-		border-radius: var(--radius-sm); transition: all 0.15s;
-	}
-	.close-btn:hover { color: var(--text-primary); background: var(--bg-raised); }
-
-	.dialog-body { padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1; }
-
-	.dialog-footer {
-		padding: 1rem 1.5rem;
-		border-top: 1px solid var(--border);
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.5rem;
-	}
-
-	/* Form fields */
-	.field { display: flex; flex-direction: column; gap: 0.375rem; margin-bottom: 1rem; }
-
-	.field-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--text-secondary);
-		letter-spacing: 0.04em;
-	}
-
-	.required { color: var(--danger); margin-left: 2px; }
-
-	.input {
-		width: 100%;
-		padding: 0.5rem 0.75rem;
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		color: var(--text-primary);
-		font-size: 0.875rem;
-		font-family: inherit;
-		transition: border-color 0.15s, box-shadow 0.15s;
-	}
-
-	.input:focus {
-		outline: none;
-		border-color: var(--border-focus);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
-	}
-
-	.input:disabled { opacity: 0.6; cursor: not-allowed; }
-
-	.args-divider {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		margin: 0.5rem 0 1rem;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.args-divider::before, .args-divider::after {
-		content: '';
-		flex: 1;
-		height: 1px;
-		background: var(--border);
-	}
-
-	.upload-zone {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 2.5rem 1.5rem;
-		border: 2px dashed var(--border);
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		text-align: center;
-		transition: all 0.15s;
-	}
-
-	.upload-zone:hover { border-color: var(--accent); background: var(--accent-light); }
-
-	.upload-label { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
-	.upload-hint { font-size: 0.8125rem; color: var(--text-muted); }
-
-	.spinner {
-		width: 14px; height: 14px;
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		border-top-color: white;
-		border-radius: 50%;
-		animation: spin 0.6s linear infinite;
-	}
-
-	@keyframes spin { to { transform: rotate(360deg); } }
 </style>
