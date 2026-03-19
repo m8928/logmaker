@@ -245,6 +245,68 @@
 		return `${name} (${mk.type})${args ? '\n' + args : ''}`;
 	}
 
+	// Map sample output back to format: find which parts of the sample came from which maker
+	function mapSampleToFormat(format: string, sample: string): Array<{ text: string; maker?: string }> {
+		if (!sample || !format) return [{ text: sample || format || '' }];
+		const segments = parseFormatSegments(format);
+		// Collect static text pieces to use as delimiters
+		const statics: string[] = [];
+		const makerSlots: string[] = [];
+		for (const seg of segments) {
+			if (seg.maker) {
+				makerSlots.push(seg.maker);
+			} else {
+				statics.push(seg.text);
+			}
+		}
+		if (makerSlots.length === 0) return [{ text: sample }];
+
+		// Build regex: escape static parts, capture maker values between them
+		let remaining = sample;
+		const result: Array<{ text: string; maker?: string }> = [];
+		let segIdx = 0;
+		for (const seg of segments) {
+			if (!seg.maker) {
+				// Static text: find it in remaining
+				const pos = remaining.indexOf(seg.text);
+				if (pos > 0) {
+					// Text before this static part is unmatched — shouldn't happen normally
+					result.push({ text: remaining.slice(0, pos) });
+				}
+				if (pos >= 0) {
+					result.push({ text: seg.text });
+					remaining = remaining.slice(pos + seg.text.length);
+				} else {
+					// Static not found — just push remaining and bail
+					result.push({ text: remaining });
+					remaining = '';
+					break;
+				}
+			} else {
+				// Maker: find the next static text to know where maker value ends
+				const nextStatic = segments.slice(segIdx + 1).find(s => !s.maker);
+				if (nextStatic) {
+					const endPos = remaining.indexOf(nextStatic.text);
+					if (endPos >= 0) {
+						result.push({ text: remaining.slice(0, endPos), maker: seg.maker });
+						remaining = remaining.slice(endPos);
+					} else {
+						result.push({ text: remaining, maker: seg.maker });
+						remaining = '';
+						break;
+					}
+				} else {
+					// Last segment is a maker — rest of string is the value
+					result.push({ text: remaining, maker: seg.maker });
+					remaining = '';
+				}
+			}
+			segIdx++;
+		}
+		if (remaining) result.push({ text: remaining });
+		return result;
+	}
+
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
 		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
@@ -390,14 +452,10 @@
 						</div>
 					</div>
 
-					<!-- Sample output (main content) with hoverable maker highlights -->
+					<!-- Log output: sample with hoverable maker-generated parts -->
 					<div class="pipeline-body">
-						{#if item.sample}
-							<div class="body-label">Sample Output</div>
-							<div class="sample-output mono">{item.sample}</div>
-						{/if}
-						<div class="body-label" style="margin-top: 0.5rem">Format Template</div>
-						<div class="format-line mono">{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip text={getMakerTooltip(seg.maker)} position="top"><span class="fmt-maker">{seg.text}</span></Tooltip>{:else}<span class="fmt-static">{seg.text}</span>{/if}{/each}</div>
+						<div class="body-label">Output</div>
+						<div class="output-line mono">{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip text={getMakerTooltip(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip text={getMakerTooltip(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
 					</div>
 
 					<!-- EPS + Count metrics row -->
@@ -889,46 +947,35 @@
 		margin-bottom: 0.25rem;
 	}
 
-	.sample-output {
+	.output-line {
 		font-size: 0.8125rem;
-		line-height: 1.6;
-		color: var(--success);
-		background: color-mix(in srgb, var(--success) 6%, var(--bg-surface));
-		border: 1px solid color-mix(in srgb, var(--success) 15%, var(--border));
-		border-radius: var(--radius-sm);
-		padding: 0.5rem 0.75rem;
-		white-space: pre-wrap;
-		word-break: break-all;
-	}
-
-	.format-line {
-		font-size: 0.75rem;
-		line-height: 1.6;
-		color: var(--text-secondary);
-		background: var(--bg-surface);
+		line-height: 1.7;
+		color: var(--text-primary);
+		background: var(--bg-base);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
-		padding: 0.375rem 0.625rem;
+		padding: 0.625rem 0.75rem;
 		white-space: pre-wrap;
 		word-break: break-all;
 	}
 
-	.fmt-static {
+	.out-static {
 		color: var(--text-secondary);
 	}
 
-	.fmt-maker {
+	.out-maker {
 		color: var(--accent);
 		font-weight: 600;
-		background: var(--accent-light);
-		border-radius: 3px;
-		padding: 0 0.2rem;
+		border-bottom: 2px dotted color-mix(in srgb, var(--accent) 50%, transparent);
 		cursor: help;
-		transition: background 0.15s;
+		transition: background 0.15s, border-color 0.15s;
+		border-radius: 2px;
+		padding: 0.05rem 0.1rem;
 	}
 
-	.fmt-maker:hover {
-		background: color-mix(in srgb, var(--accent) 25%, var(--accent-light));
+	.out-maker:hover {
+		background: var(--accent-light);
+		border-bottom-color: var(--accent);
 	}
 
 	.flow-col-label {
