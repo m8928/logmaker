@@ -112,6 +112,10 @@ class LogServiceTest {
         ResponseEntity<Result> response = logService.updateLog(updated);
 
         // Then
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
     void testCreateLog_epsZero() {
         // Given
         LogDto logDto = new LogDto();
@@ -269,7 +273,8 @@ class LogServiceTest {
         assertFalse(results.isEmpty());
         assertEquals(Result.Type.ERROR, results.get(0).getBody().getType());
     }
-}
+
+    @Test
     void testCreateLog_epsNegative() {
         // Given
         LogDto logDto = new LogDto();
@@ -285,5 +290,4 @@ class LogServiceTest {
         // The service accepts it (no validation at service layer for EPS range)
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
     }
-
 }

@@ -174,6 +174,9 @@ class SenderServiceTest {
 
     @Test
     void updateSender_Success() throws Exception {
+    }
+
+    @Test
     void testDeleteSender_verifiesResourceCleanup() {
         // Given: a thread-based sender that needs cleanup on delete
         SenderDto senderDto = new SenderDto();
@@ -193,7 +196,7 @@ class SenderServiceTest {
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
 
         when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
-        when(springPluginManager.getExtensions(eq(SenderPlugin.class))).thenReturn(List.of(senderPlugin));
+        when(springPluginManager.getExtensions(eq(SenderPlugin.class), any())).thenReturn(List.of(senderPlugin));
 
         senderService.loadPlugin();
         senderService.createSender(senderDto);
@@ -207,7 +210,7 @@ class SenderServiceTest {
     }
 
     @Test
-    void updateSender_Success() {
+    void updateSender_SuccessWithVerify() {
         // Given
         SenderDto senderDto = new SenderDto();
         senderDto.setName("testSender");

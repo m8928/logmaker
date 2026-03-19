@@ -1,1 +1,7 @@
-[{"name":"sharedMakerName","args":{},"size":0,"ref":0,"regTime":0}]
+[ {
+  "name" : "sharedMakerName",
+  "args" : { },
+  "size" : 0,
+  "ref" : 0,
+  "regTime" : 0
+} ]

@@ -94,6 +94,23 @@ class MakerServiceTest {
         // Given
         MakerDto makerDto = new MakerDto();
         makerDto.setName("dupMaker");
+        makerDto.setType("testType");
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
+
+        loadPluginWithType("testType", makerPlugin);
+        makerService.createMaker(makerDto);
+
+        // When: create again with same name
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
     void testCreateMaker_specialCharsInName() {
         // Given: maker name with special characters
         MakerDto makerDto = new MakerDto();
@@ -123,10 +140,6 @@ class MakerServiceTest {
 
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
         when(makerPlugin.getType()).thenReturn("testType");
-        when(makerPlugin.getMaker(any(), any())).thenThrow(new ArgumentsNotValidException());
-
-        loadPluginWithType("testType", makerPlugin);
-        when(makerPlugin.getMaker(any(), any())).thenReturn(Mockito.mock(Maker.class));
 
         PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
@@ -135,6 +148,8 @@ class MakerServiceTest {
         when(springPluginManager.getExtensions(eq(MakerPlugin.class), any())).thenReturn(List.of(makerPlugin));
 
         makerService.loadPlugin();
+
+        when(makerPlugin.getMaker(any(), any())).thenThrow(new ArgumentsNotValidException());
 
         // When
         ResponseEntity<Result> response = makerService.createMaker(makerDto);
@@ -149,8 +164,12 @@ class MakerServiceTest {
         MakerDto makerDto = new MakerDto();
         makerDto.setName("unknownMaker");
         makerDto.setType("unknownType");
-        // Then: service layer accepts any non-null name; validation is at controller layer
-        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+
+        // When
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then: no plugin found for the type, returns ERROR
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
     }
 
     @Test
@@ -291,9 +310,5 @@ class MakerServiceTest {
         // Then
         assertFalse(results.isEmpty());
         assertEquals(Result.Type.SUCCESS, results.get(0).getBody().getType());
-    }
-}
-        // Then: no plugin found for the type, returns ERROR
-        assertEquals(Result.Type.ERROR, response.getBody().getType());
     }
 }
