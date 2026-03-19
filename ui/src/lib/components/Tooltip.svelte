@@ -24,15 +24,15 @@
 			const rect = triggerEl.getBoundingClientRect();
 			if (position === 'top') {
 				tipX = rect.left + rect.width / 2;
-				tipY = rect.top - 8;
+				tipY = rect.top - 4;
 			} else if (position === 'bottom') {
 				tipX = rect.left + rect.width / 2;
-				tipY = rect.bottom + 8;
+				tipY = rect.bottom + 4;
 			} else if (position === 'left') {
-				tipX = rect.left - 8;
+				tipX = rect.left - 4;
 				tipY = rect.top + rect.height / 2;
 			} else {
-				tipX = rect.right + 8;
+				tipX = rect.right + 4;
 				tipY = rect.top + rect.height / 2;
 			}
 		}
@@ -115,19 +115,18 @@
 		color: var(--text-primary);
 		border: 1px solid var(--border);
 		font-size: 0.75rem;
-		line-height: 1.5;
+		line-height: 1.4;
 		padding: 0;
-		border-radius: var(--radius-md);
-		min-width: 160px;
+		border-radius: var(--radius-sm);
+		min-width: 140px;
 		max-width: 320px;
-		box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-		overflow: hidden;
+		box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 	}
 
 	.tooltip-title {
-		padding: 0.375rem 0.625rem;
+		padding: 0.25rem 0.5rem;
 		font-weight: 700;
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--accent);
 		background: var(--bg-raised);
 		border-bottom: 1px solid var(--border);
@@ -139,14 +138,18 @@
 	.tooltip-entries {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 0.125rem 0.5rem;
-		padding: 0.375rem 0.625rem;
+		gap: 1px 0.5rem;
+		padding: 0.25rem 0.5rem;
 		font-size: 0.6875rem;
 	}
 
 	.entry-key {
 		color: var(--text-muted);
 		white-space: nowrap;
+		text-transform: uppercase;
+		font-weight: 600;
+		font-size: 0.5625rem;
+		letter-spacing: 0.04em;
 	}
 
 	.entry-val {
@@ -156,7 +159,7 @@
 	}
 
 	.tooltip-body {
-		padding: 0.375rem 0.625rem;
+		padding: 0.25rem 0.5rem;
 		white-space: pre-wrap;
 		word-break: break-word;
 		color: var(--text-secondary);

@@ -245,10 +245,14 @@
 
 	function getMakerDetail(name: string): string {
 		const mk = makers.find(m => m.name === name);
-		if (!mk) return '';
-		const entries = Object.entries(mk.args || {});
-		if (entries.length === 0) return `ref: ${mk.ref}`;
-		return entries.map(([k, v]) => `${k}: ${v}`).join('\n') + `\nref: ${mk.ref}`;
+		if (!mk) return `name: ${name}`;
+		const lines: string[] = [];
+		for (const [k, v] of Object.entries(mk.args || {})) {
+			const val = Array.isArray(v) ? v.join(', ') : String(v);
+			lines.push(`${k}: ${val}`);
+		}
+		lines.push(`ref: ${mk.ref}`);
+		return lines.join('\n');
 	}
 
 	function getSenderTitle(name: string): string {
