@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import javax.management.*;
 import java.lang.management.ManagementFactory;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -22,12 +23,13 @@ public class DashboardService {
     private final PluginService pluginService;
 
     public DashboardDto getDashboard() {
-        long eps = logService.getLog().stream().map(LogDto::getEps).reduce(0L, Long::sum);
-        long actualEps = logService.getLog().stream().map(LogDto::getCurrentEps).reduce(0L, Long::sum);
+        List<LogDto> logs = logService.getLog();
+        long eps = logs.stream().map(LogDto::getEps).reduce(0L, Long::sum);
+        long actualEps = logs.stream().map(LogDto::getCurrentEps).reduce(0L, Long::sum);
 
         return DashboardDto.builder()
                 .maker(makerService.getMaker().size())
-                .log(logService.getLog().size())
+                .log(logs.size())
                 .sender(senderService.getSender().size())
                 .plugin(pluginService.getPlugin().size())
                 .eps(eps)
