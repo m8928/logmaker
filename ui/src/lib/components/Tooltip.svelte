@@ -2,23 +2,21 @@
 	import type { Snippet } from 'svelte';
 
 	let {
+		title = '',
 		text = '',
 		position = 'top',
 		children
 	}: {
+		title?: string;
 		text?: string;
 		position?: 'top' | 'bottom' | 'left' | 'right';
 		children: Snippet;
 	} = $props();
 
 	let visible = $state(false);
-	let x = $state(0);
-	let y = $state(0);
-	let tooltipEl: HTMLDivElement | undefined = $state();
-	let triggerEl: HTMLDivElement | undefined = $state();
 
 	function show() {
-		if (!text) return;
+		if (!text && !title) return;
 		visible = true;
 	}
 
@@ -30,20 +28,22 @@
 <div
 	class="tooltip-trigger"
 	role="group"
-	bind:this={triggerEl}
 	onmouseenter={show}
 	onmouseleave={hide}
 	onfocusin={() => show()}
 	onfocusout={() => hide()}
 >
 	{@render children()}
-	{#if visible && text}
-		<div
-			bind:this={tooltipEl}
-			class="tooltip tooltip-{position}"
-			role="tooltip"
-		>
-			<div class="tooltip-content">{text}</div>
+	{#if visible && (text || title)}
+		<div class="tooltip tooltip-{position}" role="tooltip">
+			<div class="tooltip-card">
+				{#if title}
+					<div class="tooltip-title">{title}</div>
+				{/if}
+				{#if text}
+					<div class="tooltip-body">{text}</div>
+				{/if}
+			</div>
 		</div>
 	{/if}
 </div>
@@ -58,58 +58,75 @@
 		position: absolute;
 		z-index: 1000;
 		pointer-events: none;
-		animation: tooltip-in 0.15s ease;
+		animation: tooltip-fade 0.12s ease;
 	}
 
-	.tooltip-content {
-		background: var(--text-primary);
-		color: var(--bg-base);
+	.tooltip-card {
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		border: 1px solid var(--border);
 		font-size: 0.75rem;
-		line-height: 1.5;
+		line-height: 1.6;
+		padding: 0;
+		border-radius: var(--radius-md);
+		min-width: 180px;
+		max-width: 360px;
+		box-shadow: var(--shadow-lg);
+		overflow: hidden;
+	}
+
+	.tooltip-title {
 		padding: 0.5rem 0.75rem;
-		border-radius: var(--radius-sm);
-		white-space: pre-wrap;
-		word-break: break-all;
-		max-width: 400px;
-		box-shadow: var(--shadow-md);
+		font-weight: 700;
+		font-size: 0.8125rem;
+		color: var(--accent);
+		background: var(--bg-raised);
+		border-bottom: 1px solid var(--border);
 		font-family: var(--font-mono);
 	}
 
+	.tooltip-body {
+		padding: 0.5rem 0.75rem;
+		white-space: pre-wrap;
+		word-break: break-word;
+		color: var(--text-secondary);
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		line-height: 1.7;
+	}
+
+	/* No title → compact single-section */
+	.tooltip-card:not(:has(.tooltip-title)) .tooltip-body {
+		font-size: 0.75rem;
+		color: var(--text-primary);
+	}
+
 	.tooltip-top {
-		bottom: calc(100% + 6px);
+		bottom: calc(100% + 8px);
 		left: 50%;
 		transform: translateX(-50%);
 	}
 
 	.tooltip-bottom {
-		top: calc(100% + 6px);
+		top: calc(100% + 8px);
 		left: 50%;
 		transform: translateX(-50%);
 	}
 
 	.tooltip-left {
-		right: calc(100% + 6px);
+		right: calc(100% + 8px);
 		top: 50%;
 		transform: translateY(-50%);
 	}
 
 	.tooltip-right {
-		left: calc(100% + 6px);
+		left: calc(100% + 8px);
 		top: 50%;
 		transform: translateY(-50%);
 	}
 
-	@keyframes tooltip-in {
-		from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-		to { opacity: 1; transform: translateX(-50%) translateY(0); }
-	}
-
-	.tooltip-bottom {
-		animation-name: tooltip-in-bottom;
-	}
-
-	@keyframes tooltip-in-bottom {
-		from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-		to { opacity: 1; transform: translateX(-50%) translateY(0); }
+	@keyframes tooltip-fade {
+		from { opacity: 0; }
+		to { opacity: 1; }
 	}
 </style>

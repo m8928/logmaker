@@ -238,11 +238,31 @@
 		return segments;
 	}
 
-	function getMakerTooltip(name: string): string {
+	function getMakerTitle(name: string): string {
 		const mk = makers.find(m => m.name === name);
-		if (!mk) return name;
-		const args = Object.entries(mk.args || {}).slice(0, 3).map(([k, v]) => `${k}: ${v}`).join('\n');
-		return `${name} (${mk.type})${args ? '\n' + args : ''}`;
+		return mk ? `${name} — ${mk.type}` : name;
+	}
+
+	function getMakerDetail(name: string): string {
+		const mk = makers.find(m => m.name === name);
+		if (!mk) return '';
+		const entries = Object.entries(mk.args || {});
+		if (entries.length === 0) return `ref: ${mk.ref}`;
+		return entries.map(([k, v]) => `${k}: ${v}`).join('\n') + `\nref: ${mk.ref}`;
+	}
+
+	function getSenderTitle(name: string): string {
+		const sn = senders.find(s => s.name === name);
+		return sn ? `${name} — ${sn.type}` : name;
+	}
+
+	function getSenderDetail(name: string): string {
+		const sn = senders.find(s => s.name === name);
+		if (!sn) return '';
+		const entries = Object.entries(sn.args || {}).slice(0, 4);
+		const lines = entries.map(([k, v]) => `${k}: ${v}`);
+		lines.push(`output: ${(sn.output ?? 0).toLocaleString()}`);
+		return lines.join('\n');
 	}
 
 	// Map sample output back to format: find which parts of the sample came from which maker
@@ -410,40 +430,37 @@
 						</div>
 					</div>
 
-					<!-- Makers → Senders inline bar -->
+					<!-- Makers / Senders inline bar -->
 					<div class="pipeline-bar">
 						<div class="bar-section">
 							<span class="bar-label">Makers</span>
 							<div class="bar-chips">
-								{#each makerNames.slice(0, 5) as m}
-									<Tooltip text={getMakerTooltip(m)} position="bottom">
+								{#each makerNames.slice(0, 6) as m}
+									<Tooltip title={getMakerTitle(m)} text={getMakerDetail(m)} position="bottom">
 										<span class="chip chip-maker">{m}</span>
 									</Tooltip>
 								{/each}
-								{#if makerNames.length > 5}
-									<Tooltip text={makerNames.slice(5).join(', ')} position="bottom">
-										<span class="chip chip-more">+{makerNames.length - 5}</span>
+								{#if makerNames.length > 6}
+									<Tooltip text={makerNames.slice(6).join(', ')} position="bottom">
+										<span class="chip chip-more">+{makerNames.length - 6}</span>
 									</Tooltip>
 								{:else if makerNames.length === 0}
 									<span class="chip chip-empty">none</span>
 								{/if}
 							</div>
 						</div>
-						<div class="bar-flow" aria-hidden="true">
-							<div class="flow-pipe" class:flowing={running}></div>
-						</div>
+						<div class="bar-sep" aria-hidden="true"></div>
 						<div class="bar-section">
 							<span class="bar-label">Senders</span>
 							<div class="bar-chips">
-								{#each item.sender.slice(0, 4) as s}
-									{@const si = senders.find(sn => sn.name === s)}
-									<Tooltip text={si ? `${s} (${si.type})\nOutput: ${si.output?.toLocaleString() ?? 0}` : s} position="bottom">
+								{#each item.sender.slice(0, 5) as s}
+									<Tooltip title={getSenderTitle(s)} text={getSenderDetail(s)} position="bottom">
 										<span class="chip chip-sender">{s}</span>
 									</Tooltip>
 								{/each}
-								{#if item.sender.length > 4}
-									<Tooltip text={item.sender.slice(4).join(', ')} position="bottom">
-										<span class="chip chip-more">+{item.sender.length - 4}</span>
+								{#if item.sender.length > 5}
+									<Tooltip text={item.sender.slice(5).join(', ')} position="bottom">
+										<span class="chip chip-more">+{item.sender.length - 5}</span>
 									</Tooltip>
 								{:else if item.sender.length === 0}
 									<span class="chip chip-empty">none</span>
@@ -455,7 +472,7 @@
 					<!-- Log output: sample with hoverable maker-generated parts -->
 					<div class="pipeline-body">
 						<div class="body-label">Output</div>
-						<div class="output-line mono">{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip text={getMakerTooltip(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip text={getMakerTooltip(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
+						<div class="output-line mono">{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
 					</div>
 
 					<!-- EPS + Count metrics row -->
@@ -921,18 +938,15 @@
 		background: var(--bg-surface);
 	}
 
-	.bar-flow {
-		flex: 1;
-		min-width: 24px;
-		display: flex;
-		align-items: center;
+	.bar-sep {
+		width: 1px;
+		height: 20px;
+		background: var(--border);
+		flex-shrink: 0;
+		margin: 0 0.25rem;
 	}
 
-	.bar-flow .flow-pipe {
-		width: 100%;
-	}
-
-	/* Pipeline body: sample + format */
+	/* Pipeline body */
 	.pipeline-body {
 		padding: 0.75rem 1rem;
 		border-bottom: 1px solid var(--border);
@@ -986,42 +1000,6 @@
 		color: var(--text-muted);
 	}
 
-	/* Flow pipe connector (animated) */
-	.flow-pipe {
-		width: 32px;
-		height: 4px;
-		border-radius: 2px;
-		background: var(--border);
-		position: relative;
-		overflow: hidden;
-	}
-
-	.flow-pipe::after {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: -100%;
-		width: 100%;
-		height: 100%;
-		border-radius: 2px;
-		background: var(--accent);
-		opacity: 0;
-	}
-
-	.flow-pipe.flowing {
-		background: color-mix(in srgb, var(--success) 25%, var(--border));
-	}
-
-	.flow-pipe.flowing::after {
-		opacity: 1;
-		background: linear-gradient(90deg, transparent, var(--success), transparent);
-		animation: pipe-flow 1.5s ease-in-out infinite;
-	}
-
-	@keyframes pipe-flow {
-		0% { left: -100%; }
-		100% { left: 100%; }
-	}
 
 
 	/* Metrics row */
@@ -1306,8 +1284,8 @@
 
 	@media (max-width: 700px) {
 		.pipeline-grid { grid-template-columns: 1fr; }
-		.pipeline-bar { flex-wrap: wrap; }
-		.bar-flow { min-width: 100%; order: 99; display: none; }
+		.pipeline-bar { flex-wrap: wrap; gap: 0.375rem; }
+		.bar-sep { display: none; }
 		.search-input { width: 150px; }
 		.search-input:focus { width: 150px; }
 	}
