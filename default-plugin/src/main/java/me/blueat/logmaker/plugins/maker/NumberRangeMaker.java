@@ -84,7 +84,8 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
         try {
             return queue.take().longValue();
         } catch (InterruptedException e) {
-            return null;
+            Thread.currentThread().interrupt();
+            return 0L;
         }
     }
 

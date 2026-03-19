@@ -55,7 +55,8 @@ public class RegexMaker extends Maker<String> implements Runnable {
         try {
             return queue.take();
         } catch (InterruptedException e) {
-            return null;
+            Thread.currentThread().interrupt();
+            return "";
         }
     }
 
