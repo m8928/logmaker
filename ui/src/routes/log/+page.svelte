@@ -2,6 +2,7 @@
 	import { slide } from 'svelte/transition';
 	import { api } from '$lib/api';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Tooltip from '$lib/components/Tooltip.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import type { Log, Maker, Sender } from '$lib/types';
 
@@ -331,31 +332,39 @@
 									<span class="flow-chip flow-chip-empty">none</span>
 								{:else}
 									{#each makerNames.slice(0, 4) as m}
-										<span class="flow-chip flow-chip-maker">{m}</span>
+										<Tooltip text={makers.find(mk => mk.name === m) ? `${m} (${makers.find(mk => mk.name === m)?.type})` : m} position="bottom">
+											<span class="flow-chip flow-chip-maker">{m}</span>
+										</Tooltip>
 									{/each}
 									{#if makerNames.length > 4}
-										<span class="flow-chip flow-chip-more">+{makerNames.length - 4}</span>
+										<Tooltip text={makerNames.slice(4).join(', ')} position="bottom">
+											<span class="flow-chip flow-chip-more">+{makerNames.length - 4}</span>
+										</Tooltip>
 									{/if}
 								{/if}
 							</div>
 						</div>
 
-						<!-- Arrow -->
-						<div class="flow-arrow" aria-hidden="true">
-							<div class="arrow-line"></div>
-							<svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1l6 5-6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						<!-- Flow connector -->
+						<div class="flow-connector" aria-hidden="true">
+							<div class="flow-pipe" class:flowing={running}></div>
 						</div>
 
-						<!-- Format column -->
+						<!-- Format + Sample column -->
 						<div class="flow-col flow-col-format">
 							<div class="flow-col-label">Format</div>
-							<div class="format-preview mono">{item.format}</div>
+							<Tooltip text={item.format} position="bottom">
+								<div class="format-preview mono">{item.format}</div>
+							</Tooltip>
+							{#if item.sample}
+								<div class="flow-col-label sample-label">Sample Output</div>
+								<div class="sample-preview mono">{item.sample}</div>
+							{/if}
 						</div>
 
-						<!-- Arrow -->
-						<div class="flow-arrow" aria-hidden="true">
-							<div class="arrow-line"></div>
-							<svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1l6 5-6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						<!-- Flow connector -->
+						<div class="flow-connector" aria-hidden="true">
+							<div class="flow-pipe" class:flowing={running}></div>
 						</div>
 
 						<!-- Senders column -->
@@ -366,10 +375,15 @@
 									<span class="flow-chip flow-chip-empty">none</span>
 								{:else}
 									{#each item.sender.slice(0, 3) as s}
-										<span class="flow-chip flow-chip-sender">{s}</span>
+										{@const senderInfo = senders.find(sn => sn.name === s)}
+										<Tooltip text={senderInfo ? `${s} (${senderInfo.type})\nOutput: ${senderInfo.output?.toLocaleString() ?? 0}` : s} position="bottom">
+											<span class="flow-chip flow-chip-sender">{s}</span>
+										</Tooltip>
 									{/each}
 									{#if item.sender.length > 3}
-										<span class="flow-chip flow-chip-more">+{item.sender.length - 3}</span>
+										<Tooltip text={item.sender.slice(3).join(', ')} position="bottom">
+											<span class="flow-chip flow-chip-more">+{item.sender.length - 3}</span>
+										</Tooltip>
 									{/if}
 								{/if}
 							</div>
@@ -856,21 +870,66 @@
 		min-height: 40px;
 	}
 
-	/* Flow arrow connector */
-	.flow-arrow {
+	/* Flow pipe connector (animated) */
+	.flow-connector {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
-		padding: 0 0.625rem;
-		color: var(--text-muted);
-		gap: 0;
+		padding: 0 0.25rem;
 		align-self: center;
 	}
 
-	.arrow-line {
-		width: 16px;
-		height: 1px;
+	.flow-pipe {
+		width: 32px;
+		height: 4px;
+		border-radius: 2px;
 		background: var(--border);
+		position: relative;
+		overflow: hidden;
+	}
+
+	.flow-pipe::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: -100%;
+		width: 100%;
+		height: 100%;
+		border-radius: 2px;
+		background: var(--accent);
+		opacity: 0;
+	}
+
+	.flow-pipe.flowing {
+		background: color-mix(in srgb, var(--success) 25%, var(--border));
+	}
+
+	.flow-pipe.flowing::after {
+		opacity: 1;
+		background: linear-gradient(90deg, transparent, var(--success), transparent);
+		animation: pipe-flow 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pipe-flow {
+		0% { left: -100%; }
+		100% { left: 100%; }
+	}
+
+	/* Sample output preview */
+	.sample-label {
+		margin-top: 0.5rem;
+		color: var(--success);
+	}
+
+	.sample-preview {
+		font-size: 0.75rem;
+		color: var(--success);
+		background: color-mix(in srgb, var(--success) 8%, var(--bg-surface));
+		border: 1px solid color-mix(in srgb, var(--success) 20%, var(--border));
+		border-radius: var(--radius-sm);
+		padding: 0.5rem 0.625rem;
+		white-space: pre-wrap;
+		word-break: break-all;
+		line-height: 1.5;
 	}
 
 	/* Metrics row */
@@ -1156,7 +1215,7 @@
 	@media (max-width: 700px) {
 		.pipeline-grid { grid-template-columns: 1fr; }
 		.pipeline-flow { grid-template-columns: 1fr; gap: 0.5rem; }
-		.flow-arrow { display: none; }
+		.flow-connector { display: none; }
 		.search-input { width: 150px; }
 		.search-input:focus { width: 150px; }
 	}
