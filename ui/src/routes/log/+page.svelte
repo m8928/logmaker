@@ -349,7 +349,7 @@
 						<!-- Format column -->
 						<div class="flow-col flow-col-format">
 							<div class="flow-col-label">Format</div>
-							<div class="format-preview mono">{item.format.length > 80 ? item.format.slice(0, 80) + '…' : item.format}</div>
+							<div class="format-preview mono">{item.format}</div>
 						</div>
 
 						<!-- Arrow -->
@@ -771,8 +771,9 @@
 
 	/* Pipeline flow visualization */
 	.pipeline-flow {
-		display: flex;
-		align-items: stretch;
+		display: grid;
+		grid-template-columns: 140px auto 1fr auto 140px;
+		align-items: start;
 		padding: 0.875rem 1rem;
 		gap: 0;
 		border-bottom: 1px solid var(--border);
@@ -788,7 +789,7 @@
 	}
 
 	.flow-col-format {
-		flex: 1;
+		min-width: 0;
 	}
 
 	.flow-col-label {
@@ -843,18 +844,16 @@
 	}
 
 	.format-preview {
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		color: var(--text-secondary);
 		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
-		padding: 0.375rem 0.5rem;
+		padding: 0.5rem 0.625rem;
 		white-space: pre-wrap;
 		word-break: break-all;
 		line-height: 1.5;
 		min-height: 40px;
-		max-height: 72px;
-		overflow: hidden;
 	}
 
 	/* Flow arrow connector */
@@ -862,10 +861,11 @@
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		padding: 0 0.5rem;
-		margin-top: 1rem;
+		padding: 0 0.625rem;
+		margin-top: 1.5rem;
 		color: var(--text-muted);
 		gap: 0;
+		align-self: start;
 	}
 
 	.arrow-line {
@@ -1156,7 +1156,7 @@
 
 	@media (max-width: 700px) {
 		.pipeline-grid { grid-template-columns: 1fr; }
-		.pipeline-flow { flex-direction: column; gap: 0.5rem; }
+		.pipeline-flow { grid-template-columns: 1fr; gap: 0.5rem; }
 		.flow-arrow { display: none; }
 		.search-input { width: 150px; }
 		.search-input:focus { width: 150px; }
