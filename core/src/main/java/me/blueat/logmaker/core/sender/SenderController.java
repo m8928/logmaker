@@ -22,7 +22,7 @@ public class SenderController {
     private final SenderService senderService;
 
     @GetMapping("/sender")
-    public List<SenderDto> geSender() {
+    public List<SenderDto> getSender() {
         return senderService.getSender();
     }
 

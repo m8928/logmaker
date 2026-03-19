@@ -1,7 +1,8 @@
 package me.blueat.logmaker.core.plugin;
 
 import com.google.common.collect.Maps;
-import lombok.Data;
+import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.config.PluginConfig;
@@ -16,18 +17,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Data
+@Getter
 public class PluginService {
     private final PluginConfig pluginConfig;
     private final MakerService makerService;
@@ -37,7 +38,9 @@ public class PluginService {
     public ResponseEntity<Result> uploadPlugin(MultipartFile file) {
         Path pluginPath = null;
         try {
-            pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(),file.getOriginalFilename());
+            String originalName = file.getOriginalFilename();
+            String safeName = UUID.randomUUID() + "_" + Paths.get(originalName).getFileName().toString().replaceAll("[^a-zA-Z0-9._-]", "_");
+            pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(), safeName);
             file.transferTo(pluginPath);
 
             String pluginId = springPluginManager.loadPlugin(pluginPath);
@@ -53,7 +56,7 @@ public class PluginService {
                     Files.delete(pluginPath);
                 }
                 catch (IOException ioe) {
-                 //NOTHING
+                    log.error("Failed to delete plugin file after upload failure", ioe);
                 }
             }
             return Result.createResultSet(Result.Type.ERROR, String.format("Plugin upload failed (%s)", e.getMessage()));

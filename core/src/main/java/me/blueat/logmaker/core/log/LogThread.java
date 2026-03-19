@@ -1,8 +1,7 @@
 package me.blueat.logmaker.core.log;
 
 import com.google.common.collect.Maps;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
@@ -31,26 +30,27 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-@EqualsAndHashCode(callSuper = true)
 @Slf4j
-@Data
-public class LogThread extends Thread {
+@Getter
+public class LogThread implements Runnable {
     private Instant start = null;
 
-    private AtomicLong count = new AtomicLong(0);
+    private final AtomicLong count = new AtomicLong(0);
     private Set<String> makerName;
     private List<String> senderName;
     private VelocityEngine ve;
     private Template vTemplate;
     private String vFormat;
-    private MakerService makerService;
-    private SenderService senderService;
+    private final MakerService makerService;
+    private final SenderService senderService;
     private Map<String, Sender<?>> senders;
     private Map<String, Maker<?>> makers;
 
-    private Lock updateLock = new ReentrantLock(true);
+    private final Lock updateLock = new ReentrantLock(true);
 
     private LogDto logDto;
+
+    private volatile Thread runningThread;
 
     public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) {
         this.makerService = makerService;
@@ -58,7 +58,6 @@ public class LogThread extends Thread {
         this.logDto = logDto;
         this.senders = new ConcurrentHashMap<>();
         this.makers = new ConcurrentHashMap<>();
-        super.setName(logDto.getName());
         init();
     }
 
@@ -82,6 +81,9 @@ public class LogThread extends Thread {
         this.vFormat = template.render();
 
         ve = new VelocityEngine();
+        ve.setProperty("runtime.introspector.uberspect", "org.apache.velocity.util.introspection.SecureUberspector");
+        ve.setProperty("introspector.restrict.packages", "java.lang.reflect,java.lang.Runtime,java.lang.Process,java.lang.System");
+        ve.setProperty("introspector.restrict.classes", "java.lang.Class,java.lang.ClassLoader,java.lang.Thread,java.lang.Compiler,java.lang.Runtime,java.lang.System");
         ve.setProperty("parser.pool.size", 20);
         ve.init();
 
@@ -94,7 +96,7 @@ public class LogThread extends Thread {
         try {
             sn = rs.parse(sr, vTemplate);
         } catch (ParseException e) {
-            e.printStackTrace();
+            log.error("Template parsing failed", e);
         }
 
         vTemplate.setRuntimeServices(rs);
@@ -122,11 +124,6 @@ public class LogThread extends Thread {
         }));
     }
 
-    @Override
-    public synchronized void start() {
-        super.start();
-    }
-
     private Map<String, Object> getTemplateData() {
         Map<String, Object> result = Maps.newHashMap();
 
@@ -139,9 +136,10 @@ public class LogThread extends Thread {
 
     @Override
     public void run() {
+        runningThread = Thread.currentThread();
         start = Instant.now();
         AtomicLong createCount = new AtomicLong(0);
-        while(!Thread.currentThread().isInterrupted()) {
+        while (!Thread.currentThread().isInterrupted()) {
             createCount.set(0);
             Instant currentStart = Instant.now();
 
@@ -183,7 +181,7 @@ public class LogThread extends Thread {
         long timing = Duration.between(start, end).toMillis();
 
         if (timing > 0) {
-            return Math.round((count.get() /(double)timing) * 1000);
+            return Math.round((count.get() / (double) timing) * 1000);
         }
         else {
             return 0;
@@ -236,12 +234,12 @@ public class LogThread extends Thread {
                 result = true;
             }
             catch (Exception e) {
+                log.error("Failed to update log configuration, reverting to backup", e);
                 makerName.clear();
                 makers.clear();
                 senderName.clear();
                 senders.clear();
                 this.logDto = backup;
-                updateLogDto(this.logDto);
                 result = false;
             }
         }
@@ -266,8 +264,10 @@ public class LogThread extends Thread {
         return writer.toString();
     }
 
-    @Override
     public void interrupt() {
-        super.interrupt();
+        Thread t = runningThread;
+        if (t != null) {
+            t.interrupt();
+        }
     }
 }

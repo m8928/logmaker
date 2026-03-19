@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
+import com.google.common.collect.Tables;
+import jakarta.annotation.PostConstruct;
 import jakarta.xml.bind.DataBindingException;
-import lombok.Data;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.config.LogMakerConfig;
@@ -21,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -33,7 +34,7 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Data
+@Getter
 @Order(2)
 public class SenderService {
     private Table<String, String, Sender<?>> senderTable;
@@ -45,8 +46,8 @@ public class SenderService {
 
     @PostConstruct
     protected void init() {
-        senderTable = HashBasedTable.create();
-        senderPluginTable = HashBasedTable.create();
+        senderTable = Tables.synchronizedTable(HashBasedTable.create());
+        senderPluginTable = Tables.synchronizedTable(HashBasedTable.create());
         loadPlugin();
         Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json")
                         , SenderDto[].class)))
@@ -164,10 +165,11 @@ public class SenderService {
     public void loadPlugin() {
         loadPlugin(null);
     }
+
     public void loadPlugin(String pluginId) {
         springPluginManager.getPlugins(PluginState.STARTED).stream()
                 .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
-                .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class)
+                .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class, pluginWrapper.getPluginId())
                         .forEach(senderPlugin -> {
                             log.info("{}", senderPlugin.getType());
                             if (!getSenderPluginTable().contains(pluginWrapper.getPluginId(), senderPlugin.getType())) {
@@ -194,5 +196,4 @@ public class SenderService {
 
         return result;
     }
-
 }
