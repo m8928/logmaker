@@ -9,7 +9,7 @@
 	let senders = $state<Sender[]>([]);
 	let makers = $state<Maker[]>([]);
 	let loading = $state(false);
-	let expandedRows = $state<Set<string>>(new Set());
+	let search = $state('');
 
 	let dialogOpen = $state(false);
 	let editMode = $state(false);
@@ -28,40 +28,51 @@
 	let showMakerHelper = $state(true);
 	let makerHelperShowName = $state(true);
 
-	// Format textarea ref for cursor position insertion
 	let formatTextarea = $state<HTMLTextAreaElement | null>(null);
+
+	const filtered = $derived(
+		search.trim()
+			? items.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()))
+			: items
+	);
 
 	async function fetchItems() {
 		loading = true;
-		try { items = await api.getLogs(); }
-		catch { /* toast shown */ }
-		finally { loading = false; }
+		try {
+			items = await api.getLogs();
+		} catch {
+			/* toast shown */
+		} finally {
+			loading = false;
+		}
 	}
 
 	async function fetchSupport() {
 		try {
 			[senders, makers] = await Promise.all([api.getSenders(), api.getMakers()]);
-		} catch { /* ignored */ }
-	}
-
-	function toggleExpand(name: string) {
-		const next = new Set(expandedRows);
-		if (next.has(name)) next.delete(name);
-		else next.add(name);
-		expandedRows = next;
+		} catch {
+			/* ignored */
+		}
 	}
 
 	function openAdd() {
 		editMode = false;
-		formName = ''; formFormat = ''; formEps = 0; formSenders = []; previewText = '';
+		formName = '';
+		formFormat = '';
+		formEps = 0;
+		formSenders = [];
+		previewText = '';
 		dialogOpen = true;
 		fetchSupport();
 	}
 
 	function openEdit(item: Log) {
 		editMode = true;
-		formName = item.name; formFormat = item.format; formEps = item.eps;
-		formSenders = [...item.sender]; previewText = '';
+		formName = item.name;
+		formFormat = item.format;
+		formEps = item.eps;
+		formSenders = [...item.sender];
+		previewText = '';
 		dialogOpen = true;
 		fetchSupport();
 		runPreview();
@@ -69,19 +80,30 @@
 
 	function openCopy(item: Log) {
 		editMode = false;
-		formName = 'copy-of-' + item.name; formFormat = item.format;
-		formEps = item.eps; formSenders = [...item.sender]; previewText = '';
+		formName = 'copy-of-' + item.name;
+		formFormat = item.format;
+		formEps = item.eps;
+		formSenders = [...item.sender];
+		previewText = '';
 		dialogOpen = true;
 		fetchSupport();
 	}
 
-	function closeDialog() { dialogOpen = false; previewText = ''; }
+	function closeDialog() {
+		dialogOpen = false;
+		previewText = '';
+	}
 
 	async function runPreview() {
 		if (!formFormat) return;
 		previewLoading = true;
 		try {
-			const result = await api.previewLog({ name: formName, format: formFormat, eps: formEps, sender: formSenders });
+			const result = await api.previewLog({
+				name: formName,
+				format: formFormat,
+				eps: formEps,
+				sender: formSenders
+			});
 			previewText = result.message ?? '';
 		} catch (err: unknown) {
 			previewText = err instanceof Error ? err.message : 'Preview error';
@@ -98,7 +120,6 @@
 			const start = formatTextarea.selectionStart;
 			const end = formatTextarea.selectionEnd;
 			formFormat = formFormat.slice(0, start) + token + formFormat.slice(end);
-			// restore cursor after insertion
 			setTimeout(() => {
 				if (formatTextarea) {
 					formatTextarea.selectionStart = formatTextarea.selectionEnd = start + token.length;
@@ -133,17 +154,29 @@
 			else await api.createLog(payload);
 			closeDialog();
 			await fetchItems();
-		} catch { /* toast shown */ }
-		finally { loading = false; }
+		} catch {
+			/* toast shown */
+		} finally {
+			loading = false;
+		}
 	}
 
-	function askDelete(name: string) { confirmName = name; confirmOpen = true; }
+	function askDelete(name: string) {
+		confirmName = name;
+		confirmOpen = true;
+	}
 
 	async function confirmDelete() {
 		confirmLoading = true;
-		try { await api.deleteLog(confirmName); confirmOpen = false; await fetchItems(); }
-		catch { /* toast shown */ }
-		finally { confirmLoading = false; }
+		try {
+			await api.deleteLog(confirmName);
+			confirmOpen = false;
+			await fetchItems();
+		} catch {
+			/* toast shown */
+		} finally {
+			confirmLoading = false;
+		}
 	}
 
 	async function exportData() {
@@ -171,140 +204,251 @@
 				importOpen = false;
 			}
 			await fetchItems();
-		} catch { addToast('error', 'Import failed'); }
-		finally { loading = false; }
+		} catch {
+			addToast('error', 'Import failed');
+		} finally {
+			loading = false;
+		}
 	}
 
-	$effect(() => { fetchItems(); });
+	// Extract maker names from format string
+	function extractMakers(format: string): string[] {
+		const matches = format.match(/<([^>]+)>/g);
+		if (!matches) return [];
+		return [...new Set(matches.map((m) => m.slice(1, -1)))];
+	}
+
+	function epsPct(log: Log): number {
+		if (log.eps <= 0) return 0;
+		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
+	}
+
+	// Auto-refresh every 5 seconds for live EPS/count
+	$effect(() => {
+		fetchItems();
+		const interval = setInterval(fetchItems, 5000);
+		return () => clearInterval(interval);
+	});
 </script>
 
 <svelte:head><title>Log — LogMaker</title></svelte:head>
 
 <div class="page">
 	<header class="page-header">
-		<h1 class="page-title">Log</h1>
-		<div class="actions">
+		<div class="header-left">
+			<h1 class="page-title">Log</h1>
+			<span class="item-count">{filtered.length} of {items.length}</span>
+		</div>
+		<div class="header-actions">
+			<div class="search-wrap">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+				<input class="search-input" type="search" placeholder="Search logs…" bind:value={search} aria-label="Search logs" />
+			</div>
 			<button class="btn btn-ghost" onclick={fetchItems} disabled={loading}>
 				{#if loading}
 					<span class="spinner-muted"></span>
 				{:else}
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
 				{/if}
 				Reload
 			</button>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Import
 			</button>
 			<button class="btn btn-ghost" onclick={exportData} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 				Export
 			</button>
 			<button class="btn btn-primary" onclick={openAdd} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 				Add Log
 			</button>
 		</div>
 	</header>
 
-	<div class="table-wrap">
-		<table class="table" aria-label="Log list">
-			<thead>
-				<tr>
-					<th style="width:30px"></th>
-					<th>Name</th>
-					<th class="right">Target EPS</th>
-					<th class="right">Actual EPS</th>
-					<th class="right">Count</th>
-					<th class="right"></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#if loading && items.length === 0}
-					<tr><td colspan="6" class="empty">Loading…</td></tr>
-				{:else if items.length === 0}
-					<tr>
-						<td colspan="6">
-							<div class="empty-state">
-								<div class="empty-state-icon">
-									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-								</div>
-								<p class="empty-state-title">No logs yet</p>
-								<p class="empty-state-desc">Create a log definition to start generating and sending events</p>
-								<button class="btn btn-primary" onclick={openAdd}>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-									Add Log
-								</button>
+	{#if loading && items.length === 0}
+		<div class="loading-state">
+			<span class="spinner-muted"></span>
+			<span>Loading logs…</span>
+		</div>
+	{:else if items.length === 0}
+		<div class="empty-state">
+			<div class="empty-state-icon">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+			</div>
+			<p class="empty-state-title">No logs yet</p>
+			<p class="empty-state-desc">Create a log definition to start generating and sending events</p>
+			<button class="btn btn-primary" onclick={openAdd}>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				Add Log
+			</button>
+		</div>
+	{:else if filtered.length === 0}
+		<div class="empty-state">
+			<div class="empty-state-icon">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+			</div>
+			<p class="empty-state-title">No results for "{search}"</p>
+			<p class="empty-state-desc">Try a different search term</p>
+		</div>
+	{:else}
+		<div class="pipeline-grid" role="list" aria-label="Log pipeline list">
+			{#each filtered as item}
+				{@const running = item.status === true || item.currentEps > 0}
+				{@const pct = epsPct(item)}
+				{@const makerNames = extractMakers(item.format)}
+				<div
+					class="pipeline-card"
+					class:running
+					role="button"
+					onclick={() => openEdit(item)}
+					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
+					tabindex="0"
+					aria-label="Edit log {item.name}"
+				>
+					<!-- Card header row -->
+					<div class="pipeline-header">
+						<div class="pipeline-name-block">
+							<span class="pipeline-name">{item.name}</span>
+							{#if item.description}
+								<span class="pipeline-desc">{item.description}</span>
+							{/if}
+						</div>
+						<div class="pipeline-status" class:running>
+							<span class="status-dot" class:pulse={running}></span>
+							{running ? 'Running' : 'Stopped'}
+						</div>
+					</div>
+
+					<!-- Pipeline flow visualization -->
+					<div class="pipeline-flow">
+						<!-- Makers column -->
+						<div class="flow-col">
+							<div class="flow-col-label">Makers</div>
+							<div class="flow-chips">
+								{#if makerNames.length === 0}
+									<span class="flow-chip flow-chip-empty">none</span>
+								{:else}
+									{#each makerNames.slice(0, 4) as m}
+										<span class="flow-chip flow-chip-maker">{m}</span>
+									{/each}
+									{#if makerNames.length > 4}
+										<span class="flow-chip flow-chip-more">+{makerNames.length - 4}</span>
+									{/if}
+								{/if}
 							</div>
-						</td>
-					</tr>
-				{:else}
-					{#each items as item}
-						<tr class="data-row" onclick={() => toggleExpand(item.name)}>
-							<td class="expand-cell">
-								<span class="expand-icon" class:open={expandedRows.has(item.name)}>
-									<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-								</span>
-							</td>
-							<td class="name-cell">{item.name}</td>
-							<td class="right">{item.eps.toLocaleString()}</td>
-							<td class="right">
-								<span class:running={item.currentEps > 0}>{item.currentEps.toLocaleString()}</span>
-							</td>
-							<td class="right">{item.count.toLocaleString()}</td>
-							<td class="right" onclick={(e) => e.stopPropagation()}>
-								<div class="row-actions">
-									<button class="icon-btn" onclick={() => openCopy(item)} title="Copy" aria-label="Copy {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-									</button>
-									<button class="icon-btn" onclick={() => openEdit(item)} title="Edit" aria-label="Edit {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-									</button>
-									<button class="icon-btn danger" onclick={() => askDelete(item.name)} title="Delete" aria-label="Delete {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-									</button>
-								</div>
-							</td>
-						</tr>
-						{#if expandedRows.has(item.name)}
-							<tr class="expand-row" transition:slide={{ duration: 200 }}>
-								<td colspan="6">
-									<div class="expand-content">
-										<div class="detail-grid">
-											<div class="detail-item">
-												<span class="detail-key">Format</span>
-												<pre class="detail-value mono">{item.format}</pre>
-											</div>
-											{#if item.sample}
-												<div class="detail-item">
-													<span class="detail-key">Sample</span>
-													<pre class="detail-value mono">{item.sample}</pre>
-												</div>
-											{/if}
-											<div class="detail-item">
-												<span class="detail-key">Senders</span>
-												<div class="detail-value">
-													{#each item.sender as s}
-														<span class="badge">{s}</span>
-													{/each}
-												</div>
-											</div>
-										</div>
-									</div>
-								</td>
-							</tr>
-						{/if}
-					{/each}
-				{/if}
-			</tbody>
-		</table>
-	</div>
+						</div>
+
+						<!-- Arrow -->
+						<div class="flow-arrow" aria-hidden="true">
+							<div class="arrow-line"></div>
+							<svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1l6 5-6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</div>
+
+						<!-- Format column -->
+						<div class="flow-col flow-col-format">
+							<div class="flow-col-label">Format</div>
+							<div class="format-preview mono">{item.format.length > 80 ? item.format.slice(0, 80) + '…' : item.format}</div>
+						</div>
+
+						<!-- Arrow -->
+						<div class="flow-arrow" aria-hidden="true">
+							<div class="arrow-line"></div>
+							<svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1l6 5-6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</div>
+
+						<!-- Senders column -->
+						<div class="flow-col">
+							<div class="flow-col-label">Senders</div>
+							<div class="flow-chips">
+								{#if item.sender.length === 0}
+									<span class="flow-chip flow-chip-empty">none</span>
+								{:else}
+									{#each item.sender.slice(0, 3) as s}
+										<span class="flow-chip flow-chip-sender">{s}</span>
+									{/each}
+									{#if item.sender.length > 3}
+										<span class="flow-chip flow-chip-more">+{item.sender.length - 3}</span>
+									{/if}
+								{/if}
+							</div>
+						</div>
+					</div>
+
+					<!-- EPS + Count metrics row -->
+					<div class="pipeline-metrics">
+						<div class="metric-item">
+							<span class="metric-label-sm">EPS</span>
+							<div class="metric-eps">
+								<span class="metric-actual" class:live={running}>{item.currentEps.toLocaleString()}</span>
+								<span class="metric-sep">/</span>
+								<span class="metric-target">{item.eps.toLocaleString()}</span>
+							</div>
+						</div>
+						<div class="eps-bar-wrap">
+							<div class="eps-bar">
+								<div
+									class="eps-bar-fill"
+									style="width:{pct}%;background:{pct >= 90 ? 'var(--success)' : pct >= 50 ? 'var(--accent)' : running ? 'var(--warning)' : 'var(--border)'}"
+								></div>
+							</div>
+							<span class="eps-pct">{pct}%</span>
+						</div>
+						<div class="metric-item metric-count">
+							<span class="metric-label-sm">Count</span>
+							<span class="metric-count-val">{item.count.toLocaleString()}</span>
+						</div>
+					</div>
+
+					<!-- Card footer actions -->
+					<div
+						class="pipeline-footer"
+						role="group"
+						aria-label="Actions"
+					>
+						<button
+							class="btn btn-ghost btn-sm"
+							onclick={(e) => { e.stopPropagation(); openCopy(item); }}
+							aria-label="Duplicate {item.name}"
+						>
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+							Duplicate
+						</button>
+						<button
+							class="btn btn-ghost btn-sm"
+							onclick={(e) => { e.stopPropagation(); openEdit(item); }}
+							aria-label="Edit {item.name}"
+						>
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+							Edit
+						</button>
+						<button
+							class="btn btn-ghost btn-sm btn-danger-ghost"
+							onclick={(e) => { e.stopPropagation(); askDelete(item.name); }}
+							aria-label="Delete {item.name}"
+						>
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+							Delete
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <!-- Add/Edit Dialog -->
 {#if dialogOpen}
 	<div class="overlay" role="presentation" onclick={closeDialog}>
-		<div class="dialog wide" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeDialog()}>
+		<div
+			class="dialog wide"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
+		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">{editMode ? 'Edit Log' : 'Add Log'}</h2>
 				<button class="close-btn" onclick={closeDialog} aria-label="Close">
@@ -339,24 +483,23 @@
 								type="button"
 								onclick={() => (showMakerHelper = !showMakerHelper)}
 							>
-								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
 								Maker Palette
-								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform: rotate({showMakerHelper ? 90 : 0}deg); transition: transform 0.15s"><polyline points="9 18 15 12 9 6"/></svg>
+								<svg
+									width="12" height="12"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									style="transform: rotate({showMakerHelper ? 90 : 0}deg); transition: transform 0.15s"
+								><polyline points="9 18 15 12 9 6"/></svg>
 							</button>
 
 							{#if showMakerHelper}
-								<div class="helper-panel">
+								<div class="helper-panel" transition:slide={{ duration: 150 }}>
 									<div class="helper-controls">
-										<button
-											class="mode-pill"
-											class:active={makerHelperShowName}
-											onclick={() => (makerHelperShowName = true)}
-										>Name</button>
-										<button
-											class="mode-pill"
-											class:active={!makerHelperShowName}
-											onclick={() => (makerHelperShowName = false)}
-										>Sample</button>
+										<button class="mode-pill" class:active={makerHelperShowName} onclick={() => (makerHelperShowName = true)}>Name</button>
+										<button class="mode-pill" class:active={!makerHelperShowName} onclick={() => (makerHelperShowName = false)}>Sample</button>
 									</div>
 									<div class="maker-chips">
 										{#if makers.length === 0}
@@ -438,7 +581,14 @@
 <!-- Import Dialog -->
 {#if importOpen}
 	<div class="overlay" role="presentation" onclick={() => (importOpen = false)}>
-		<div class="dialog narrow" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (importOpen = false)}>
+		<div
+			class="dialog narrow"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && (importOpen = false)}
+		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">Import Logs</h2>
 				<button class="close-btn" onclick={() => (importOpen = false)} aria-label="Close">
@@ -469,45 +619,546 @@
 />
 
 <style>
-	/* Page-specific styles only — shared rules live in app.css */
+	.header-left {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+	}
 
-	/* Expand row */
-	.data-row { cursor: pointer; }
-	.data-row:hover td { background: var(--bg-raised); }
-	.expand-cell { padding: 0.875rem 0.5rem 0.875rem 1rem; }
-	.expand-icon { display: flex; align-items: center; color: var(--text-muted); transition: transform 0.15s; }
-	.expand-icon.open { transform: rotate(90deg); }
-	.expand-row td { padding: 0; background: var(--bg-raised); border-bottom: 1px solid var(--border); }
-	.expand-content { padding: 1rem 1.5rem; }
-	.detail-grid { display: flex; flex-direction: column; gap: 0.75rem; }
-	.detail-item { display: flex; flex-direction: column; gap: 0.25rem; }
-	.detail-key { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-	.detail-value { color: var(--text-secondary); font-size: 0.875rem; }
-	.detail-value.mono { font-family: var(--font-mono); font-size: 0.8125rem; white-space: pre-wrap; word-break: break-all; margin: 0; padding: 0.5rem 0.75rem; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border); }
-	.running { color: var(--success); font-weight: 600; }
+	.item-count {
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+	}
 
-	/* Log form */
-	.form-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-	@media (max-width: 600px) { .form-cols { grid-template-columns: 1fr; } }
-	.mono-input { font-family: var(--font-mono); font-size: 0.8125rem; resize: vertical; }
+	.search-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.search-icon {
+		position: absolute;
+		left: 0.625rem;
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	.search-input {
+		padding: 0.4rem 0.75rem 0.4rem 2rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		width: 200px;
+		transition: border-color 0.15s, width 0.2s;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: var(--border-focus);
+		width: 260px;
+	}
+
+	.loading-state {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 2rem;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+	}
+
+	/* ── Pipeline grid ── */
+	.pipeline-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+		gap: 1rem;
+	}
+
+	/* ── Pipeline card ── */
+	.pipeline-card {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		cursor: pointer;
+		transition: border-color 0.15s;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.pipeline-card:hover {
+		border-color: var(--border-focus);
+	}
+
+	.pipeline-card.running {
+		border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+	}
+
+	.pipeline-card:focus {
+		outline: none;
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	/* Card header */
+	.pipeline-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		padding: 0.875rem 1rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+		gap: 1rem;
+	}
+
+	.pipeline-name-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+		min-width: 0;
+	}
+
+	.pipeline-name {
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.pipeline-desc {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.pipeline-status {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.25rem 0.625rem;
+		border-radius: 100px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		white-space: nowrap;
+		background: var(--bg-raised);
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		flex-shrink: 0;
+	}
+
+	.pipeline-status.running {
+		background: var(--success-light);
+		color: var(--success);
+		border-color: color-mix(in srgb, var(--success) 30%, transparent);
+	}
+
+	.status-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: currentColor;
+		flex-shrink: 0;
+	}
+
+	.status-dot.pulse {
+		animation: pulse-ring 2s ease-out infinite;
+	}
+
+	/* Pipeline flow visualization */
+	.pipeline-flow {
+		display: flex;
+		align-items: stretch;
+		padding: 0.875rem 1rem;
+		gap: 0;
+		border-bottom: 1px solid var(--border);
+		background: var(--bg-raised);
+		min-height: 80px;
+	}
+
+	.flow-col {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+
+	.flow-col-format {
+		flex: 1;
+	}
+
+	.flow-col-label {
+		font-size: 0.625rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--text-muted);
+	}
+
+	.flow-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+	}
+
+	.flow-chip {
+		display: inline-block;
+		padding: 0.2rem 0.5rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.6875rem;
+		font-weight: 500;
+		white-space: nowrap;
+		max-width: 120px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.flow-chip-maker {
+		background: var(--accent-light);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+		font-family: var(--font-mono);
+	}
+
+	.flow-chip-sender {
+		background: var(--info-light);
+		color: var(--info);
+		border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
+	}
+
+	.flow-chip-empty {
+		background: var(--bg-surface);
+		color: var(--text-muted);
+		border: 1px dashed var(--border);
+	}
+
+	.flow-chip-more {
+		background: var(--bg-surface);
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+	}
+
+	.format-preview {
+		font-size: 0.6875rem;
+		color: var(--text-secondary);
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		padding: 0.375rem 0.5rem;
+		white-space: pre-wrap;
+		word-break: break-all;
+		line-height: 1.5;
+		min-height: 40px;
+		max-height: 72px;
+		overflow: hidden;
+	}
+
+	/* Flow arrow connector */
+	.flow-arrow {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		padding: 0 0.5rem;
+		margin-top: 1rem;
+		color: var(--text-muted);
+		gap: 0;
+	}
+
+	.arrow-line {
+		width: 16px;
+		height: 1px;
+		background: var(--border);
+	}
+
+	/* Metrics row */
+	.pipeline-metrics {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.metric-item {
+		display: flex;
+		align-items: baseline;
+		gap: 0.375rem;
+		flex-shrink: 0;
+	}
+
+	.metric-count {
+		margin-left: auto;
+	}
+
+	.metric-label-sm {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+	}
+
+	.metric-eps {
+		display: flex;
+		align-items: baseline;
+		gap: 0.2rem;
+	}
+
+	.metric-actual {
+		font-size: 1rem;
+		font-weight: 700;
+		letter-spacing: -0.03em;
+		color: var(--text-primary);
+	}
+
+	.metric-actual.live {
+		color: var(--success);
+	}
+
+	.metric-sep {
+		color: var(--text-muted);
+		font-size: 0.8125rem;
+	}
+
+	.metric-target {
+		font-size: 0.875rem;
+		color: var(--text-secondary);
+		font-weight: 500;
+	}
+
+	.eps-bar-wrap {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+	}
+
+	.eps-bar {
+		flex: 1;
+		height: 5px;
+		background: var(--bg-raised);
+		border-radius: 3px;
+		overflow: hidden;
+	}
+
+	.eps-bar-fill {
+		height: 100%;
+		border-radius: 3px;
+		transition: width 0.5s ease, background 0.3s ease;
+	}
+
+	.eps-pct {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		width: 2.5rem;
+		text-align: right;
+	}
+
+	.metric-count-val {
+		font-size: 0.9375rem;
+		font-weight: 700;
+		letter-spacing: -0.03em;
+		color: var(--text-primary);
+		font-family: var(--font-mono);
+	}
+
+	/* Card footer */
+	.pipeline-footer {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.625rem 0.75rem;
+		background: var(--bg-raised);
+	}
+
+	.btn-danger-ghost:hover:not(:disabled) {
+		color: var(--danger);
+		background: var(--danger-light);
+		border-color: color-mix(in srgb, var(--danger) 25%, transparent);
+	}
+
+	/* Dialog form */
+	.form-cols {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1.5rem;
+	}
+
+	@media (max-width: 600px) {
+		.form-cols { grid-template-columns: 1fr; }
+	}
+
+	.mono-input {
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		resize: vertical;
+	}
+
 	.maker-helper { margin-bottom: 1rem; }
-	.helper-toggle { display: flex; align-items: center; gap: 0.375rem; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; font-size: 0.8125rem; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
-	.helper-toggle:hover { background: var(--bg-raised); color: var(--text-primary); }
-	.helper-panel { margin-top: 0.625rem; padding: 0.875rem; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-	.helper-controls { display: flex; gap: 0.375rem; margin-bottom: 0.75rem; }
-	.mode-pill { padding: 0.25rem 0.625rem; border-radius: 100px; font-size: 0.75rem; font-weight: 600; border: 1px solid var(--border); background: none; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
-	.mode-pill.active { background: var(--accent); border-color: var(--accent); color: white; }
-	.maker-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; }
-	.maker-chip { padding: 0.25rem 0.625rem; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 100px; font-size: 0.8125rem; font-family: var(--font-mono); cursor: pointer; color: var(--text-primary); transition: all 0.15s; }
-	.maker-chip:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
-	.preview-box { margin: 0; padding: 0.625rem 0.75rem; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; min-height: 48px; }
-	.preview-spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
-	@keyframes spin { to { transform: rotate(360deg); } }
-	.sender-list { display: flex; flex-direction: column; gap: 0.375rem; max-height: 200px; overflow-y: auto; padding: 0.375rem; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-	.sender-option { display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem 0.625rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem; transition: background 0.15s; }
+
+	.helper-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		background: none;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		padding: 0.4rem 0.75rem;
+		font-size: 0.8125rem;
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.helper-toggle:hover {
+		background: var(--bg-raised);
+		color: var(--text-primary);
+	}
+
+	.helper-panel {
+		margin-top: 0.625rem;
+		padding: 0.875rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+	}
+
+	.helper-controls {
+		display: flex;
+		gap: 0.375rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.mode-pill {
+		padding: 0.25rem 0.625rem;
+		border-radius: 100px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		border: 1px solid var(--border);
+		background: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.mode-pill.active {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: white;
+	}
+
+	.maker-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+	}
+
+	.maker-chip {
+		padding: 0.25rem 0.625rem;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: 100px;
+		font-size: 0.8125rem;
+		font-family: var(--font-mono);
+		cursor: pointer;
+		color: var(--text-primary);
+		transition: all 0.15s;
+	}
+
+	.maker-chip:hover {
+		background: var(--accent-light);
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.preview-box {
+		margin: 0;
+		padding: 0.625rem 0.75rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		color: var(--text-secondary);
+		white-space: pre-wrap;
+		word-break: break-all;
+		min-height: 48px;
+	}
+
+	.preview-spinner {
+		display: inline-block;
+		width: 10px;
+		height: 10px;
+		border: 2px solid var(--border);
+		border-top-color: var(--accent);
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.sender-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+		max-height: 200px;
+		overflow-y: auto;
+		padding: 0.375rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+	}
+
+	.sender-option {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 0.5rem 0.625rem;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: 0.875rem;
+		transition: background 0.15s;
+	}
+
 	.sender-option:hover { background: var(--bg-surface); }
 	.sender-option.selected { background: var(--accent-light); }
-	.sender-check { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--accent); }
-	.sender-option.selected .sender-check { background: var(--accent); border-color: var(--accent); color: white; }
-	.sender-type { margin-left: auto; font-size: 0.75rem; color: var(--text-muted); }
+
+	.sender-check {
+		width: 16px;
+		height: 16px;
+		border: 2px solid var(--border);
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		color: var(--accent);
+	}
+
+	.sender-option.selected .sender-check {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: white;
+	}
+
+	.sender-type {
+		margin-left: auto;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	@media (max-width: 700px) {
+		.pipeline-grid { grid-template-columns: 1fr; }
+		.pipeline-flow { flex-direction: column; gap: 0.5rem; }
+		.flow-arrow { display: none; }
+		.search-input { width: 150px; }
+		.search-input:focus { width: 150px; }
+	}
 </style>

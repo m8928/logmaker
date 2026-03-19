@@ -8,6 +8,7 @@
 	let items = $state<Sender[]>([]);
 	let types = $state<PluginType[]>([]);
 	let loading = $state(false);
+	let search = $state('');
 
 	let dialogOpen = $state(false);
 	let editMode = $state(false);
@@ -20,34 +21,65 @@
 	let formType = $state('');
 	let formArgs = $state<Record<string, string | number | boolean | string[]>>({});
 
+	const filtered = $derived(
+		search.trim()
+			? items.filter(
+					(i) =>
+						i.name.toLowerCase().includes(search.toLowerCase()) ||
+						i.type.toLowerCase().includes(search.toLowerCase())
+				)
+			: items
+	);
+
 	async function fetchItems() {
 		loading = true;
-		try { items = await api.getSenders(); }
-		catch { /* toast shown */ }
-		finally { loading = false; }
+		try {
+			items = await api.getSenders();
+		} catch {
+			/* toast shown */
+		} finally {
+			loading = false;
+		}
 	}
 
 	async function fetchTypes() {
-		try { types = await api.getSenderTypes(); }
-		catch { /* ignored */ }
+		try {
+			types = await api.getSenderTypes();
+		} catch {
+			/* ignored */
+		}
 	}
 
 	function openAdd() {
-		editMode = false; formName = ''; formType = ''; formArgs = {};
-		dialogOpen = true; fetchTypes();
+		editMode = false;
+		formName = '';
+		formType = '';
+		formArgs = {};
+		dialogOpen = true;
+		fetchTypes();
 	}
 
 	function openEdit(item: Sender) {
-		editMode = true; formName = item.name; formType = item.type; formArgs = { ...item.args };
-		dialogOpen = true; fetchTypes();
+		editMode = true;
+		formName = item.name;
+		formType = item.type;
+		formArgs = { ...item.args };
+		dialogOpen = true;
+		fetchTypes();
 	}
 
 	function openCopy(item: Sender) {
-		editMode = false; formName = 'copy-of-' + item.name; formType = item.type; formArgs = { ...item.args };
-		dialogOpen = true; fetchTypes();
+		editMode = false;
+		formName = 'copy-of-' + item.name;
+		formType = item.type;
+		formArgs = { ...item.args };
+		dialogOpen = true;
+		fetchTypes();
 	}
 
-	function closeDialog() { dialogOpen = false; }
+	function closeDialog() {
+		dialogOpen = false;
+	}
 
 	function getCurrentArgs() {
 		const t = types.find((t) => t.type === formType);
@@ -70,17 +102,29 @@
 			else await api.createSender(payload);
 			closeDialog();
 			await fetchItems();
-		} catch { /* toast shown */ }
-		finally { loading = false; }
+		} catch {
+			/* toast shown */
+		} finally {
+			loading = false;
+		}
 	}
 
-	function askDelete(name: string) { confirmName = name; confirmOpen = true; }
+	function askDelete(name: string) {
+		confirmName = name;
+		confirmOpen = true;
+	}
 
 	async function confirmDelete() {
 		confirmLoading = true;
-		try { await api.deleteSender(confirmName); confirmOpen = false; await fetchItems(); }
-		catch { /* toast shown */ }
-		finally { confirmLoading = false; }
+		try {
+			await api.deleteSender(confirmName);
+			confirmOpen = false;
+			await fetchItems();
+		} catch {
+			/* toast shown */
+		} finally {
+			confirmLoading = false;
+		}
 	}
 
 	async function exportData() {
@@ -108,116 +152,218 @@
 				importOpen = false;
 			}
 			await fetchItems();
-		} catch { addToast('error', 'Import failed'); }
-		finally { loading = false; }
+		} catch {
+			addToast('error', 'Import failed');
+		} finally {
+			loading = false;
+		}
 	}
 
-	$effect(() => { fetchItems(); });
+	function getSenderIcon(type: string): string {
+		const t = type.toLowerCase();
+		if (t.includes('kafka'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/><path d="M5 5l2 2-2 2"/><path d="M5 15l2 2-2 2"/></svg>`;
+		if (t.includes('syslog') || t.includes('udp') || t.includes('tcp'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+		if (t.includes('debug') || t.includes('console') || t.includes('stdout'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`;
+		if (t.includes('file') || t.includes('log'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+		if (t.includes('http') || t.includes('rest') || t.includes('web'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>`;
+		return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
+	}
+
+	function getSenderAccent(type: string): string {
+		const t = type.toLowerCase();
+		if (t.includes('kafka')) return 'var(--accent)';
+		if (t.includes('syslog') || t.includes('udp') || t.includes('tcp')) return 'var(--info)';
+		if (t.includes('debug') || t.includes('console')) return 'var(--success)';
+		if (t.includes('file')) return 'var(--warning)';
+		if (t.includes('http')) return '#8b5cf6';
+		return 'var(--text-secondary)';
+	}
+
+	function getArgPreview(args: Record<string, string | number | boolean | string[]>): [string, string][] {
+		const entries = Object.entries(args).filter(
+			([, v]) => v !== '' && v !== 0 && v !== false && !(Array.isArray(v) && v.length === 0)
+		);
+		return entries.slice(0, 3) as [string, string][];
+	}
+
+	$effect(() => {
+		fetchItems();
+	});
 </script>
 
 <svelte:head><title>Sender — LogMaker</title></svelte:head>
 
 <div class="page">
 	<header class="page-header">
-		<h1 class="page-title">Sender</h1>
-		<div class="actions">
+		<div class="header-left">
+			<h1 class="page-title">Sender</h1>
+			<span class="item-count">{filtered.length} of {items.length}</span>
+		</div>
+		<div class="header-actions">
+			<div class="search-wrap">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+				<input class="search-input" type="search" placeholder="Search senders…" bind:value={search} aria-label="Search senders" />
+			</div>
 			<button class="btn btn-ghost" onclick={fetchItems} disabled={loading}>
 				{#if loading}
 					<span class="spinner-muted"></span>
 				{:else}
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
 				{/if}
 				Reload
 			</button>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Import
 			</button>
 			<button class="btn btn-ghost" onclick={exportData} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 				Export
 			</button>
 			<button class="btn btn-primary" onclick={openAdd} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 				Add Sender
 			</button>
 		</div>
 	</header>
 
-	<div class="table-wrap">
-		<table class="table" aria-label="Sender list">
-			<thead>
-				<tr>
-					<th>Name</th>
-					<th>Type</th>
-					<th class="right">Count</th>
-					<th class="right">Used</th>
-					<th class="right"></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#if loading && items.length === 0}
-					<tr><td colspan="5" class="empty">Loading…</td></tr>
-				{:else if items.length === 0}
-					<tr>
-						<td colspan="5">
-							<div class="empty-state">
-								<div class="empty-state-icon">
-									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-								</div>
-								<p class="empty-state-title">No senders yet</p>
-								<p class="empty-state-desc">Add a sender to define where your generated logs will be delivered</p>
-								<button class="btn btn-primary" onclick={openAdd}>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-									Add Sender
+	{#if loading && items.length === 0}
+		<div class="loading-state">
+			<span class="spinner-muted"></span>
+			<span>Loading senders…</span>
+		</div>
+	{:else if items.length === 0}
+		<div class="empty-state">
+			<div class="empty-state-icon">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+			</div>
+			<p class="empty-state-title">No senders yet</p>
+			<p class="empty-state-desc">Add a sender to define where your generated logs will be delivered</p>
+			<button class="btn btn-primary" onclick={openAdd}>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				Add Sender
+			</button>
+		</div>
+	{:else if filtered.length === 0}
+		<div class="empty-state">
+			<div class="empty-state-icon">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+			</div>
+			<p class="empty-state-title">No results for "{search}"</p>
+			<p class="empty-state-desc">Try a different search term</p>
+		</div>
+	{:else}
+		<div class="card-grid" role="list" aria-label="Sender list">
+			{#each filtered as item}
+				{@const accent = getSenderAccent(item.type)}
+				{@const preview = getArgPreview(item.args)}
+				<div
+					class="sender-card"
+					role="button"
+					style="--card-accent:{accent}"
+					onclick={() => openEdit(item)}
+					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
+					tabindex="0"
+					aria-label="Edit {item.name}"
+				>
+					<div class="card-top-bar"></div>
+					<div class="card-inner">
+						<div class="card-header">
+							<div class="card-icon" style="color:{accent};background:color-mix(in srgb, {accent} 12%, transparent)">
+								{@html getSenderIcon(item.type)}
+							</div>
+							<div class="card-title-block">
+								<span class="card-name">{item.name}</span>
+								<span class="card-type">{item.type}</span>
+							</div>
+						</div>
+
+						<div class="card-args">
+							{#if preview.length > 0}
+								{#each preview as [key, val]}
+									<div class="arg-row">
+										<span class="arg-key">{key}</span>
+										<span class="arg-val">{Array.isArray(val) ? val.join(', ') : String(val)}</span>
+									</div>
+								{/each}
+								{#if Object.keys(item.args).length > 3}
+									<div class="arg-more">+{Object.keys(item.args).length - 3} more</div>
+								{/if}
+							{:else}
+								<span class="arg-empty">No arguments configured</span>
+							{/if}
+						</div>
+
+						{#if (item.count ?? 0) > 0 || (item.output ?? 0) > 0}
+							<div class="output-row">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+								<span class="output-label">Output</span>
+								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()} events</span>
+							</div>
+						{/if}
+
+						<div class="card-footer">
+							<div class="card-footer-left">
+								{#if (item.ref ?? 0) > 0}
+									<span class="ref-badge ref-badge-used" title="Used by {item.ref} log(s)">
+										<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+										Used: {item.ref}
+									</span>
+								{:else}
+									<span class="ref-badge ref-badge-free">Unused</span>
+								{/if}
+							</div>
+							<div class="card-actions" role="group" aria-label="Actions">
+								<button
+									class="icon-btn"
+									onclick={(e) => { e.stopPropagation(); openCopy(item); }}
+									title="Duplicate"
+									aria-label="Duplicate {item.name}"
+								>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+								</button>
+								<button
+									class="icon-btn"
+									onclick={(e) => { e.stopPropagation(); openEdit(item); }}
+									title="Edit"
+									aria-label="Edit {item.name}"
+								>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+								</button>
+								<button
+									class="icon-btn danger"
+									onclick={(e) => { e.stopPropagation(); askDelete(item.name); }}
+									disabled={(item.ref ?? 0) > 0}
+									title={(item.ref ?? 0) > 0 ? 'In use by logs' : 'Delete'}
+									aria-label="Delete {item.name}"
+								>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
 								</button>
 							</div>
-						</td>
-					</tr>
-				{:else}
-					{#each items as item}
-						<tr>
-							<td class="name-cell">{item.name}</td>
-							<td><span class="badge">{item.type}</span></td>
-							<td class="right">{item.count ?? '—'}</td>
-							<td class="right">
-								{#if (item.ref ?? 0) > 0}
-									<span class="badge-ref">{item.ref}</span>
-								{:else}
-									<span class="text-muted">0</span>
-								{/if}
-							</td>
-							<td class="right">
-								<div class="row-actions">
-									<button class="icon-btn" onclick={() => openCopy(item)} title="Copy" aria-label="Copy {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-									</button>
-									<button class="icon-btn" onclick={() => openEdit(item)} title="Edit" aria-label="Edit {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-									</button>
-									<button
-										class="icon-btn danger"
-										onclick={() => askDelete(item.name)}
-										disabled={(item.ref ?? 0) > 0}
-										title={(item.ref ?? 0) > 0 ? 'In use by logs' : 'Delete'}
-										aria-label="Delete {item.name}"
-									>
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-									</button>
-								</div>
-							</td>
-						</tr>
-					{/each}
-				{/if}
-			</tbody>
-		</table>
-	</div>
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <!-- Add/Edit Dialog -->
 {#if dialogOpen}
 	<div class="overlay" role="presentation" onclick={closeDialog}>
-		<div class="dialog" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeDialog()}>
+		<div
+			class="dialog"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
+		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">{editMode ? 'Edit Sender' : 'Add Sender'}</h2>
 				<button class="close-btn" onclick={closeDialog} aria-label="Close">
@@ -246,7 +392,14 @@
 							<DynamicInput
 								name={key}
 								type={arg.type}
-								value={formArgs[key] ?? (arg.type === 'java.lang.Boolean' ? false : arg.type === 'java.util.ArrayList' ? [] : arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long' ? 0 : '')}
+								value={formArgs[key] ??
+									(arg.type === 'java.lang.Boolean'
+										? false
+										: arg.type === 'java.util.ArrayList'
+											? []
+											: arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long'
+												? 0
+												: '')}
 								required={arg.required}
 								description={arg.description}
 								onchange={handleArgChange}
@@ -269,7 +422,14 @@
 <!-- Import Dialog -->
 {#if importOpen}
 	<div class="overlay" role="presentation" onclick={() => (importOpen = false)}>
-		<div class="dialog narrow" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (importOpen = false)}>
+		<div
+			class="dialog narrow"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && (importOpen = false)}
+		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">Import Senders</h2>
 				<button class="close-btn" onclick={() => (importOpen = false)} aria-label="Close">
@@ -301,5 +461,243 @@
 />
 
 <style>
-	/* Page-specific styles only — shared rules live in app.css */
+	.header-left {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+	}
+
+	.item-count {
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+	}
+
+	.search-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.search-icon {
+		position: absolute;
+		left: 0.625rem;
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	.search-input {
+		padding: 0.4rem 0.75rem 0.4rem 2rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		width: 200px;
+		transition: border-color 0.15s, width 0.2s;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: var(--border-focus);
+		width: 260px;
+	}
+
+	.loading-state {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 2rem;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+	}
+
+	.card-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		gap: 1rem;
+	}
+
+	.sender-card {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		cursor: pointer;
+		transition: border-color 0.15s, box-shadow 0.15s;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.sender-card:hover {
+		border-color: var(--card-accent);
+		box-shadow: 0 0 0 1px var(--card-accent);
+	}
+
+	.sender-card:focus {
+		outline: none;
+		border-color: var(--card-accent);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent) 30%, transparent);
+	}
+
+	.card-top-bar {
+		height: 3px;
+		background: var(--card-accent);
+		flex-shrink: 0;
+	}
+
+	.card-inner {
+		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		flex: 1;
+	}
+
+	.card-header {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+
+	.card-icon {
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-sm);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	.card-title-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+
+	.card-name {
+		font-size: 0.9375rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.card-type {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: 500;
+	}
+
+	.card-args {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-height: 52px;
+	}
+
+	.arg-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		font-size: 0.8125rem;
+	}
+
+	.arg-key {
+		color: var(--text-muted);
+		font-weight: 500;
+		white-space: nowrap;
+		flex-shrink: 0;
+		font-size: 0.75rem;
+	}
+
+	.arg-val {
+		color: var(--text-secondary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+	}
+
+	.arg-more {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	.arg-empty {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	.output-row {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		font-size: 0.8125rem;
+		padding: 0.375rem 0.625rem;
+		background: var(--success-light);
+		border-radius: var(--radius-sm);
+	}
+
+	.output-label {
+		color: var(--text-muted);
+		font-size: 0.75rem;
+	}
+
+	.output-val {
+		font-weight: 600;
+		color: var(--success);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+	}
+
+	.card-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding-top: 0.5rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.card-footer-left {
+		display: flex;
+		align-items: center;
+	}
+
+	.ref-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.2rem 0.5rem;
+		border-radius: 100px;
+		font-size: 0.6875rem;
+		font-weight: 600;
+	}
+
+	.ref-badge-used {
+		background: var(--warning-light);
+		color: var(--warning);
+	}
+
+	.ref-badge-free {
+		background: var(--bg-raised);
+		color: var(--text-muted);
+	}
+
+	.card-actions {
+		display: flex;
+		gap: 0.125rem;
+	}
+
+	@media (max-width: 600px) {
+		.search-input { width: 150px; }
+		.search-input:focus { width: 150px; }
+		.card-grid { grid-template-columns: 1fr; }
+	}
 </style>

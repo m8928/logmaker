@@ -11,13 +11,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 		});
 		const data = await res.json();
 		if (!res.ok || data.type === 'ERROR') {
-			const msg = data.notification || data.message || 'Request failed';
-			addToast('error', msg);
+			addToast('error', data.message || 'Request failed');
 			throw new Error(data.message || 'Request failed');
 		}
-		if (data.notification) {
-			addToast('success', data.notification);
-		} else if (data.type === 'SUCCESS' && data.message) {
+		if (data.notification !== false && data.message) {
 			addToast('success', data.message);
 		}
 		return data;

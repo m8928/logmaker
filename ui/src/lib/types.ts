@@ -68,7 +68,7 @@ export interface DashboardData {
 export interface ApiResult<T = unknown> {
 	type: 'SUCCESS' | 'ERROR' | 'VOID';
 	message: string;
-	notification?: string;
+	notification?: boolean;
 	data?: T;
 }
 

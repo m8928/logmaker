@@ -9,6 +9,7 @@
 	let items = $state<Maker[]>([]);
 	let types = $state<PluginType[]>([]);
 	let loading = $state(false);
+	let search = $state('');
 
 	// Dialog state
 	let dialogOpen = $state(false);
@@ -24,13 +25,23 @@
 	let formArgs = $state<Record<string, string | number | boolean | string[]>>({});
 	let errors = $state<Record<string, string>>({});
 
-	// Focus restore
 	let triggerElement = $state<HTMLElement | null>(null);
+
+	const filtered = $derived(
+		search.trim()
+			? items.filter(
+					(i) =>
+						i.name.toLowerCase().includes(search.toLowerCase()) ||
+						i.type.toLowerCase().includes(search.toLowerCase())
+				)
+			: items
+	);
 
 	function validate(): boolean {
 		errors = {};
 		if (!formName.trim()) errors.name = 'Name is required';
-		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName)) errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
+		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName))
+			errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
 		if (!formType) errors.type = 'Type is required';
 		return Object.keys(errors).length === 0;
 	}
@@ -49,7 +60,9 @@
 	async function fetchTypes() {
 		try {
 			types = await api.getMakerTypes();
-		} catch { /* ignored */ }
+		} catch {
+			/* ignored */
+		}
 	}
 
 	function openAdd(e?: MouseEvent) {
@@ -94,7 +107,9 @@
 	$effect(() => {
 		if (dialogOpen) {
 			tick().then(() => {
-				const firstInput = document.querySelector<HTMLElement>('.dialog input:not([disabled]), .dialog select');
+				const firstInput = document.querySelector<HTMLElement>(
+					'.dialog input:not([disabled]), .dialog select'
+				);
 				firstInput?.focus();
 			});
 		}
@@ -125,7 +140,9 @@
 			}
 			closeDialog();
 			await fetchItems();
-		} catch { /* toast shown */ } finally {
+		} catch {
+			/* toast shown */
+		} finally {
 			loading = false;
 		}
 	}
@@ -141,7 +158,9 @@
 			await api.deleteMaker(confirmName);
 			confirmOpen = false;
 			await fetchItems();
-		} catch { /* toast shown */ } finally {
+		} catch {
+			/* toast shown */
+		} finally {
 			confirmLoading = false;
 		}
 	}
@@ -186,114 +205,213 @@
 		}
 	}
 
-	$effect(() => { fetchItems(); });
+	// Icon per maker type
+	function getMakerIcon(type: string): string {
+		const t = type.toLowerCase();
+		if (t.includes('ip') || t.includes('net'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>`;
+		if (t.includes('regex') || t.includes('pattern'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`;
+		if (t.includes('date') || t.includes('time') || t.includes('timestamp'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+		if (t.includes('uuid') || t.includes('guid'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 100 10 5 5 0 000-10z"/><path d="M21 21l-4.35-4.35M16.65 16.65A7.5 7.5 0 103.35 7.35a7.5 7.5 0 0013.3 9.3z"/></svg>`;
+		if (t.includes('pick') || t.includes('choice') || t.includes('random'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>`;
+		if (t.includes('number') || t.includes('int') || t.includes('range'))
+			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>`;
+		// default
+		return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`;
+	}
+
+	function getMakerAccent(type: string): string {
+		const t = type.toLowerCase();
+		if (t.includes('ip') || t.includes('net')) return 'var(--accent)';
+		if (t.includes('regex') || t.includes('pattern')) return 'var(--success)';
+		if (t.includes('date') || t.includes('time')) return 'var(--warning)';
+		if (t.includes('uuid') || t.includes('guid')) return 'var(--danger)';
+		if (t.includes('pick') || t.includes('random')) return 'var(--info)';
+		if (t.includes('number') || t.includes('int')) return '#8b5cf6';
+		return 'var(--text-secondary)';
+	}
+
+	function getArgPreview(args: Record<string, string | number | boolean | string[]>): [string, string][] {
+		const entries = Object.entries(args).filter(
+			([, v]) => v !== '' && v !== 0 && v !== false && !(Array.isArray(v) && v.length === 0)
+		);
+		return entries.slice(0, 3) as [string, string][];
+	}
+
+	$effect(() => {
+		fetchItems();
+	});
 </script>
 
 <svelte:head><title>Maker — LogMaker</title></svelte:head>
 
 <div class="page">
 	<header class="page-header">
-		<h1 class="page-title">Maker</h1>
-		<div class="actions">
+		<div class="header-left">
+			<h1 class="page-title">Maker</h1>
+			<span class="item-count">{filtered.length} of {items.length}</span>
+		</div>
+		<div class="header-actions">
+			<div class="search-wrap">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+				<input class="search-input" type="search" placeholder="Search makers…" bind:value={search} aria-label="Search makers" />
+			</div>
 			<button class="btn btn-ghost" onclick={fetchItems} disabled={loading}>
 				{#if loading}
 					<span class="spinner-muted"></span>
 				{:else}
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
 				{/if}
 				Reload
 			</button>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Import
 			</button>
 			<button class="btn btn-ghost" onclick={exportData} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 				Export
 			</button>
 			<button class="btn btn-primary" onclick={(e) => openAdd(e)} disabled={loading}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 				Add Maker
 			</button>
 		</div>
 	</header>
 
-	<div class="table-wrap">
-		<table class="table" aria-label="Maker list">
-			<thead>
-				<tr>
-					<th>Name</th>
-					<th>Type</th>
-					<th class="right">Sample</th>
-					<th class="right">Size</th>
-					<th class="right">Used</th>
-					<th class="right"></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#if loading && items.length === 0}
-					<tr><td colspan="6" class="empty">Loading…</td></tr>
-				{:else if items.length === 0}
-					<tr>
-						<td colspan="6">
-							<div class="empty-state">
-								<div class="empty-state-icon">
-									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-								</div>
-								<p class="empty-state-title">No makers yet</p>
-								<p class="empty-state-desc">Create your first data generator to start building log templates</p>
-								<button class="btn btn-primary" onclick={(e) => openAdd(e)}>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-									Add Maker
+	{#if loading && items.length === 0}
+		<div class="loading-state">
+			<span class="spinner-muted"></span>
+			<span>Loading makers…</span>
+		</div>
+	{:else if items.length === 0}
+		<div class="empty-state">
+			<div class="empty-state-icon">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+			</div>
+			<p class="empty-state-title">No makers yet</p>
+			<p class="empty-state-desc">Create your first data generator to start building log templates</p>
+			<button class="btn btn-primary" onclick={(e) => openAdd(e)}>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				Add Maker
+			</button>
+		</div>
+	{:else if filtered.length === 0}
+		<div class="empty-state">
+			<div class="empty-state-icon">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+			</div>
+			<p class="empty-state-title">No results for "{search}"</p>
+			<p class="empty-state-desc">Try a different search term</p>
+		</div>
+	{:else}
+		<div class="card-grid" role="list" aria-label="Maker list">
+			{#each filtered as item}
+				{@const accent = getMakerAccent(item.type)}
+				{@const preview = getArgPreview(item.args)}
+				<div
+					class="maker-card"
+					role="button"
+					style="--card-accent:{accent}"
+					onclick={() => openEdit(item)}
+					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
+					tabindex="0"
+					aria-label="Edit {item.name}"
+				>
+					<div class="card-top-bar"></div>
+					<div class="card-inner">
+						<div class="card-header">
+							<div class="card-icon" style="color:{accent};background:color-mix(in srgb, {accent} 12%, transparent)">
+								{@html getMakerIcon(item.type)}
+							</div>
+							<div class="card-title-block">
+								<span class="card-name">{item.name}</span>
+								<span class="card-type">{item.type}</span>
+							</div>
+						</div>
+
+						<div class="card-args">
+							{#if preview.length > 0}
+								{#each preview as [key, val]}
+									<div class="arg-row">
+										<span class="arg-key">{key}</span>
+										<span class="arg-val">{Array.isArray(val) ? val.join(', ') : String(val)}</span>
+									</div>
+								{/each}
+								{#if Object.keys(item.args).length > 3}
+									<div class="arg-more">+{Object.keys(item.args).length - 3} more</div>
+								{/if}
+							{:else}
+								<span class="arg-empty">No arguments configured</span>
+							{/if}
+						</div>
+
+						{#if item.sample}
+							<div class="card-sample mono">{item.sample}</div>
+						{/if}
+
+						<div class="card-footer">
+							<div class="card-footer-left">
+								{#if item.ref > 0}
+									<span class="ref-badge ref-badge-used" title="Used by {item.ref} log(s)">
+										<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+										Used: {item.ref}
+									</span>
+								{:else}
+									<span class="ref-badge ref-badge-free">Unused</span>
+								{/if}
+							</div>
+							<div class="card-actions" role="group" aria-label="Actions">
+								<button
+									class="icon-btn"
+									onclick={(e) => { e.stopPropagation(); openCopy(item, e); }}
+									title="Duplicate"
+									aria-label="Duplicate {item.name}"
+								>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+								</button>
+								<button
+									class="icon-btn"
+									onclick={(e) => { e.stopPropagation(); openEdit(item, e); }}
+									title="Edit"
+									aria-label="Edit {item.name}"
+								>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+								</button>
+								<button
+									class="icon-btn danger"
+									onclick={(e) => { e.stopPropagation(); askDelete(item.name); }}
+									disabled={item.ref > 0}
+									title={item.ref > 0 ? 'In use by logs' : 'Delete'}
+									aria-label="Delete {item.name}"
+								>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
 								</button>
 							</div>
-						</td>
-					</tr>
-				{:else}
-					{#each items as item}
-						<tr>
-							<td class="name-cell">{item.name}</td>
-							<td><span class="badge">{item.type}</span></td>
-							<td class="right mono text-muted">{item.sample ?? '—'}</td>
-							<td class="right">{item.size ?? '—'}</td>
-							<td class="right">
-								{#if item.ref > 0}
-									<span class="badge-ref">{item.ref}</span>
-								{:else}
-									<span class="text-muted">0</span>
-								{/if}
-							</td>
-							<td class="right">
-								<div class="row-actions">
-									<button class="icon-btn" onclick={() => openCopy(item)} title="Copy" aria-label="Copy {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-									</button>
-									<button class="icon-btn" onclick={() => openEdit(item)} title="Edit" aria-label="Edit {item.name}">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-									</button>
-									<button
-										class="icon-btn danger"
-										onclick={() => askDelete(item.name)}
-										disabled={item.ref > 0}
-										title={item.ref > 0 ? 'In use by logs' : 'Delete'}
-										aria-label="Delete {item.name}"
-									>
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-									</button>
-								</div>
-							</td>
-						</tr>
-					{/each}
-				{/if}
-			</tbody>
-		</table>
-	</div>
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <!-- Add/Edit Dialog -->
 {#if dialogOpen}
 	<div class="overlay" role="presentation" onclick={closeDialog}>
-		<div class="dialog" role="dialog" aria-modal="true" tabindex="-1" aria-label="{editMode ? 'Edit' : 'Add'} Maker" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeDialog()}>
+		<div
+			class="dialog"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			aria-label="{editMode ? 'Edit' : 'Add'} Maker"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
+		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">{editMode ? 'Edit Maker' : 'Add Maker'}</h2>
 				<button class="close-btn" onclick={closeDialog} aria-label="Close">
@@ -303,10 +421,12 @@
 			<div class="dialog-body">
 				<div class="field">
 					<label class="field-label" for="maker-name">NAME <span class="required">*</span></label>
-					<input id="maker-name" class="input" type="text" bind:value={formName} disabled={editMode} placeholder="my-maker" />
+					{#if errors.name}<span class="field-error">{errors.name}</span>{/if}
+					<input id="maker-name" class="input" class:input-error={errors.name} type="text" bind:value={formName} disabled={editMode} placeholder="my-maker" />
 				</div>
 				<div class="field">
 					<label class="field-label" for="maker-type">TYPE <span class="required">*</span></label>
+					{#if errors.type}<span class="field-error">{errors.type}</span>{/if}
 					<select id="maker-type" class="input" bind:value={formType} disabled={editMode} onchange={handleTypeChange}>
 						<option value="" disabled>Select type…</option>
 						{#each types as t}
@@ -324,7 +444,14 @@
 							<DynamicInput
 								name={key}
 								type={arg.type}
-								value={formArgs[key] ?? (arg.type === 'java.lang.Boolean' ? false : arg.type === 'java.util.ArrayList' ? [] : arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long' ? 0 : '')}
+								value={formArgs[key] ??
+									(arg.type === 'java.lang.Boolean'
+										? false
+										: arg.type === 'java.util.ArrayList'
+											? []
+											: arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long'
+												? 0
+												: '')}
 								required={arg.required}
 								description={arg.description}
 								onchange={handleArgChange}
@@ -347,7 +474,14 @@
 <!-- Import Dialog -->
 {#if importOpen}
 	<div class="overlay" role="presentation" onclick={() => (importOpen = false)}>
-		<div class="dialog narrow" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (importOpen = false)}>
+		<div
+			class="dialog narrow"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && (importOpen = false)}
+		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">Import Makers</h2>
 				<button class="close-btn" onclick={() => (importOpen = false)} aria-label="Close">
@@ -379,6 +513,250 @@
 />
 
 <style>
-	/* Page-specific styles only — shared rules live in app.css */
-	.mono { font-family: var(--font-mono); font-size: 0.8125rem; }
+	.header-left {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+	}
+
+	.item-count {
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+	}
+
+	/* Search */
+	.search-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.search-icon {
+		position: absolute;
+		left: 0.625rem;
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	.search-input {
+		padding: 0.4rem 0.75rem 0.4rem 2rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		width: 200px;
+		transition: border-color 0.15s, width 0.2s;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: var(--border-focus);
+		width: 260px;
+	}
+
+	/* Loading */
+	.loading-state {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 2rem;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+	}
+
+	/* Card grid */
+	.card-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		gap: 1rem;
+	}
+
+	.maker-card {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		cursor: pointer;
+		transition: border-color 0.15s, box-shadow 0.15s;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.maker-card:hover {
+		border-color: var(--card-accent);
+		box-shadow: 0 0 0 1px var(--card-accent);
+	}
+
+	.maker-card:focus {
+		outline: none;
+		border-color: var(--card-accent);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent) 30%, transparent);
+	}
+
+	.card-top-bar {
+		height: 3px;
+		background: var(--card-accent);
+		flex-shrink: 0;
+	}
+
+	.card-inner {
+		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		flex: 1;
+	}
+
+	.card-header {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+
+	.card-icon {
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-sm);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	.card-title-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+
+	.card-name {
+		font-size: 0.9375rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.card-type {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: 500;
+	}
+
+	/* Args */
+	.card-args {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-height: 52px;
+	}
+
+	.arg-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		font-size: 0.8125rem;
+	}
+
+	.arg-key {
+		color: var(--text-muted);
+		font-weight: 500;
+		white-space: nowrap;
+		flex-shrink: 0;
+		font-size: 0.75rem;
+	}
+
+	.arg-val {
+		color: var(--text-secondary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+	}
+
+	.arg-more {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	.arg-empty {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	/* Sample */
+	.card-sample {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		padding: 0.375rem 0.625rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* Footer */
+	.card-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding-top: 0.5rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.card-footer-left {
+		display: flex;
+		align-items: center;
+	}
+
+	.ref-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.2rem 0.5rem;
+		border-radius: 100px;
+		font-size: 0.6875rem;
+		font-weight: 600;
+	}
+
+	.ref-badge-used {
+		background: var(--warning-light);
+		color: var(--warning);
+	}
+
+	.ref-badge-free {
+		background: var(--bg-raised);
+		color: var(--text-muted);
+	}
+
+	.card-actions {
+		display: flex;
+		gap: 0.125rem;
+	}
+
+	/* Error state */
+	.field-error {
+		font-size: 0.75rem;
+		color: var(--danger);
+		font-weight: 500;
+	}
+
+	.input-error {
+		border-color: var(--danger) !important;
+	}
+
+	@media (max-width: 600px) {
+		.search-input { width: 150px; }
+		.search-input:focus { width: 150px; }
+		.card-grid { grid-template-columns: 1fr; }
+	}
 </style>
