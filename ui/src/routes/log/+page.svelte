@@ -219,6 +219,32 @@
 		return [...new Set(matches.map((m) => m.slice(1, -1)))];
 	}
 
+	// Parse format into segments: [{text, maker?}]
+	function parseFormatSegments(format: string): Array<{ text: string; maker?: string }> {
+		const segments: Array<{ text: string; maker?: string }> = [];
+		const regex = /<([^>]+)>/g;
+		let lastIndex = 0;
+		let match;
+		while ((match = regex.exec(format)) !== null) {
+			if (match.index > lastIndex) {
+				segments.push({ text: format.slice(lastIndex, match.index) });
+			}
+			segments.push({ text: `<${match[1]}>`, maker: match[1] });
+			lastIndex = regex.lastIndex;
+		}
+		if (lastIndex < format.length) {
+			segments.push({ text: format.slice(lastIndex) });
+		}
+		return segments;
+	}
+
+	function getMakerTooltip(name: string): string {
+		const mk = makers.find(m => m.name === name);
+		if (!mk) return name;
+		const args = Object.entries(mk.args || {}).slice(0, 3).map(([k, v]) => `${k}: ${v}`).join('\n');
+		return `${name} (${mk.type})${args ? '\n' + args : ''}`;
+	}
+
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
 		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
@@ -322,72 +348,56 @@
 						</div>
 					</div>
 
-					<!-- Pipeline flow visualization -->
-					<div class="pipeline-flow">
-						<!-- Makers column -->
-						<div class="flow-col">
-							<div class="flow-col-label">Makers</div>
-							<div class="flow-chips">
-								{#if makerNames.length === 0}
-									<span class="flow-chip flow-chip-empty">none</span>
-								{:else}
-									{#each makerNames.slice(0, 4) as m}
-										<Tooltip text={makers.find(mk => mk.name === m) ? `${m} (${makers.find(mk => mk.name === m)?.type})` : m} position="bottom">
-											<span class="flow-chip flow-chip-maker">{m}</span>
-										</Tooltip>
-									{/each}
-									{#if makerNames.length > 4}
-										<Tooltip text={makerNames.slice(4).join(', ')} position="bottom">
-											<span class="flow-chip flow-chip-more">+{makerNames.length - 4}</span>
-										</Tooltip>
-									{/if}
+					<!-- Makers → Senders inline bar -->
+					<div class="pipeline-bar">
+						<div class="bar-section">
+							<span class="bar-label">Makers</span>
+							<div class="bar-chips">
+								{#each makerNames.slice(0, 5) as m}
+									<Tooltip text={getMakerTooltip(m)} position="bottom">
+										<span class="chip chip-maker">{m}</span>
+									</Tooltip>
+								{/each}
+								{#if makerNames.length > 5}
+									<Tooltip text={makerNames.slice(5).join(', ')} position="bottom">
+										<span class="chip chip-more">+{makerNames.length - 5}</span>
+									</Tooltip>
+								{:else if makerNames.length === 0}
+									<span class="chip chip-empty">none</span>
 								{/if}
 							</div>
 						</div>
-
-						<!-- Flow connector -->
-						<div class="flow-connector" aria-hidden="true">
+						<div class="bar-flow" aria-hidden="true">
 							<div class="flow-pipe" class:flowing={running}></div>
 						</div>
-
-						<!-- Format + Sample column -->
-						<div class="flow-col flow-col-format">
-							<div class="flow-col-label">Format</div>
-							<Tooltip text={item.format} position="bottom">
-								<div class="format-preview mono">{item.format}</div>
-							</Tooltip>
-							{#if item.sample}
-								<div class="flow-col-label sample-label">Sample Output</div>
-								<div class="sample-preview mono">{item.sample}</div>
-							{/if}
-						</div>
-
-						<!-- Flow connector -->
-						<div class="flow-connector" aria-hidden="true">
-							<div class="flow-pipe" class:flowing={running}></div>
-						</div>
-
-						<!-- Senders column -->
-						<div class="flow-col">
-							<div class="flow-col-label">Senders</div>
-							<div class="flow-chips">
-								{#if item.sender.length === 0}
-									<span class="flow-chip flow-chip-empty">none</span>
-								{:else}
-									{#each item.sender.slice(0, 3) as s}
-										{@const senderInfo = senders.find(sn => sn.name === s)}
-										<Tooltip text={senderInfo ? `${s} (${senderInfo.type})\nOutput: ${senderInfo.output?.toLocaleString() ?? 0}` : s} position="bottom">
-											<span class="flow-chip flow-chip-sender">{s}</span>
-										</Tooltip>
-									{/each}
-									{#if item.sender.length > 3}
-										<Tooltip text={item.sender.slice(3).join(', ')} position="bottom">
-											<span class="flow-chip flow-chip-more">+{item.sender.length - 3}</span>
-										</Tooltip>
-									{/if}
+						<div class="bar-section">
+							<span class="bar-label">Senders</span>
+							<div class="bar-chips">
+								{#each item.sender.slice(0, 4) as s}
+									{@const si = senders.find(sn => sn.name === s)}
+									<Tooltip text={si ? `${s} (${si.type})\nOutput: ${si.output?.toLocaleString() ?? 0}` : s} position="bottom">
+										<span class="chip chip-sender">{s}</span>
+									</Tooltip>
+								{/each}
+								{#if item.sender.length > 4}
+									<Tooltip text={item.sender.slice(4).join(', ')} position="bottom">
+										<span class="chip chip-more">+{item.sender.length - 4}</span>
+									</Tooltip>
+								{:else if item.sender.length === 0}
+									<span class="chip chip-empty">none</span>
 								{/if}
 							</div>
 						</div>
+					</div>
+
+					<!-- Sample output (main content) with hoverable maker highlights -->
+					<div class="pipeline-body">
+						{#if item.sample}
+							<div class="body-label">Sample Output</div>
+							<div class="sample-output mono">{item.sample}</div>
+						{/if}
+						<div class="body-label" style="margin-top: 0.5rem">Format Template</div>
+						<div class="format-line mono">{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip text={getMakerTooltip(seg.maker)} position="top"><span class="fmt-maker">{seg.text}</span></Tooltip>{:else}<span class="fmt-static">{seg.text}</span>{/if}{/each}</div>
 					</div>
 
 					<!-- EPS + Count metrics row -->
@@ -783,27 +793,142 @@
 		animation: pulse-ring 2s ease-out infinite;
 	}
 
-	/* Pipeline flow visualization */
-	.pipeline-flow {
-		display: grid;
-		grid-template-columns: 140px auto 1fr auto 140px;
-		align-items: start;
-		padding: 0.875rem 1rem;
-		gap: 0;
+	/* Makers → Senders inline bar */
+	.pipeline-bar {
+		display: flex;
+		align-items: center;
+		padding: 0.625rem 1rem;
+		gap: 0.5rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--bg-raised);
-		min-height: 80px;
 	}
 
-	.flow-col {
+	.bar-section {
 		display: flex;
-		flex-direction: column;
-		gap: 0.4rem;
+		align-items: center;
+		gap: 0.375rem;
 		min-width: 0;
+		flex-shrink: 0;
 	}
 
-	.flow-col-format {
-		min-width: 0;
+	.bar-label {
+		font-size: 0.625rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.bar-chips {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		flex-wrap: nowrap;
+		overflow: hidden;
+	}
+
+	.chip {
+		display: inline-block;
+		padding: 0.125rem 0.5rem;
+		border-radius: 100px;
+		font-size: 0.6875rem;
+		font-weight: 500;
+		white-space: nowrap;
+		font-family: var(--font-mono);
+	}
+
+	.chip-maker {
+		background: var(--accent-light);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+	}
+
+	.chip-sender {
+		background: var(--info-light);
+		color: var(--info);
+		border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
+	}
+
+	.chip-empty {
+		color: var(--text-muted);
+		border: 1px dashed var(--border);
+		background: transparent;
+	}
+
+	.chip-more {
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		background: var(--bg-surface);
+	}
+
+	.bar-flow {
+		flex: 1;
+		min-width: 24px;
+		display: flex;
+		align-items: center;
+	}
+
+	.bar-flow .flow-pipe {
+		width: 100%;
+	}
+
+	/* Pipeline body: sample + format */
+	.pipeline-body {
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.body-label {
+		font-size: 0.625rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
+		margin-bottom: 0.25rem;
+	}
+
+	.sample-output {
+		font-size: 0.8125rem;
+		line-height: 1.6;
+		color: var(--success);
+		background: color-mix(in srgb, var(--success) 6%, var(--bg-surface));
+		border: 1px solid color-mix(in srgb, var(--success) 15%, var(--border));
+		border-radius: var(--radius-sm);
+		padding: 0.5rem 0.75rem;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+
+	.format-line {
+		font-size: 0.75rem;
+		line-height: 1.6;
+		color: var(--text-secondary);
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		padding: 0.375rem 0.625rem;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+
+	.fmt-static {
+		color: var(--text-secondary);
+	}
+
+	.fmt-maker {
+		color: var(--accent);
+		font-weight: 600;
+		background: var(--accent-light);
+		border-radius: 3px;
+		padding: 0 0.2rem;
+		cursor: help;
+		transition: background 0.15s;
+	}
+
+	.fmt-maker:hover {
+		background: color-mix(in srgb, var(--accent) 25%, var(--accent-light));
 	}
 
 	.flow-col-label {
@@ -814,70 +939,7 @@
 		color: var(--text-muted);
 	}
 
-	.flow-chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem;
-	}
-
-	.flow-chip {
-		display: inline-block;
-		padding: 0.2rem 0.5rem;
-		border-radius: var(--radius-sm);
-		font-size: 0.6875rem;
-		font-weight: 500;
-		white-space: nowrap;
-		max-width: 120px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.flow-chip-maker {
-		background: var(--accent-light);
-		color: var(--accent);
-		border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-		font-family: var(--font-mono);
-	}
-
-	.flow-chip-sender {
-		background: var(--info-light);
-		color: var(--info);
-		border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
-	}
-
-	.flow-chip-empty {
-		background: var(--bg-surface);
-		color: var(--text-muted);
-		border: 1px dashed var(--border);
-	}
-
-	.flow-chip-more {
-		background: var(--bg-surface);
-		color: var(--text-muted);
-		border: 1px solid var(--border);
-	}
-
-	.format-preview {
-		font-size: 0.75rem;
-		color: var(--text-secondary);
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		padding: 0.5rem 0.625rem;
-		white-space: pre-wrap;
-		word-break: break-all;
-		line-height: 1.5;
-		min-height: 40px;
-	}
-
 	/* Flow pipe connector (animated) */
-	.flow-connector {
-		display: flex;
-		align-items: center;
-		padding: 0 0.25rem;
-		align-self: center;
-	}
-
 	.flow-pipe {
 		width: 32px;
 		height: 4px;
@@ -914,23 +976,6 @@
 		100% { left: 100%; }
 	}
 
-	/* Sample output preview */
-	.sample-label {
-		margin-top: 0.5rem;
-		color: var(--success);
-	}
-
-	.sample-preview {
-		font-size: 0.75rem;
-		color: var(--success);
-		background: color-mix(in srgb, var(--success) 8%, var(--bg-surface));
-		border: 1px solid color-mix(in srgb, var(--success) 20%, var(--border));
-		border-radius: var(--radius-sm);
-		padding: 0.5rem 0.625rem;
-		white-space: pre-wrap;
-		word-break: break-all;
-		line-height: 1.5;
-	}
 
 	/* Metrics row */
 	.pipeline-metrics {
@@ -1214,8 +1259,8 @@
 
 	@media (max-width: 700px) {
 		.pipeline-grid { grid-template-columns: 1fr; }
-		.pipeline-flow { grid-template-columns: 1fr; gap: 0.5rem; }
-		.flow-connector { display: none; }
+		.pipeline-bar { flex-wrap: wrap; }
+		.bar-flow { min-width: 100%; order: 99; display: none; }
 		.search-input { width: 150px; }
 		.search-input:focus { width: 150px; }
 	}
