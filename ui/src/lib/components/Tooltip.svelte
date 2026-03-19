@@ -139,9 +139,11 @@
 	.tooltip-entries {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 1px 0.5rem;
-		padding: 0.125rem 0.5rem 0.1875rem;
+		align-items: baseline;
+		gap: 0 0.5rem;
+		padding: 0.1875rem 0.5rem;
 		font-size: 0.6875rem;
+		line-height: 1.6;
 	}
 
 	.entry-key {
@@ -149,7 +151,7 @@
 		white-space: nowrap;
 		text-transform: uppercase;
 		font-weight: 600;
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		letter-spacing: 0.04em;
 	}
 
