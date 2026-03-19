@@ -50,5 +50,8 @@ class DashboardServiceTest {
         assertEquals(1, dashboardDto.getLog());
         assertEquals(0, dashboardDto.getSender());
         assertEquals(0, dashboardDto.getPlugin());
+        // maxMemory should be populated from Runtime.getRuntime().maxMemory()
+        long expectedMaxMemory = Runtime.getRuntime().maxMemory() / (1024 * 1024);
+        assertEquals(expectedMaxMemory, dashboardDto.getMaxMemory());
     }
 }

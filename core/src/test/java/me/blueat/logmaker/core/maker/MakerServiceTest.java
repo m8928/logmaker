@@ -94,6 +94,10 @@ class MakerServiceTest {
         // Given
         MakerDto makerDto = new MakerDto();
         makerDto.setName("dupMaker");
+    void testCreateMaker_specialCharsInName() {
+        // Given: maker name with special characters
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("maker-name_123!@#");
         makerDto.setType("testType");
 
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
@@ -122,6 +126,15 @@ class MakerServiceTest {
         when(makerPlugin.getMaker(any(), any())).thenThrow(new ArgumentsNotValidException());
 
         loadPluginWithType("testType", makerPlugin);
+        when(makerPlugin.getMaker(any(), any())).thenReturn(Mockito.mock(Maker.class));
+
+        PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
+        when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
+
+        when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
+        when(springPluginManager.getExtensions(eq(MakerPlugin.class), any())).thenReturn(List.of(makerPlugin));
+
+        makerService.loadPlugin();
 
         // When
         ResponseEntity<Result> response = makerService.createMaker(makerDto);
@@ -136,6 +149,16 @@ class MakerServiceTest {
         MakerDto makerDto = new MakerDto();
         makerDto.setName("unknownMaker");
         makerDto.setType("unknownType");
+        // Then: service layer accepts any non-null name; validation is at controller layer
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void testCreateMaker_emptyName() {
+        // Given: maker name is empty string (no plugin type match expected)
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("");
+        makerDto.setType("nonExistentType");
 
         // When
         ResponseEntity<Result> response = makerService.createMaker(makerDto);
@@ -268,5 +291,9 @@ class MakerServiceTest {
         // Then
         assertFalse(results.isEmpty());
         assertEquals(Result.Type.SUCCESS, results.get(0).getBody().getType());
+    }
+}
+        // Then: no plugin found for the type, returns ERROR
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
     }
 }

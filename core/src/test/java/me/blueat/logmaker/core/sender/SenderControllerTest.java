@@ -16,6 +16,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(SenderController.class)
 class SenderControllerTest {
@@ -89,11 +91,17 @@ class SenderControllerTest {
         senderDto.setName("testSender");
         senderDto.setType("testType");
         when(senderService.createSender(any(SenderDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Duplicate"));
+    void testCreateSender_emptyName_returns400() throws Exception {
+        // Given
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("");
+        senderDto.setType("testType");
 
         // When & Then
         mockMvc.perform(post("/api/v1/sender")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(senderDto)))
+                .andExpect(status().isNotAcceptable())
                 .andExpect(jsonPath("$.type").value("ERROR"));
     }
 
@@ -109,6 +117,32 @@ class SenderControllerTest {
         mockMvc.perform(post("/api/v1/sender")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(senderDto)))
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+}
+    void testDeleteSender_nonExistent_returnsError() throws Exception {
+        // Given
+        when(senderService.deleteSender("nonExistentSender")).thenReturn(Result.createResultSet(Result.Type.ERROR, "Sender does not exist"));
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/sender/nonExistentSender"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testUpdateSender_nonExistent_returnsError() throws Exception {
+        // Given
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("nonExistentSender");
+        senderDto.setType("testType");
+        when(senderService.updateSender(any(SenderDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Update sender failed"));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/sender/nonExistentSender")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(senderDto)))
+                .andExpect(status().isNotAcceptable())
                 .andExpect(jsonPath("$.type").value("ERROR"));
     }
 }

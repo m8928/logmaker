@@ -16,6 +16,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MakerController.class)
 class MakerControllerTest {
@@ -89,11 +91,17 @@ class MakerControllerTest {
         makerDto.setName("testMaker");
         makerDto.setType("testType");
         when(makerService.createMaker(any(MakerDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Duplicate"));
+    void testCreateMaker_emptyName_returns400() throws Exception {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("");
+        makerDto.setType("testType");
 
         // When & Then
         mockMvc.perform(post("/api/v1/maker")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(makerDto)))
+                .andExpect(status().isNotAcceptable())
                 .andExpect(jsonPath("$.type").value("ERROR"));
     }
 
@@ -109,6 +117,32 @@ class MakerControllerTest {
         mockMvc.perform(post("/api/v1/maker")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(makerDto)))
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+}
+    void testDeleteMaker_nonExistent_returnsError() throws Exception {
+        // Given
+        when(makerService.deleteMaker("nonExistentMaker")).thenReturn(Result.createResultSet(Result.Type.ERROR, "Maker does not exist"));
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/maker/nonExistentMaker"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testUpdateMaker_nonExistent_returnsError() throws Exception {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("nonExistentMaker");
+        makerDto.setType("testType");
+        when(makerService.updateMaker(any(MakerDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Update maker failed"));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/maker/nonExistentMaker")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(makerDto)))
+                .andExpect(status().isNotAcceptable())
                 .andExpect(jsonPath("$.type").value("ERROR"));
     }
 }

@@ -26,6 +26,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -173,6 +174,40 @@ class SenderServiceTest {
 
     @Test
     void updateSender_Success() throws Exception {
+    void testDeleteSender_verifiesResourceCleanup() {
+        // Given: a thread-based sender that needs cleanup on delete
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("threadSender");
+        senderDto.setType("testType");
+
+        Thread mockThread = Mockito.mock(Thread.class);
+        Sender sender = Mockito.mock(Sender.class);
+        when(sender.isThread()).thenReturn(true);
+        when(sender.getThread()).thenReturn(mockThread);
+
+        SenderPlugin senderPlugin = Mockito.mock(SenderPlugin.class);
+        when(senderPlugin.getType()).thenReturn("testType");
+        when(senderPlugin.getSender(any(), any())).thenReturn(sender);
+
+        PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
+        when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
+
+        when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
+        when(springPluginManager.getExtensions(eq(SenderPlugin.class))).thenReturn(List.of(senderPlugin));
+
+        senderService.loadPlugin();
+        senderService.createSender(senderDto);
+
+        // When
+        ResponseEntity<Result> response = senderService.deleteSender("threadSender");
+
+        // Then: delete succeeds and thread interrupt is called for resource cleanup
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        verify(mockThread, Mockito.times(1)).interrupt();
+    }
+
+    @Test
+    void updateSender_Success() {
         // Given
         SenderDto senderDto = new SenderDto();
         senderDto.setName("testSender");
