@@ -862,10 +862,9 @@
 		align-items: center;
 		flex-shrink: 0;
 		padding: 0 0.625rem;
-		margin-top: 1.5rem;
 		color: var(--text-muted);
 		gap: 0;
-		align-self: start;
+		align-self: center;
 	}
 
 	.arrow-line {
