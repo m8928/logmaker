@@ -135,7 +135,7 @@ public class LogService {
             logThreadMap.get(name).getSenderName().forEach(e -> senderService.getSender(e).ifPresent(s -> s.getValue().decreaseRef()));
             logThreadMap.remove(name);
             saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
-            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
+            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted log");
         }
         else {
             return Result.createResultSet(Result.Type.ERROR, "Log does not exist");

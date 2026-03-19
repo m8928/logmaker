@@ -35,6 +35,7 @@ public class DashboardService {
                 .cpu(getProcessCpuLoad())
                 .memory((Runtime.getRuntime().totalMemory()
                         - Runtime.getRuntime().freeMemory())/1024/1024)
+                .maxMemory(Runtime.getRuntime().maxMemory() / (1024 * 1024))
                 .thread(Thread.activeCount())
                 .build();
     }

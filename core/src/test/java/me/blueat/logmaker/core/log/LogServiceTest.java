@@ -83,4 +83,36 @@ class LogServiceTest {
         assertEquals(Result.Type.ERROR, response.getBody().getType());
     }
 
+    @Test
+    void testCreateLog_epsZero() {
+        // Given
+        LogDto logDto = new LogDto();
+        logDto.setName("epsZeroLog");
+        logDto.setFormat("test format");
+        logDto.setEps(0L);
+
+        // When
+        ResponseEntity<Result> response = logService.createLog(logDto);
+
+        // Then: EPS=0 is a valid configuration (thread runs but sends nothing per second)
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void testCreateLog_epsNegative() {
+        // Given
+        LogDto logDto = new LogDto();
+        logDto.setName("epsNegativeLog");
+        logDto.setFormat("test format");
+        logDto.setEps(-1L);
+
+        // When
+        ResponseEntity<Result> response = logService.createLog(logDto);
+
+        // Then: negative EPS creates a log thread but the while loop condition
+        // (createCount.get() < logDto.getEps()) is never true, so it behaves like EPS=0
+        // The service accepts it (no validation at service layer for EPS range)
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
 }

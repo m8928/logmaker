@@ -20,8 +20,13 @@ import org.pf4j.spring.SpringPluginManager;
 import org.springframework.http.ResponseEntity;
 
 import java.nio.file.Paths;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,7 +34,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MakerServiceTest {
+class MakerServiceConcurrencyTest {
 
     @InjectMocks
     private MakerService makerService;
@@ -56,15 +61,11 @@ class MakerServiceTest {
     }
 
     @Test
-    void createMaker() {
+    void testConcurrentCreateMaker_noDuplicates() throws Exception {
         // Given
-        MakerDto makerDto = new MakerDto();
-        makerDto.setName("testMaker");
-        makerDto.setType("testType");
-
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
         when(makerPlugin.getType()).thenReturn("testType");
-        when(makerPlugin.getMaker(any(), any())).thenReturn(Mockito.mock(Maker.class));
+        when(makerPlugin.getMaker(any(), any())).thenAnswer(inv -> Mockito.mock(Maker.class));
 
         PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
@@ -74,50 +75,40 @@ class MakerServiceTest {
 
         makerService.loadPlugin();
 
-        // When
-        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+        int threadCount = 5;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        List<Future<ResponseEntity<Result>>> futures = new ArrayList<>();
 
-        // Then
-        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
-    }
+        // When: 5 threads each try to create a maker with the same name
+        for (int i = 0; i < threadCount; i++) {
+            futures.add(executor.submit(() -> {
+                MakerDto makerDto = new MakerDto();
+                makerDto.setName("sharedMakerName");
+                makerDto.setType("testType");
+                startLatch.await();
+                return makerService.createMaker(makerDto);
+            }));
+        }
 
-    @Test
-    void testCreateMaker_specialCharsInName() {
-        // Given: maker name with special characters
-        MakerDto makerDto = new MakerDto();
-        makerDto.setName("maker-name_123!@#");
-        makerDto.setType("testType");
+        startLatch.countDown();
 
-        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
-        when(makerPlugin.getType()).thenReturn("testType");
-        when(makerPlugin.getMaker(any(), any())).thenReturn(Mockito.mock(Maker.class));
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger errorCount = new AtomicInteger(0);
 
-        PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
-        when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
+        for (Future<ResponseEntity<Result>> future : futures) {
+            ResponseEntity<Result> response = future.get();
+            if (response.getBody().getType() == Result.Type.SUCCESS) {
+                successCount.incrementAndGet();
+            } else {
+                errorCount.incrementAndGet();
+            }
+        }
+        executor.shutdown();
 
-        when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
-        when(springPluginManager.getExtensions(eq(MakerPlugin.class), any())).thenReturn(List.of(makerPlugin));
-
-        makerService.loadPlugin();
-
-        // When
-        ResponseEntity<Result> response = makerService.createMaker(makerDto);
-
-        // Then: service layer accepts any non-null name; validation is at controller layer
-        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
-    }
-
-    @Test
-    void testCreateMaker_emptyName() {
-        // Given: maker name is empty string (no plugin type match expected)
-        MakerDto makerDto = new MakerDto();
-        makerDto.setName("");
-        makerDto.setType("nonExistentType");
-
-        // When
-        ResponseEntity<Result> response = makerService.createMaker(makerDto);
-
-        // Then: no plugin found for the type, returns ERROR
-        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        // Then: only one succeeds, others get error responses
+        assertEquals(1, successCount.get(), "Only one thread should successfully create the maker");
+        assertEquals(threadCount - 1, errorCount.get(), "All other threads should get error responses");
+        assertEquals(1, makerService.getMaker().size(), "Only one maker should exist");
     }
 }

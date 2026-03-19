@@ -93,4 +93,46 @@ class LogControllerTest {
                 .content(objectMapper.writeValueAsString(logDto)))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void testCreateLog_emptyName_returns400() throws Exception {
+        // Given
+        LogDto logDto = new LogDto();
+        logDto.setName("");
+        logDto.setFormat("test format");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/log")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(logDto)))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testDeleteLog_nonExistent_returnsError() throws Exception {
+        // Given
+        when(logService.deleteLog("nonExistentLog")).thenReturn(Result.createResultSet(Result.Type.ERROR, "Log does not exist"));
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/log/nonExistentLog"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testUpdateLog_nonExistent_returnsError() throws Exception {
+        // Given
+        LogDto logDto = new LogDto();
+        logDto.setName("nonExistentLog");
+        logDto.setFormat("test format");
+        when(logService.updateLog(any(LogDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Update log failed"));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/log/nonExistentLog")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(logDto)))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
 }
