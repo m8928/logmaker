@@ -435,16 +435,12 @@
 						<div class="bar-section">
 							<span class="bar-label">Makers</span>
 							<div class="bar-chips">
-								{#each makerNames.slice(0, 6) as m}
+								{#each makerNames as m}
 									<Tooltip title={getMakerTitle(m)} text={getMakerDetail(m)} position="bottom">
 										<span class="chip chip-maker">{m}</span>
 									</Tooltip>
 								{/each}
-								{#if makerNames.length > 6}
-									<Tooltip text={makerNames.slice(6).join(', ')} position="bottom">
-										<span class="chip chip-more">+{makerNames.length - 6}</span>
-									</Tooltip>
-								{:else if makerNames.length === 0}
+								{#if makerNames.length === 0}
 									<span class="chip chip-empty">none</span>
 								{/if}
 							</div>
@@ -453,16 +449,12 @@
 						<div class="bar-section">
 							<span class="bar-label">Senders</span>
 							<div class="bar-chips">
-								{#each item.sender.slice(0, 5) as s}
+								{#each item.sender as s}
 									<Tooltip title={getSenderTitle(s)} text={getSenderDetail(s)} position="bottom">
 										<span class="chip chip-sender">{s}</span>
 									</Tooltip>
 								{/each}
-								{#if item.sender.length > 5}
-									<Tooltip text={item.sender.slice(5).join(', ')} position="bottom">
-										<span class="chip chip-more">+{item.sender.length - 5}</span>
-									</Tooltip>
-								{:else if item.sender.length === 0}
+								{#if item.sender.length === 0}
 									<span class="chip chip-empty">none</span>
 								{/if}
 							</div>
@@ -781,7 +773,6 @@
 		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
-		overflow: hidden;
 		cursor: pointer;
 		transition: border-color 0.15s;
 		display: flex;
@@ -900,8 +891,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
-		flex-wrap: nowrap;
-		overflow: hidden;
+		flex-wrap: wrap;
 	}
 
 	.chip {
