@@ -37,6 +37,7 @@ public class ScenarioThread implements Runnable {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicInteger currentStep = new AtomicInteger(-1);
     private final AtomicInteger currentLoop = new AtomicInteger(0);
+    private volatile long[] stepCounts;
     private volatile Thread runningThread;
 
     public ScenarioThread(MakerService makerService, SenderService senderService,
@@ -51,6 +52,7 @@ public class ScenarioThread implements Runnable {
     public void run() {
         running.set(true);
         runningThread = Thread.currentThread();
+        stepCounts = new long[scenarioDto.getSteps().size()];
 
         // Resolve senders
         Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
@@ -117,6 +119,7 @@ public class ScenarioThread implements Runnable {
                             sender.increaseCount();
                         });
                         count.incrementAndGet();
+                        if (stepIdx < stepCounts.length) stepCounts[stepIdx]++;
                     }
                     stepIdx++;
                 }
@@ -235,6 +238,10 @@ public class ScenarioThread implements Runnable {
         StringWriter writer = new StringWriter();
         vTemplate.merge(context, writer);
         return writer.toString();
+    }
+
+    public long[] getStepCounts() {
+        return stepCounts != null ? stepCounts.clone() : new long[0];
     }
 
     public void interrupt() {

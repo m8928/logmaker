@@ -26,4 +26,5 @@ public class ScenarioDto {
     private int currentStep;
     private int currentLoop;
     private int totalSteps;
+    private long[] stepCounts;
 }

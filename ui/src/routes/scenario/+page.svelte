@@ -407,7 +407,7 @@
 						</div>
 					{/if}
 
-					<!-- Steps chain -->
+					<!-- Steps chain with per-step counts -->
 					<div class="sc-steps-row">
 						<span class="sc-section-label">Steps</span>
 						<div class="sc-chain">
@@ -415,8 +415,11 @@
 								{#if si > 0}
 									<span class="chain-arrow" aria-hidden="true">→</span>
 								{/if}
-								<span class="chain-step">
+								<span class="chain-step" class:active-step={running && (item.currentStep ?? 0) === si + 1}>
 									{step.logName}{step.repeat > 1 ? ` ×${step.repeat}` : ''}
+									{#if running && item.stepCounts?.[si]}
+										<span class="step-count">{item.stepCounts[si].toLocaleString()}</span>
+									{/if}
 								</span>
 							{/each}
 							{#if item.steps.length === 0}
@@ -1059,7 +1062,9 @@
 	}
 
 	.chain-step {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
 		padding: 0.125rem 0.4375rem;
 		background: var(--bg-raised);
 		border: 1px solid var(--border);
@@ -1068,6 +1073,27 @@
 		font-family: var(--font-mono);
 		color: var(--text-primary);
 		white-space: nowrap;
+		transition: border-color 0.15s, background 0.15s;
+	}
+
+	.chain-step.active-step {
+		border-color: var(--success);
+		background: var(--success-light);
+		color: var(--success);
+	}
+
+	.step-count {
+		font-size: 0.625rem;
+		background: var(--bg-base);
+		border-radius: 100px;
+		padding: 0 0.3rem;
+		color: var(--text-secondary);
+		font-weight: 600;
+	}
+
+	.active-step .step-count {
+		background: color-mix(in srgb, var(--success) 20%, var(--bg-base));
+		color: var(--success);
 	}
 
 	.chain-arrow {

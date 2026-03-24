@@ -87,6 +87,7 @@ export interface Scenario {
 	currentStep?: number;
 	currentLoop?: number;
 	totalSteps?: number;
+	stepCounts?: number[];
 }
 
 export interface ApiResult<T = unknown> {

@@ -76,6 +76,7 @@ public class ScenarioService {
                     dto.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
                     dto.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
                     dto.setTotalSteps(dto.getSteps() != null ? dto.getSteps().size() : 0);
+                    dto.setStepCounts(thread != null ? thread.getStepCounts() : null);
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -92,6 +93,7 @@ public class ScenarioService {
         dto.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
         dto.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
         dto.setTotalSteps(dto.getSteps() != null ? dto.getSteps().size() : 0);
+        dto.setStepCounts(thread != null ? thread.getStepCounts() : null);
         return dto;
     }
 
