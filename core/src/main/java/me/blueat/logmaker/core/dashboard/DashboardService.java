@@ -6,6 +6,7 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.plugin.PluginService;
+import me.blueat.logmaker.core.scenario.ScenarioService;
 import me.blueat.logmaker.core.sender.SenderService;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +21,7 @@ public class DashboardService {
     private final LogService logService;
     private final SenderService senderService;
     private final PluginService pluginService;
+    private final ScenarioService scenarioService;
 
     public DashboardDto getDashboard() {
         long eps = logService.getLog().stream().map(LogDto::getEps).reduce(0L, Long::sum);
@@ -36,6 +38,7 @@ public class DashboardService {
                 .memory((Runtime.getRuntime().totalMemory()
                         - Runtime.getRuntime().freeMemory())/1024/1024)
                 .thread(Thread.activeCount())
+                .scenario(scenarioService.getScenarios().size())
                 .build();
     }
 
