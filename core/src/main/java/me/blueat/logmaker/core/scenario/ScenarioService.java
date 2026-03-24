@@ -121,9 +121,23 @@ public class ScenarioService {
             return Result.createResultSet(Result.Type.ERROR, "Scenario does not exist");
         }
 
+        // Stop if running, then update
+        boolean wasRunning = false;
+        ScenarioThread existing = scenarioThreadMap.remove(name);
+        if (existing != null && existing.getRunning().get()) {
+            existing.interrupt();
+            wasRunning = true;
+        }
+
         scenarioDto.setName(name);
         scenarioMap.put(name, scenarioDto);
         saveScenarios();
+
+        // Restart if was running
+        if (wasRunning) {
+            startScenario(name);
+        }
+
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated scenario");
     }
 
