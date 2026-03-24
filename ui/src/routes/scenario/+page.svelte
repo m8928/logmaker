@@ -1017,9 +1017,6 @@
 		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
-		white-space: nowrap;
-		padding-top: 2px;
-		flex-shrink: 0;
 	}
 
 	.sc-chips {
