@@ -25,11 +25,14 @@
 	}
 
 	$effect(() => {
-		// Re-check overflow whenever items change
 		if (items.length >= 0) {
 			setTimeout(checkOutputOverflow, 100);
 		}
 	});
+
+	function onResize() {
+		checkOutputOverflow();
+	}
 	let viewMode = $state<'grid' | 'table'>('grid');
 
 	let dialogOpen = $state(false);
@@ -412,6 +415,7 @@
 	});
 </script>
 
+<svelte:window onresize={onResize} />
 <svelte:head><title>Log — LogMaker</title></svelte:head>
 
 <div class="page">
@@ -1065,6 +1069,8 @@
 		gap: 0.5rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--bg-raised);
+		flex-wrap: wrap;
+		overflow: hidden;
 	}
 
 	.bar-section {
@@ -1072,7 +1078,6 @@
 		align-items: center;
 		gap: 0.375rem;
 		min-width: 0;
-		flex-shrink: 0;
 	}
 
 	.bar-label {
