@@ -11,6 +11,7 @@
 	let types = $state<PluginType[]>([]);
 	let loading = $state(false);
 	let search = $state('');
+	let viewMode = $state<'grid' | 'table'>('grid');
 
 	// Dialog state
 	let dialogOpen = $state(false);
@@ -221,7 +222,6 @@
 			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>`;
 		if (t.includes('number') || t.includes('int') || t.includes('range'))
 			return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>`;
-		// default
 		return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`;
 	}
 
@@ -234,6 +234,17 @@
 			([, v]) => v !== '' && v !== 0 && v !== false && !(Array.isArray(v) && v.length === 0)
 		);
 		return entries.slice(0, 3) as [string, string][];
+	}
+
+	function getArgInline(args: Record<string, string | number | boolean | string[]>): string {
+		const entries = Object.entries(args).filter(
+			([, v]) => v !== '' && v !== 0 && v !== false && !(Array.isArray(v) && v.length === 0)
+		);
+		if (entries.length === 0) return '—';
+		const [key, val] = entries[0];
+		const valStr = Array.isArray(val) ? val.join(', ') : String(val);
+		const truncated = valStr.length > 20 ? valStr.slice(0, 20) + '…' : valStr;
+		return `${key}: ${truncated}`;
 	}
 
 	$effect(() => {
@@ -262,6 +273,26 @@
 				{/if}
 				Reload
 			</button>
+			<div class="view-toggle" role="radiogroup" aria-label="View mode">
+				<button
+					class="toggle-btn"
+					class:active={viewMode === 'grid'}
+					onclick={() => (viewMode = 'grid')}
+					aria-label="Grid view"
+					aria-pressed={viewMode === 'grid'}
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+				</button>
+				<button
+					class="toggle-btn"
+					class:active={viewMode === 'table'}
+					onclick={() => (viewMode = 'table')}
+					aria-label="Table view"
+					aria-pressed={viewMode === 'table'}
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+				</button>
+			</div>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Import
@@ -302,7 +333,7 @@
 			<p class="empty-state-title">No results for "{search}"</p>
 			<p class="empty-state-desc">Try a different search term</p>
 		</div>
-	{:else}
+	{:else if viewMode === 'grid'}
 		<div class="card-grid" role="list" aria-label="Maker list">
 			{#each filtered as item}
 				{@const accent = getMakerAccent(item.type)}
@@ -328,6 +359,13 @@
 							</div>
 						</div>
 
+						{#if item.sample}
+							<div class="card-sample-row">
+								<span class="sample-label">Sample</span>
+								<span class="card-sample mono">{item.sample}</span>
+							</div>
+						{/if}
+
 						<div class="card-args">
 							{#if preview.length > 0}
 								{#each preview as [key, val]}
@@ -343,10 +381,6 @@
 								<span class="arg-empty">No arguments configured</span>
 							{/if}
 						</div>
-
-						{#if item.sample}
-							<div class="card-sample mono">{item.sample}</div>
-						{/if}
 
 						<div class="card-footer">
 							<div class="card-footer-left">
@@ -390,6 +424,90 @@
 					</div>
 				</div>
 			{/each}
+		</div>
+	{:else}
+		<!-- Table view -->
+		<div class="table-wrap">
+			<table class="table" aria-label="Maker list">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Type</th>
+						<th>Sample</th>
+						<th>Args</th>
+						<th>Used</th>
+						<th class="right">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each filtered as item}
+						<tr
+							class="table-row-clickable"
+							onclick={() => openEdit(item)}
+							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
+							tabindex="0"
+							role="button"
+							aria-label="Edit {item.name}"
+						>
+							<td>
+								<span class="tbl-name mono">{item.name}</span>
+							</td>
+							<td>
+								<span class="tbl-type-badge">{item.type}</span>
+							</td>
+							<td>
+								{#if item.sample}
+									<span class="tbl-sample mono">{item.sample}</span>
+								{:else}
+									<span class="tbl-empty">—</span>
+								{/if}
+							</td>
+							<td>
+								<span class="tbl-args-inline mono">{getArgInline(item.args)}</span>
+							</td>
+							<td>
+								{#if item.ref > 0}
+									<span class="ref-badge ref-badge-used">
+										<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+										{item.ref}
+									</span>
+								{:else}
+									<span class="ref-badge ref-badge-free">0</span>
+								{/if}
+							</td>
+							<td class="right">
+								<div class="row-actions">
+									<button
+										class="icon-btn"
+										onclick={(e) => { e.stopPropagation(); openCopy(item, e); }}
+										title="Duplicate"
+										aria-label="Duplicate {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+									</button>
+									<button
+										class="icon-btn"
+										onclick={(e) => { e.stopPropagation(); openEdit(item, e); }}
+										title="Edit"
+										aria-label="Edit {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+									</button>
+									<button
+										class="icon-btn danger"
+										onclick={(e) => { e.stopPropagation(); askDelete(item.name); }}
+										disabled={item.ref > 0}
+										title={item.ref > 0 ? 'In use by logs' : 'Delete'}
+										aria-label="Delete {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+									</button>
+								</div>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
 		</div>
 	{/if}
 </div>
@@ -669,6 +787,35 @@
 		width: fit-content;
 	}
 
+	/* Sample row — improved */
+	.card-sample-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		padding: 0.3rem 0.5rem;
+		background: color-mix(in srgb, var(--accent) 7%, var(--bg-base));
+		border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+		border-radius: var(--radius-sm);
+	}
+
+	.sample-label {
+		font-size: 0.5625rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--accent);
+		flex-shrink: 0;
+	}
+
+	.card-sample {
+		font-size: 0.6875rem;
+		color: var(--accent);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-weight: 500;
+	}
+
 	/* Args */
 	.card-args {
 		display: flex;
@@ -713,20 +860,6 @@
 		color: var(--text-muted);
 	}
 
-	/* Sample */
-	.card-sample {
-		font-size: 0.6875rem;
-		color: var(--text-secondary);
-		background: var(--bg-base);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		padding: 0.3rem 0.5rem;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		font-family: var(--font-mono);
-	}
-
 	/* Footer */
 	.card-footer {
 		display: flex;
@@ -768,6 +901,59 @@
 	.card-actions {
 		display: flex;
 		gap: 0.125rem;
+	}
+
+	/* Table view */
+	.table-row-clickable {
+		cursor: pointer;
+	}
+
+	.table-row-clickable:focus {
+		outline: none;
+	}
+
+	.table-row-clickable:focus td {
+		background: color-mix(in srgb, var(--accent) 6%, transparent);
+	}
+
+	.tbl-name {
+		font-weight: 600;
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+	}
+
+	.tbl-type-badge {
+		display: inline-block;
+		padding: 0.15rem 0.4375rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		font-size: 0.6875rem;
+		font-family: var(--font-mono);
+		color: var(--text-muted);
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.tbl-sample {
+		color: var(--accent);
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.tbl-args-inline {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		max-width: 200px;
+		display: inline-block;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.tbl-empty {
+		color: var(--text-muted);
+		font-size: 0.75rem;
 	}
 
 	/* Error state */

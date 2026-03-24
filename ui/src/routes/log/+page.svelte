@@ -10,6 +10,7 @@
 	let makers = $state<Maker[]>([]);
 	let loading = $state(false);
 	let search = $state('');
+	let viewMode = $state<'grid' | 'table'>('grid');
 
 	let dialogOpen = $state(false);
 	let editMode = $state(false);
@@ -155,7 +156,7 @@
 			const newSel = window.getSelection();
 			if (newSel) {
 				const newRange = document.createRange();
-				let node = formatTextarea;
+				const node = formatTextarea;
 				let offset = 0;
 				const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
 				let textNode: Node | null = null;
@@ -324,41 +325,32 @@
 	function mapSampleToFormat(format: string, sample: string): Array<{ text: string; maker?: string }> {
 		if (!sample || !format) return [{ text: sample || format || '' }];
 		const segments = parseFormatSegments(format);
-		// Collect static text pieces to use as delimiters
-		const statics: string[] = [];
 		const makerSlots: string[] = [];
 		for (const seg of segments) {
 			if (seg.maker) {
 				makerSlots.push(seg.maker);
-			} else {
-				statics.push(seg.text);
 			}
 		}
 		if (makerSlots.length === 0) return [{ text: sample }];
 
-		// Build regex: escape static parts, capture maker values between them
 		let remaining = sample;
 		const result: Array<{ text: string; maker?: string }> = [];
 		let segIdx = 0;
 		for (const seg of segments) {
 			if (!seg.maker) {
-				// Static text: find it in remaining
 				const pos = remaining.indexOf(seg.text);
 				if (pos > 0) {
-					// Text before this static part is unmatched — shouldn't happen normally
 					result.push({ text: remaining.slice(0, pos) });
 				}
 				if (pos >= 0) {
 					result.push({ text: seg.text });
 					remaining = remaining.slice(pos + seg.text.length);
 				} else {
-					// Static not found — just push remaining and bail
 					result.push({ text: remaining });
 					remaining = '';
 					break;
 				}
 			} else {
-				// Maker: find the next static text to know where maker value ends
 				const nextStatic = segments.slice(segIdx + 1).find(s => !s.maker);
 				if (nextStatic) {
 					const endPos = remaining.indexOf(nextStatic.text);
@@ -371,7 +363,6 @@
 						break;
 					}
 				} else {
-					// Last segment is a maker — rest of string is the value
 					result.push({ text: remaining, maker: seg.maker });
 					remaining = '';
 				}
@@ -385,6 +376,12 @@
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
 		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
+	}
+
+	// Truncate format string for table display, keep <maker> parts visually intact
+	function truncateFormat(format: string, maxLen = 52): string {
+		if (format.length <= maxLen) return format;
+		return format.slice(0, maxLen) + '…';
 	}
 
 	// Auto-refresh every 5 seconds for live EPS/count
@@ -416,6 +413,26 @@
 				{/if}
 				Reload
 			</button>
+			<div class="view-toggle" role="radiogroup" aria-label="View mode">
+				<button
+					class="toggle-btn"
+					class:active={viewMode === 'grid'}
+					onclick={() => (viewMode = 'grid')}
+					aria-label="Grid view"
+					aria-pressed={viewMode === 'grid'}
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+				</button>
+				<button
+					class="toggle-btn"
+					class:active={viewMode === 'table'}
+					onclick={() => (viewMode = 'table')}
+					aria-label="Table view"
+					aria-pressed={viewMode === 'table'}
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+				</button>
+			</div>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Import
@@ -456,7 +473,7 @@
 			<p class="empty-state-title">No results for "{search}"</p>
 			<p class="empty-state-desc">Try a different search term</p>
 		</div>
-	{:else}
+	{:else if viewMode === 'grid'}
 		<div class="pipeline-grid" role="list" aria-label="Log pipeline list">
 			{#each filtered as item}
 				{@const running = item.status === true || item.currentEps > 0}
@@ -580,6 +597,98 @@
 					</div>
 				</div>
 			{/each}
+		</div>
+	{:else}
+		<!-- Table view -->
+		<div class="table-wrap">
+			<table class="table" aria-label="Log list">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Status</th>
+						<th>Format</th>
+						<th class="right">EPS</th>
+						<th class="right">Count</th>
+						<th>Senders</th>
+						<th class="right">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each filtered as item}
+						{@const running = item.status === true || item.currentEps > 0}
+						{@const pct = epsPct(item)}
+						{@const formatSegs = parseFormatSegments(truncateFormat(item.format))}
+						<tr
+							class="table-row-clickable"
+							onclick={() => openEdit(item)}
+							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
+							tabindex="0"
+							role="button"
+							aria-label="Edit log {item.name}"
+						>
+							<td>
+								<span class="tbl-name mono">{item.name}</span>
+							</td>
+							<td>
+								<span class="tbl-status" class:tbl-status-running={running}>
+									<span class="tbl-status-dot" class:pulse={running}></span>
+									{running ? 'Run' : 'Stop'}
+								</span>
+							</td>
+							<td class="tbl-format-cell">
+								<span class="tbl-format mono">{#each formatSegs as seg}{#if seg.maker}<span class="tbl-format-maker">{seg.text}</span>{:else}<span class="tbl-format-static">{seg.text}</span>{/if}{/each}</span>
+							</td>
+							<td class="right">
+								<span class="tbl-eps">
+									<span class="tbl-eps-actual" class:live={running}>{item.currentEps.toLocaleString()}</span>
+									<span class="tbl-eps-sep">/</span>
+									<span class="tbl-eps-target">{item.eps.toLocaleString()}</span>
+								</span>
+							</td>
+							<td class="right">
+								<span class="tbl-count mono">{item.count.toLocaleString()}</span>
+							</td>
+							<td>
+								<span class="tbl-senders">
+									{#if item.sender.length > 0}
+										{item.sender.slice(0, 2).join(', ')}{item.sender.length > 2 ? ` +${item.sender.length - 2}` : ''}
+									{:else}
+										<span class="tbl-empty">—</span>
+									{/if}
+								</span>
+							</td>
+							<td class="right">
+								<div class="row-actions">
+									<button
+										class="icon-btn"
+										onclick={(e) => { e.stopPropagation(); openCopy(item); }}
+										title="Duplicate"
+										aria-label="Duplicate {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+									</button>
+									<button
+										class="icon-btn"
+										onclick={(e) => { e.stopPropagation(); openEdit(item); }}
+										title="Edit"
+										aria-label="Edit {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+									</button>
+									<button
+										class="icon-btn danger"
+										onclick={(e) => { e.stopPropagation(); askDelete(item.name); }}
+										title="Delete"
+										aria-label="Delete {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+									</button>
+								</div>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
 		</div>
 	{/if}
 </div>
@@ -1150,9 +1259,128 @@
 		border-color: color-mix(in srgb, var(--danger) 25%, transparent);
 	}
 
+	/* ── Table view ── */
+	.table-row-clickable {
+		cursor: pointer;
+	}
+
+	.table-row-clickable:focus {
+		outline: none;
+	}
+
+	.table-row-clickable:focus td {
+		background: color-mix(in srgb, var(--accent) 6%, transparent);
+	}
+
+	.tbl-name {
+		font-weight: 600;
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+	}
+
+	.tbl-status {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.175rem 0.4375rem;
+		border-radius: 4px;
+		font-size: 0.6875rem;
+		font-weight: 600;
+		background: var(--bg-raised);
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		white-space: nowrap;
+	}
+
+	.tbl-status.tbl-status-running {
+		background: var(--success-light);
+		color: var(--success);
+		border-color: color-mix(in srgb, var(--success) 25%, transparent);
+	}
+
+	.tbl-status-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: currentColor;
+		flex-shrink: 0;
+	}
+
+	.tbl-status-dot.pulse {
+		animation: pulse-ring 2s ease-out infinite;
+	}
+
+	.tbl-format-cell {
+		max-width: 280px;
+	}
+
+	.tbl-format {
+		font-size: 0.75rem;
+		white-space: nowrap;
+		overflow: hidden;
+		display: inline-block;
+		max-width: 100%;
+		text-overflow: ellipsis;
+		vertical-align: middle;
+	}
+
+	.tbl-format-maker {
+		color: var(--accent);
+		font-weight: 600;
+	}
+
+	.tbl-format-static {
+		color: var(--text-secondary);
+	}
+
+	.tbl-eps {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.2rem;
+		font-family: var(--font-mono);
+	}
+
+	.tbl-eps-actual {
+		font-size: 0.875rem;
+		font-weight: 700;
+		color: var(--text-primary);
+	}
+
+	.tbl-eps-actual.live {
+		color: var(--accent);
+	}
+
+	.tbl-eps-sep {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.tbl-eps-target {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: 500;
+	}
+
+	.tbl-count {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.tbl-senders {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		font-family: var(--font-mono);
+		white-space: nowrap;
+	}
+
+	.tbl-empty {
+		color: var(--text-muted);
+		font-size: 0.75rem;
+	}
+
 	/* ── Pipeline Builder Dialog ── */
 
-	/* Each section in the form flow */
 	.pipeline-section {
 		padding: 0.875rem 0;
 		border-bottom: 1px solid var(--border);
@@ -1164,7 +1392,6 @@
 	}
 
 	.pipeline-section.preview-section {
-		/* Visually tighter connection to format editor above */
 		padding-top: 0.625rem;
 	}
 
@@ -1172,7 +1399,6 @@
 		margin-bottom: 0.5rem;
 	}
 
-	/* Basic info: Name + EPS on same row */
 	.basic-info-row {
 		display: flex;
 		gap: 0.75rem;
@@ -1190,7 +1416,6 @@
 		margin-bottom: 0;
 	}
 
-	/* Maker palette — always visible chip strip */
 	.maker-palette {
 		display: flex;
 		flex-wrap: wrap;
@@ -1249,7 +1474,6 @@
 		font-weight: 500;
 	}
 
-	/* Contenteditable format editor */
 	.format-editable {
 		padding: 0.625rem 0.75rem;
 		background: var(--bg-base);
@@ -1294,7 +1518,6 @@
 		color: var(--text-muted);
 	}
 
-	/* Preview box — visually connected below format editor */
 	.preview-box {
 		margin: 0;
 		padding: 0.625rem 0.75rem;
@@ -1311,7 +1534,6 @@
 		position: relative;
 	}
 
-	/* Thin accent connector between format and preview */
 	.preview-box::before {
 		content: '';
 		position: absolute;
@@ -1336,7 +1558,6 @@
 		to { transform: rotate(360deg); }
 	}
 
-	/* Sender chips — horizontal flex-wrap */
 	.sender-chips {
 		display: flex;
 		flex-wrap: wrap;
@@ -1408,5 +1629,6 @@
 		.bar-sep { display: none; }
 		.search-input { width: 150px; }
 		.search-input:focus { width: 150px; }
+		.tbl-format-cell { max-width: 140px; }
 	}
 </style>

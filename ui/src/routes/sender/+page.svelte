@@ -10,6 +10,7 @@
 	let types = $state<PluginType[]>([]);
 	let loading = $state(false);
 	let search = $state('');
+	let viewMode = $state<'grid' | 'table'>('grid');
 
 	let dialogOpen = $state(false);
 	let editMode = $state(false);
@@ -193,6 +194,17 @@
 		return entries.slice(0, 3) as [string, string][];
 	}
 
+	function getArgInline(args: Record<string, string | number | boolean | string[]>): string {
+		const entries = Object.entries(args).filter(
+			([, v]) => v !== '' && v !== 0 && v !== false && !(Array.isArray(v) && v.length === 0)
+		);
+		if (entries.length === 0) return '—';
+		const [key, val] = entries[0];
+		const valStr = Array.isArray(val) ? val.join(', ') : String(val);
+		const truncated = valStr.length > 24 ? valStr.slice(0, 24) + '…' : valStr;
+		return `${key}: ${truncated}`;
+	}
+
 	$effect(() => {
 		fetchItems();
 	});
@@ -219,6 +231,26 @@
 				{/if}
 				Reload
 			</button>
+			<div class="view-toggle" role="radiogroup" aria-label="View mode">
+				<button
+					class="toggle-btn"
+					class:active={viewMode === 'grid'}
+					onclick={() => (viewMode = 'grid')}
+					aria-label="Grid view"
+					aria-pressed={viewMode === 'grid'}
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+				</button>
+				<button
+					class="toggle-btn"
+					class:active={viewMode === 'table'}
+					onclick={() => (viewMode = 'table')}
+					aria-label="Table view"
+					aria-pressed={viewMode === 'table'}
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+				</button>
+			</div>
 			<button class="btn btn-ghost" onclick={() => (importOpen = true)} disabled={loading}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Import
@@ -259,7 +291,7 @@
 			<p class="empty-state-title">No results for "{search}"</p>
 			<p class="empty-state-desc">Try a different search term</p>
 		</div>
-	{:else}
+	{:else if viewMode === 'grid'}
 		<div class="card-grid" role="list" aria-label="Sender list">
 			{#each filtered as item}
 				{@const accent = getSenderAccent(item.type)}
@@ -351,6 +383,90 @@
 					</div>
 				</div>
 			{/each}
+		</div>
+	{:else}
+		<!-- Table view -->
+		<div class="table-wrap">
+			<table class="table" aria-label="Sender list">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Type</th>
+						<th class="right">Output</th>
+						<th>Args</th>
+						<th>Used</th>
+						<th class="right">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each filtered as item}
+						<tr
+							class="table-row-clickable"
+							onclick={() => openEdit(item)}
+							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
+							tabindex="0"
+							role="button"
+							aria-label="Edit {item.name}"
+						>
+							<td>
+								<span class="tbl-name mono">{item.name}</span>
+							</td>
+							<td>
+								<span class="tbl-type-badge">{item.type}</span>
+							</td>
+							<td class="right">
+								{#if (item.output ?? item.count ?? 0) > 0}
+									<span class="tbl-output mono">{((item.output ?? item.count) ?? 0).toLocaleString()}</span>
+								{:else}
+									<span class="tbl-empty">—</span>
+								{/if}
+							</td>
+							<td>
+								<span class="tbl-args-inline mono">{getArgInline(item.args)}</span>
+							</td>
+							<td>
+								{#if (item.ref ?? 0) > 0}
+									<span class="ref-badge ref-badge-used">
+										<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+										{item.ref}
+									</span>
+								{:else}
+									<span class="ref-badge ref-badge-free">0</span>
+								{/if}
+							</td>
+							<td class="right">
+								<div class="row-actions">
+									<button
+										class="icon-btn"
+										onclick={(e) => { e.stopPropagation(); openCopy(item); }}
+										title="Duplicate"
+										aria-label="Duplicate {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+									</button>
+									<button
+										class="icon-btn"
+										onclick={(e) => { e.stopPropagation(); openEdit(item); }}
+										title="Edit"
+										aria-label="Edit {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+									</button>
+									<button
+										class="icon-btn danger"
+										onclick={(e) => { e.stopPropagation(); askDelete(item.name); }}
+										disabled={(item.ref ?? 0) > 0}
+										title={(item.ref ?? 0) > 0 ? 'In use by logs' : 'Delete'}
+										aria-label="Delete {item.name}"
+									>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+									</button>
+								</div>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
 		</div>
 	{/if}
 </div>
@@ -729,6 +845,59 @@
 	.card-actions {
 		display: flex;
 		gap: 0.125rem;
+	}
+
+	/* Table view */
+	.table-row-clickable {
+		cursor: pointer;
+	}
+
+	.table-row-clickable:focus {
+		outline: none;
+	}
+
+	.table-row-clickable:focus td {
+		background: color-mix(in srgb, var(--accent) 6%, transparent);
+	}
+
+	.tbl-name {
+		font-weight: 600;
+		color: var(--text-primary);
+		font-size: 0.8125rem;
+	}
+
+	.tbl-type-badge {
+		display: inline-block;
+		padding: 0.15rem 0.4375rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		font-size: 0.6875rem;
+		font-family: var(--font-mono);
+		color: var(--text-muted);
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.tbl-output {
+		font-weight: 600;
+		color: var(--success);
+		font-size: 0.8125rem;
+	}
+
+	.tbl-args-inline {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		max-width: 220px;
+		display: inline-block;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.tbl-empty {
+		color: var(--text-muted);
+		font-size: 0.75rem;
 	}
 
 	@media (max-width: 600px) {
