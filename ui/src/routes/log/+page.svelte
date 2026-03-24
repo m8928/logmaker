@@ -11,6 +11,25 @@
 	let loading = $state(false);
 	let search = $state('');
 	let expandedOutputs = $state(new Set<string>());
+	let overflowingOutputs = $state(new Set<string>());
+
+	function checkOutputOverflow() {
+		const els = document.querySelectorAll<HTMLElement>('[data-output-name]');
+		const next = new Set<string>();
+		els.forEach(el => {
+			if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight + 2) {
+				next.add(el.dataset.outputName!);
+			}
+		});
+		overflowingOutputs = next;
+	}
+
+	$effect(() => {
+		// Re-check overflow whenever items change
+		if (items.length >= 0) {
+			setTimeout(checkOutputOverflow, 100);
+		}
+	});
 	let viewMode = $state<'grid' | 'table'>('grid');
 
 	let dialogOpen = $state(false);
@@ -538,8 +557,8 @@
 					<!-- Log output: sample with hoverable maker-generated parts -->
 					<div class="pipeline-body">
 						<div class="body-label">Output</div>
-						<div class="output-line mono" class:collapsed={!expandedOutputs.has(item.name)}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
-						{#if !expandedOutputs.has(item.name)}
+						<div class="output-line mono" class:collapsed={overflowingOutputs.has(item.name) && !expandedOutputs.has(item.name)} data-output-name={item.name}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
+						{#if overflowingOutputs.has(item.name) || expandedOutputs.has(item.name)}
 							<button
 								class="output-toggle"
 								onclick={(e) => { e.stopPropagation(); const s = new Set(expandedOutputs); if (s.has(item.name)) s.delete(item.name); else s.add(item.name); expandedOutputs = s; }}

@@ -29,6 +29,8 @@
 		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
+		min-width: 0;
+		overflow-x: hidden;
 	}
 
 	@media (max-width: 768px) {
