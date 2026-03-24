@@ -409,14 +409,14 @@
 
 					<!-- Steps -->
 					<div class="sc-section-block">
-						<div class="sc-section-label">Steps{#if running} · Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}{/if}</div>
+						<div class="sc-section-label">Steps {#if running}<span class="loop-badge">Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}</span>{/if}</div>
 						<div class="sc-chain">
 							{#each item.steps as step, si}
 								{#if si > 0}
 									<span class="chain-arrow" aria-hidden="true">→</span>
 								{/if}
 								<span class="chain-step" class:active-step={running && (item.currentStep ?? 0) === si + 1}>
-									{step.logName}{step.repeat > 1 ? ` ×${step.repeat}` : ''}{#if item.stepCounts?.[si]} <span class="step-cnt">{item.stepCounts[si].toLocaleString()}</span>{/if}
+									<span class="step-name">{step.logName}</span>{#if step.repeat > 1}<span class="step-repeat">×{step.repeat}</span>{/if}{#if item.stepCounts?.[si]}<span class="step-cnt">{item.stepCounts[si].toLocaleString()}</span>{/if}
 								</span>
 							{/each}
 							{#if item.steps.length === 0}
@@ -1007,7 +1007,7 @@
 
 	/* Section block (shared vars, steps) */
 	.sc-section-block {
-		padding: 0.625rem 0.75rem;
+		padding: 0.5rem 0.75rem;
 		border-bottom: 1px solid var(--border);
 	}
 
@@ -1047,11 +1047,25 @@
 		margin-top: 0.3rem;
 	}
 
+	.loop-badge {
+		display: inline-block;
+		font-size: 0.5625rem;
+		font-weight: 700;
+		background: var(--accent-light);
+		color: var(--accent);
+		padding: 0.0625rem 0.375rem;
+		border-radius: 100px;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		vertical-align: middle;
+		margin-left: 0.25rem;
+	}
+
 	.chain-step {
 		display: inline-flex;
-		align-items: baseline;
-		gap: 0.25rem;
-		padding: 0.1875rem 0.4375rem;
+		align-items: center;
+		gap: 0;
+		padding: 0;
 		background: var(--bg-raised);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
@@ -1059,23 +1073,43 @@
 		font-family: var(--font-mono);
 		color: var(--text-primary);
 		white-space: nowrap;
+		overflow: hidden;
 		transition: border-color 0.15s, background 0.15s;
 	}
 
+	.step-name {
+		padding: 0.1875rem 0.375rem;
+	}
+
+	.step-repeat {
+		padding: 0.1875rem 0.25rem 0.1875rem 0;
+		font-size: 0.5625rem;
+		color: var(--text-muted);
+	}
+
 	.step-cnt {
+		padding: 0.1875rem 0.375rem;
 		font-size: 0.5625rem;
 		font-weight: 700;
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
 		color: var(--accent);
+		border-left: 1px solid var(--border);
 	}
 
 	.chain-step.active-step {
 		border-color: var(--success);
 		background: var(--success-light);
+	}
+
+	.active-step .step-name {
 		color: var(--success);
+		font-weight: 600;
 	}
 
 	.active-step .step-cnt {
+		background: color-mix(in srgb, var(--success) 20%, transparent);
 		color: var(--success);
+		border-left-color: color-mix(in srgb, var(--success) 30%, transparent);
 	}
 
 	.chain-arrow {
