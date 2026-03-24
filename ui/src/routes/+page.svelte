@@ -43,33 +43,25 @@
 		{
 			label: 'Makers',
 			value: data?.maker ?? 0,
-			icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`,
-			accent: 'var(--accent)',
-			bg: 'var(--accent-light)',
+			icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`,
 			href: '/maker'
 		},
 		{
 			label: 'Senders',
 			value: data?.sender ?? 0,
-			icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
-			accent: 'var(--info)',
-			bg: 'var(--info-light)',
+			icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
 			href: '/sender'
 		},
 		{
-			label: 'Logs Running',
+			label: 'Running',
 			value: runningLogs.length,
-			icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>`,
-			accent: 'var(--success)',
-			bg: 'var(--success-light)',
+			icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>`,
 			href: '/log'
 		},
 		{
 			label: 'Plugins',
 			value: data?.plugin ?? 0,
-			icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.24 12.24a6 6 0 00-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>`,
-			accent: 'var(--warning)',
-			bg: 'var(--warning-light)',
+			icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.24 12.24a6 6 0 00-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>`,
 			href: '/plugin'
 		}
 	]);
@@ -79,17 +71,9 @@
 		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
 	}
 
-	function extractMakers(format: string): string[] {
-		const matches = format.match(/<([^>]+)>/g);
-		if (!matches) return [];
-		return [...new Set(matches.map((m) => m.slice(1, -1)))];
-	}
-
 	const cpuPct = $derived(Math.min(100, data?.cpu ?? 0));
 	const memPct = $derived(
-		data
-			? Math.min(100, Math.round(((data.memory ?? 0) / 2048) * 100))
-			: 0
+		data ? Math.min(100, Math.round(((data.memory ?? 0) / 2048) * 100)) : 0
 	);
 	const totalEpsPct = $derived(
 		data && data.eps > 0
@@ -112,21 +96,21 @@
 				{#if error}
 					Connection error
 				{:else if loading && secondsAgo === 0}
-					Connecting…
+					Connecting
 				{:else}
-					Live · updated {secondsAgo}s ago
+					Live · {secondsAgo}s ago
 				{/if}
 			</div>
 		</div>
 		<div class="topbar-right">
 			{#if error}
-				<div class="error-chip">
-					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+				<span class="error-chip">
+					<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
 					Server unreachable
-				</div>
+				</span>
 			{/if}
 			<button class="btn btn-ghost btn-sm" onclick={fetchData} disabled={loading} aria-label="Refresh dashboard">
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:spin={loading}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:spin={loading}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
 				Refresh
 			</button>
 		</div>
@@ -135,12 +119,12 @@
 	<!-- Metric strip -->
 	<div class="metric-strip">
 		{#each metricTiles as tile}
-			<a href={tile.href} class="metric-tile" style="--tile-accent:{tile.accent};--tile-bg:{tile.bg}">
+			<a href={tile.href} class="metric-tile">
 				<div class="metric-icon">
 					{@html tile.icon}
 				</div>
 				<div class="metric-body">
-					<span class="metric-value">{loading ? '—' : tile.value.toLocaleString()}</span>
+					<span class="metric-value mono">{loading ? '—' : tile.value.toLocaleString()}</span>
 					<span class="metric-label">{tile.label}</span>
 				</div>
 			</a>
@@ -153,10 +137,10 @@
 		<div class="panel activity-panel">
 			<div class="panel-header">
 				<span class="panel-title">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>
 					Live Activity
 				</span>
-				<span class="panel-meta">{runningLogs.length} active</span>
+				<span class="panel-count">{runningLogs.length} active</span>
 			</div>
 			<div class="activity-list">
 				{#if loading && logs.length === 0}
@@ -166,28 +150,27 @@
 					</div>
 				{:else if runningLogs.length === 0}
 					<div class="activity-empty">
-						<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>
-						<span>No active log generators</span>
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>
+						<span>No active generators</span>
 						<a href="/log" class="btn btn-ghost btn-sm">Go to Logs</a>
 					</div>
 				{:else}
 					{#each runningLogs as log}
-						{@const makers = extractMakers(log.format)}
 						{@const pct = epsPct(log)}
 						<div class="activity-card">
 							<div class="activity-card-top">
 								<div class="activity-name">
 									<span class="running-dot"></span>
-									{log.name}
+									<span class="name-text">{log.name}</span>
 								</div>
-								<div class="activity-eps">
-									<span class="eps-actual-val">{log.currentEps.toLocaleString()}</span>
+								<div class="activity-eps mono">
+									<span class="eps-actual">{log.currentEps.toLocaleString()}</span>
 									<span class="eps-sep">/</span>
-									<span class="eps-target-val">{log.eps.toLocaleString()}</span>
+									<span class="eps-target">{log.eps.toLocaleString()}</span>
 									<span class="eps-unit">eps</span>
 								</div>
 							</div>
-							<div class="activity-format mono">{log.format.length > 60 ? log.format.slice(0, 60) + '…' : log.format}</div>
+							<div class="activity-format mono">{log.format.length > 64 ? log.format.slice(0, 64) + '…' : log.format}</div>
 							<div class="activity-card-bottom">
 								<div class="sender-tags">
 									{#each log.sender.slice(0, 3) as s}
@@ -197,11 +180,11 @@
 										<span class="stag stag-more">+{log.sender.length - 3}</span>
 									{/if}
 								</div>
-								<div class="activity-bar-wrap">
-									<div class="activity-bar">
-										<div class="activity-bar-fill" style="width:{pct}%;background:{pct >= 90 ? 'var(--success)' : pct >= 50 ? 'var(--accent)' : 'var(--warning)'}"></div>
+								<div class="eps-bar-row">
+									<div class="eps-bar">
+										<div class="eps-bar-fill" style="width:{pct}%"></div>
 									</div>
-									<span class="activity-pct">{pct}%</span>
+									<span class="eps-pct mono">{pct}%</span>
 								</div>
 							</div>
 						</div>
@@ -214,7 +197,7 @@
 		<div class="panel health-panel">
 			<div class="panel-header">
 				<span class="panel-title">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
 					System Health
 				</span>
 			</div>
@@ -222,64 +205,64 @@
 			<div class="health-body">
 				<!-- EPS overview -->
 				<div class="health-section">
-					<div class="health-section-label">Events / Second</div>
+					<div class="section-label">Events / Second</div>
 					<div class="eps-overview">
 						<div class="eps-big">
-							<span class="eps-big-val">{loading ? '—' : (data?.actualEps ?? 0).toLocaleString()}</span>
-							<span class="eps-big-unit">actual</span>
+							<span class="eps-big-val mono">{loading ? '—' : (data?.actualEps ?? 0).toLocaleString()}</span>
+							<span class="eps-big-sub">actual</span>
 						</div>
-						<div class="eps-divider">/</div>
+						<span class="eps-divider">/</span>
 						<div class="eps-big eps-big-dim">
-							<span class="eps-big-val">{loading ? '—' : (data?.eps ?? 0).toLocaleString()}</span>
-							<span class="eps-big-unit">target</span>
+							<span class="eps-big-val mono">{loading ? '—' : (data?.eps ?? 0).toLocaleString()}</span>
+							<span class="eps-big-sub">target</span>
 						</div>
 					</div>
 					<div class="h-bar-wrap">
 						<div class="h-bar">
-							<div class="h-bar-fill" style="width:{totalEpsPct}%;background:var(--accent)"></div>
+							<div class="h-bar-fill" style="width:{totalEpsPct}%"></div>
 						</div>
-						<span class="h-bar-pct">{totalEpsPct}%</span>
+						<span class="h-bar-pct mono">{totalEpsPct}%</span>
 					</div>
 				</div>
 
-				<div class="health-divider"></div>
+				<div class="health-sep"></div>
 
-				<!-- Gauges row -->
+				<!-- Gauge rings row -->
 				<div class="gauges-row">
 					<!-- CPU -->
 					<div class="gauge-block">
-						<div class="gauge-ring-wrap">
-							<svg class="gauge-ring" viewBox="0 0 80 80" width="80" height="80">
-								<circle cx="40" cy="40" r="30" fill="none" stroke="var(--bg-raised)" stroke-width="8"/>
+						<div class="gauge-wrap">
+							<svg viewBox="0 0 80 80" width="72" height="72">
+								<circle cx="40" cy="40" r="30" fill="none" stroke="var(--bg-raised)" stroke-width="7"/>
 								<circle
 									cx="40" cy="40" r="30"
 									fill="none"
-									stroke="var(--warning)"
-									stroke-width="8"
+									stroke="var(--accent)"
+									stroke-width="7"
 									stroke-linecap="round"
-									stroke-dasharray="{188.5}"
+									stroke-dasharray="188.5"
 									stroke-dashoffset="{188.5 - (188.5 * cpuPct / 100)}"
 									transform="rotate(-90 40 40)"
 									style="transition: stroke-dashoffset 0.6s ease"
 								/>
 							</svg>
 							<div class="gauge-inner">
-								<span class="gauge-val">{loading ? '—' : `${cpuPct}%`}</span>
+								<span class="gauge-val mono">{loading ? '—' : `${cpuPct}%`}</span>
 							</div>
 						</div>
-						<div class="gauge-label">CPU</div>
+						<span class="gauge-label">CPU</span>
 					</div>
 
 					<!-- Memory -->
 					<div class="gauge-block">
-						<div class="gauge-ring-wrap">
-							<svg class="gauge-ring" viewBox="0 0 80 80" width="80" height="80">
-								<circle cx="40" cy="40" r="30" fill="none" stroke="var(--bg-raised)" stroke-width="8"/>
+						<div class="gauge-wrap">
+							<svg viewBox="0 0 80 80" width="72" height="72">
+								<circle cx="40" cy="40" r="30" fill="none" stroke="var(--bg-raised)" stroke-width="7"/>
 								<circle
 									cx="40" cy="40" r="30"
 									fill="none"
-									stroke="var(--info)"
-									stroke-width="8"
+									stroke="var(--accent)"
+									stroke-width="7"
 									stroke-linecap="round"
 									stroke-dasharray="188.5"
 									stroke-dashoffset="{188.5 - (188.5 * memPct / 100)}"
@@ -288,23 +271,23 @@
 								/>
 							</svg>
 							<div class="gauge-inner">
-								<span class="gauge-val" style="font-size:0.75rem">{loading ? '—' : `${data?.memory ?? 0}MB`}</span>
+								<span class="gauge-val mono" style="font-size:0.6875rem">{loading ? '—' : `${data?.memory ?? 0}MB`}</span>
 							</div>
 						</div>
-						<div class="gauge-label">Memory</div>
+						<span class="gauge-label">Memory</span>
 					</div>
 
 					<!-- Threads -->
 					{#if data?.thread !== undefined}
 						<div class="gauge-block">
-							<div class="gauge-ring-wrap">
-								<svg class="gauge-ring" viewBox="0 0 80 80" width="80" height="80">
-									<circle cx="40" cy="40" r="30" fill="none" stroke="var(--bg-raised)" stroke-width="8"/>
+							<div class="gauge-wrap">
+								<svg viewBox="0 0 80 80" width="72" height="72">
+									<circle cx="40" cy="40" r="30" fill="none" stroke="var(--bg-raised)" stroke-width="7"/>
 									<circle
 										cx="40" cy="40" r="30"
 										fill="none"
-										stroke="var(--success)"
-										stroke-width="8"
+										stroke="var(--accent)"
+										stroke-width="7"
 										stroke-linecap="round"
 										stroke-dasharray="188.5"
 										stroke-dashoffset="{188.5 - (188.5 * Math.min(100, (data.thread / 200) * 100) / 100)}"
@@ -313,30 +296,32 @@
 									/>
 								</svg>
 								<div class="gauge-inner">
-									<span class="gauge-val">{data.thread}</span>
+									<span class="gauge-val mono">{data.thread}</span>
 								</div>
 							</div>
-							<div class="gauge-label">Threads</div>
+							<span class="gauge-label">Threads</span>
 						</div>
 					{/if}
 				</div>
 
-				<div class="health-divider"></div>
+				<div class="health-sep"></div>
 
-				<!-- Log count stat -->
+				<!-- Log count stats -->
 				<div class="health-section">
-					<div class="health-stat-row">
-						<div class="health-stat">
-							<span class="health-stat-val">{loading ? '—' : (data?.log ?? 0)}</span>
-							<span class="health-stat-label">Total Logs</span>
+					<div class="stat-row">
+						<div class="stat-item">
+							<span class="stat-val mono">{loading ? '—' : (data?.log ?? 0)}</span>
+							<span class="stat-label">Total</span>
 						</div>
-						<div class="health-stat">
-							<span class="health-stat-val" style="color:var(--success)">{runningLogs.length}</span>
-							<span class="health-stat-label">Running</span>
+						<div class="stat-sep"></div>
+						<div class="stat-item">
+							<span class="stat-val mono accent">{runningLogs.length}</span>
+							<span class="stat-label">Running</span>
 						</div>
-						<div class="health-stat">
-							<span class="health-stat-val" style="color:var(--text-muted)">{(data?.log ?? 0) - runningLogs.length}</span>
-							<span class="health-stat-label">Stopped</span>
+						<div class="stat-sep"></div>
+						<div class="stat-item">
+							<span class="stat-val mono muted">{(data?.log ?? 0) - runningLogs.length}</span>
+							<span class="stat-label">Stopped</span>
 						</div>
 					</div>
 				</div>
@@ -368,49 +353,51 @@
 	.topbar-left {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.875rem;
 	}
 
 	.topbar-right {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.625rem;
 	}
 
 	.dash-title {
-		font-size: 1.375rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 		margin: 0;
-		letter-spacing: -0.025em;
+		letter-spacing: -0.02em;
 	}
 
 	.live-badge {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.375rem;
-		padding: 0.25rem 0.625rem;
+		padding: 0.2rem 0.5rem;
 		border: 1px solid var(--border);
-		border-radius: 100px;
-		font-size: 0.75rem;
+		border-radius: 4px;
+		font-size: 0.6875rem;
+		font-weight: 500;
 		color: var(--text-muted);
-		background: var(--bg-raised);
+		background: var(--bg-surface);
+		letter-spacing: 0.02em;
 	}
 
 	.live-badge.live {
-		border-color: color-mix(in srgb, var(--success) 40%, transparent);
+		border-color: color-mix(in srgb, var(--success) 35%, transparent);
 		color: var(--success);
 		background: var(--success-light);
 	}
 
 	.live-badge.err {
-		border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+		border-color: color-mix(in srgb, var(--danger) 35%, transparent);
 		color: var(--danger);
 		background: var(--danger-light);
 	}
 
 	.live-dot {
-		width: 6px;
-		height: 6px;
+		width: 5px;
+		height: 5px;
 		border-radius: 50%;
 		background: currentColor;
 		flex-shrink: 0;
@@ -424,11 +411,12 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.375rem;
-		padding: 0.25rem 0.625rem;
+		padding: 0.25rem 0.5rem;
 		background: var(--danger-light);
 		color: var(--danger);
+		border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
 		border-radius: var(--radius-sm);
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		font-weight: 500;
 	}
 
@@ -444,22 +432,21 @@
 	.metric-strip {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
+		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		overflow: hidden;
 		margin-bottom: 1.25rem;
-		background: var(--bg-surface);
 	}
 
 	.metric-tile {
 		display: flex;
 		align-items: center;
-		gap: 0.875rem;
-		padding: 1rem 1.25rem;
+		gap: 0.75rem;
+		padding: 0.875rem 1rem;
 		text-decoration: none;
 		border-right: 1px solid var(--border);
-		transition: background 0.15s;
-		border-top: 2px solid var(--tile-accent);
+		transition: background 0.12s;
 	}
 
 	.metric-tile:last-child {
@@ -471,25 +458,25 @@
 	}
 
 	.metric-icon {
-		width: 32px;
-		height: 32px;
+		width: 30px;
+		height: 30px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		border-radius: var(--radius-sm);
-		background: var(--tile-bg);
-		color: var(--tile-accent);
+		background: var(--accent-light);
+		color: var(--accent);
 		flex-shrink: 0;
 	}
 
 	.metric-body {
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
+		gap: 0.0625rem;
 	}
 
 	.metric-value {
-		font-size: 1.5rem;
+		font-size: 1.375rem;
 		font-weight: 700;
 		letter-spacing: -0.04em;
 		line-height: 1;
@@ -497,11 +484,11 @@
 	}
 
 	.metric-label {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
 		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	/* ── Main 2-col grid ── */
@@ -524,7 +511,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.75rem 1rem;
+		padding: 0.625rem 0.875rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--bg-raised);
 	}
@@ -532,24 +519,24 @@
 	.panel-title {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8125rem;
+		gap: 0.375rem;
+		font-size: 0.6875rem;
 		font-weight: 600;
-		color: var(--text-secondary);
+		color: var(--text-muted);
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.07em;
 	}
 
-	.panel-meta {
-		font-size: 0.75rem;
+	.panel-count {
+		font-size: 0.6875rem;
 		color: var(--text-muted);
+		font-variant-numeric: tabular-nums;
 	}
 
 	/* ── Activity panel ── */
 	.activity-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0;
 	}
 
 	.activity-loading {
@@ -558,15 +545,15 @@
 		gap: 0.5rem;
 		padding: 1.5rem;
 		color: var(--text-muted);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 	}
 
 	.activity-empty {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.75rem;
-		padding: 3rem 1rem;
+		gap: 0.625rem;
+		padding: 2.5rem 1rem;
 		color: var(--text-muted);
 		font-size: 0.8125rem;
 		text-align: center;
@@ -575,8 +562,8 @@
 	.activity-card {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-		padding: 0.875rem 1rem;
+		gap: 0.4375rem;
+		padding: 0.75rem 0.875rem;
 		border-bottom: 1px solid var(--border);
 		transition: background 0.12s;
 	}
@@ -586,7 +573,7 @@
 	}
 
 	.activity-card:hover {
-		background: var(--bg-raised);
+		background: color-mix(in srgb, var(--bg-raised) 50%, transparent);
 	}
 
 	.activity-card-top {
@@ -600,14 +587,21 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.name-text {
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.running-dot {
-		width: 7px;
-		height: 7px;
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
 		background: var(--success);
 		flex-shrink: 0;
@@ -617,32 +611,35 @@
 	.activity-eps {
 		display: flex;
 		align-items: baseline;
-		gap: 0.25rem;
-		font-size: 0.8125rem;
+		gap: 0.2rem;
 		white-space: nowrap;
+		flex-shrink: 0;
 	}
 
-	.eps-actual-val {
+	.eps-actual {
+		font-size: 0.875rem;
 		font-weight: 700;
 		color: var(--text-primary);
 	}
 
 	.eps-sep {
+		font-size: 0.75rem;
 		color: var(--text-muted);
 	}
 
-	.eps-target-val {
+	.eps-target {
+		font-size: 0.8125rem;
 		color: var(--text-secondary);
 	}
 
 	.eps-unit {
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		color: var(--text-muted);
 		margin-left: 1px;
 	}
 
 	.activity-format {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--text-muted);
 		white-space: nowrap;
 		overflow: hidden;
@@ -653,57 +650,60 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.sender-tags {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.3rem;
+		gap: 0.25rem;
 	}
 
 	.stag {
 		display: inline-block;
-		padding: 0.125rem 0.5rem;
+		padding: 0.1rem 0.4rem;
 		background: var(--bg-raised);
 		border: 1px solid var(--border);
-		border-radius: 100px;
-		font-size: 0.6875rem;
-		color: var(--text-secondary);
+		border-radius: 4px;
+		font-size: 0.625rem;
+		color: var(--text-muted);
 		font-weight: 500;
+		font-family: var(--font-mono);
 	}
 
 	.stag-more {
 		color: var(--text-muted);
+		opacity: 0.7;
 	}
 
-	.activity-bar-wrap {
+	.eps-bar-row {
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
 		flex-shrink: 0;
-		min-width: 100px;
+		min-width: 90px;
 	}
 
-	.activity-bar {
+	.eps-bar {
 		flex: 1;
-		height: 4px;
+		height: 3px;
 		background: var(--bg-raised);
 		border-radius: 2px;
 		overflow: hidden;
 	}
 
-	.activity-bar-fill {
+	.eps-bar-fill {
 		height: 100%;
+		background: var(--accent);
 		border-radius: 2px;
 		transition: width 0.5s ease;
 	}
 
-	.activity-pct {
-		font-size: 0.6875rem;
+	.eps-pct {
+		font-size: 0.625rem;
 		font-weight: 600;
 		color: var(--text-muted);
-		width: 2.5rem;
+		width: 2.25rem;
 		text-align: right;
 	}
 
@@ -714,37 +714,38 @@
 	}
 
 	.health-section {
-		padding: 1rem;
+		padding: 0.875rem;
 	}
 
-	.health-divider {
+	.health-sep {
 		height: 1px;
 		background: var(--border);
 	}
 
-	.health-section-label {
-		font-size: 0.6875rem;
+	.section-label {
+		font-size: 0.625rem;
 		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.07em;
 		color: var(--text-muted);
-		margin-bottom: 0.75rem;
+		margin-bottom: 0.625rem;
 	}
 
 	.eps-overview {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
-		margin-bottom: 0.75rem;
+		gap: 0.625rem;
+		margin-bottom: 0.625rem;
 	}
 
 	.eps-big {
 		display: flex;
 		flex-direction: column;
+		gap: 0.0625rem;
 	}
 
 	.eps-big-val {
-		font-size: 1.75rem;
+		font-size: 1.625rem;
 		font-weight: 700;
 		letter-spacing: -0.04em;
 		line-height: 1;
@@ -752,20 +753,22 @@
 	}
 
 	.eps-big-dim .eps-big-val {
+		font-size: 1.125rem;
 		color: var(--text-secondary);
-		font-size: 1.25rem;
 	}
 
-	.eps-big-unit {
-		font-size: 0.6875rem;
+	.eps-big-sub {
+		font-size: 0.625rem;
 		color: var(--text-muted);
-		margin-top: 0.125rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	.eps-divider {
-		font-size: 1.5rem;
+		font-size: 1.25rem;
 		color: var(--border);
 		font-weight: 300;
+		line-height: 1;
 	}
 
 	.h-bar-wrap {
@@ -776,23 +779,24 @@
 
 	.h-bar {
 		flex: 1;
-		height: 5px;
+		height: 4px;
 		background: var(--bg-raised);
-		border-radius: 3px;
+		border-radius: 2px;
 		overflow: hidden;
 	}
 
 	.h-bar-fill {
 		height: 100%;
-		border-radius: 3px;
+		background: var(--accent);
+		border-radius: 2px;
 		transition: width 0.6s ease;
 	}
 
 	.h-bar-pct {
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		font-weight: 600;
 		color: var(--text-muted);
-		width: 2.5rem;
+		width: 2.25rem;
 		text-align: right;
 	}
 
@@ -801,7 +805,7 @@
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-around;
-		padding: 1rem;
+		padding: 0.875rem;
 		gap: 0.5rem;
 	}
 
@@ -809,17 +813,13 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.375rem;
 	}
 
-	.gauge-ring-wrap {
+	.gauge-wrap {
 		position: relative;
-		width: 80px;
-		height: 80px;
-	}
-
-	.gauge-ring {
-		display: block;
+		width: 72px;
+		height: 72px;
 	}
 
 	.gauge-inner {
@@ -831,45 +831,64 @@
 	}
 
 	.gauge-val {
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 700;
 		letter-spacing: -0.03em;
 		color: var(--text-primary);
 	}
 
 	.gauge-label {
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.07em;
 		color: var(--text-muted);
 	}
 
-	/* ── Health stats ── */
-	.health-stat-row {
+	/* ── Stats row ── */
+	.stat-row {
 		display: flex;
-		gap: 1.5rem;
+		align-items: center;
+		gap: 0;
 	}
 
-	.health-stat {
+	.stat-item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.2rem;
+		gap: 0.1875rem;
+		flex: 1;
 	}
 
-	.health-stat-val {
-		font-size: 1.375rem;
+	.stat-sep {
+		width: 1px;
+		height: 32px;
+		background: var(--border);
+		flex-shrink: 0;
+		margin: 0 0.875rem;
+	}
+
+	.stat-val {
+		font-size: 1.25rem;
 		font-weight: 700;
 		letter-spacing: -0.04em;
 		line-height: 1;
 		color: var(--text-primary);
 	}
 
-	.health-stat-label {
-		font-size: 0.6875rem;
+	.stat-val.accent {
+		color: var(--accent);
+	}
+
+	.stat-val.muted {
+		color: var(--text-secondary);
+	}
+
+	.stat-label {
+		font-size: 0.625rem;
 		color: var(--text-muted);
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		letter-spacing: 0.06em;
+		font-weight: 500;
 	}
 
 	/* ── Responsive ── */

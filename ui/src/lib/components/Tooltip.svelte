@@ -107,25 +107,28 @@
 	}
 
 	.tip-table {
-		background: var(--bg-surface);
+		background: var(--bg-raised);
 		color: var(--text-primary);
 		border: 1px solid var(--border);
 		border-collapse: collapse;
 		border-radius: var(--radius-sm);
 		min-width: 120px;
-		max-width: 320px;
-		box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+		max-width: 300px;
+		box-shadow: var(--shadow-md);
 		font-size: 11px;
-		line-height: 1.2;
+		line-height: 1.3;
 		overflow: hidden;
+		font-family: var(--font-ui);
 	}
 
 	.tip-title {
-		padding: 4px 10px;
-		font-weight: 700;
+		padding: 5px 10px 4px;
+		font-weight: 600;
 		font-size: 11px;
 		color: var(--accent);
-		background: var(--bg-raised);
+		background: color-mix(in srgb, var(--bg-raised) 70%, var(--accent));
+		border-bottom: 1px solid var(--border);
+		white-space: nowrap;
 	}
 
 	.tip-key {
@@ -135,12 +138,12 @@
 		text-transform: uppercase;
 		font-weight: 600;
 		font-size: 10px;
-		letter-spacing: 0.04em;
+		letter-spacing: 0.05em;
 		vertical-align: baseline;
 	}
 
 	.tip-val {
-		padding: 3px 10px 3px 6px;
+		padding: 3px 10px 3px 4px;
 		color: var(--text-primary);
 		font-family: var(--font-mono);
 		font-size: 11px;
@@ -149,7 +152,7 @@
 	}
 
 	.tip-text {
-		padding: 4px 10px;
+		padding: 5px 10px;
 		white-space: pre-wrap;
 		word-break: break-word;
 		color: var(--text-secondary);

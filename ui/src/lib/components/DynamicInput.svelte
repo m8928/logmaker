@@ -95,7 +95,7 @@
 						<span class="tag">
 							{tag}
 							<button type="button" class="tag-remove" onclick={() => removeTag(tag)} aria-label="Remove {tag}">
-								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+								<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
 									<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
 								</svg>
 							</button>
@@ -130,10 +130,11 @@
 	}
 
 	.field-label {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		font-weight: 600;
-		color: var(--text-secondary);
-		letter-spacing: 0.04em;
+		color: var(--text-muted);
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
 	}
 
 	.field-description {
@@ -151,37 +152,42 @@
 	.input {
 		width: 100%;
 		padding: 0.5rem 0.75rem;
-		background: var(--bg-raised);
+		background: var(--bg-base);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		color: var(--text-primary);
 		font-size: 0.875rem;
-		font-family: inherit;
-		transition:
-			border-color 0.15s,
-			box-shadow 0.15s;
+		font-family: var(--font-ui);
+		transition: border-color 0.15s, box-shadow 0.15s;
+	}
+
+	.input::placeholder {
+		color: var(--text-muted);
 	}
 
 	.input:focus {
 		outline: none;
 		border-color: var(--border-focus);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 	}
 
+	/* Toggle switch */
 	.toggle-wrap {
 		display: flex;
 		align-items: center;
 		gap: 0.625rem;
 		cursor: pointer;
+		width: fit-content;
 	}
 
 	.toggle {
 		position: relative;
-		width: 40px;
-		height: 22px;
+		width: 36px;
+		height: 20px;
 		background: var(--border);
-		border-radius: 11px;
+		border-radius: 10px;
 		transition: background 0.2s;
+		flex-shrink: 0;
 	}
 
 	.toggle.on {
@@ -190,25 +196,26 @@
 
 	.toggle-thumb {
 		position: absolute;
-		top: 3px;
-		left: 3px;
+		top: 2px;
+		left: 2px;
 		width: 16px;
 		height: 16px;
 		background: white;
 		border-radius: 50%;
 		transition: transform 0.2s;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 	}
 
 	.toggle.on .toggle-thumb {
-		transform: translateX(18px);
+		transform: translateX(16px);
 	}
 
 	.toggle-label {
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		color: var(--text-secondary);
 	}
 
+	/* Tag input */
 	.tag-input-wrap {
 		display: flex;
 		flex-direction: column;
@@ -225,12 +232,14 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.25rem;
-		padding: 0.2rem 0.5rem 0.2rem 0.625rem;
+		padding: 0.175rem 0.375rem 0.175rem 0.5rem;
 		background: var(--accent-light);
 		color: var(--accent);
-		border-radius: 100px;
-		font-size: 0.8125rem;
+		border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
 		font-weight: 500;
+		font-family: var(--font-mono);
 	}
 
 	.tag-remove {
@@ -241,7 +250,7 @@
 		display: flex;
 		align-items: center;
 		color: var(--accent);
-		opacity: 0.6;
+		opacity: 0.55;
 		transition: opacity 0.15s;
 	}
 
@@ -255,19 +264,22 @@
 	}
 
 	.btn-add {
-		padding: 0.5rem 0.875rem;
-		background: var(--accent);
-		color: white;
-		border: none;
+		padding: 0.5rem 0.75rem;
+		background: var(--bg-raised);
+		color: var(--text-secondary);
+		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
+		font-family: var(--font-ui);
 		cursor: pointer;
 		white-space: nowrap;
-		transition: background 0.15s;
+		transition: background 0.15s, color 0.15s;
 	}
 
 	.btn-add:hover {
-		background: var(--accent-hover);
+		background: var(--accent);
+		border-color: var(--accent);
+		color: #000;
 	}
 </style>

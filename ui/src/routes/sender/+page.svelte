@@ -174,14 +174,8 @@
 		return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
 	}
 
-	function getSenderAccent(type: string): string {
-		const t = type.toLowerCase();
-		if (t.includes('kafka')) return 'var(--accent)';
-		if (t.includes('syslog') || t.includes('udp') || t.includes('tcp')) return 'var(--info)';
-		if (t.includes('debug') || t.includes('console')) return 'var(--success)';
-		if (t.includes('file')) return 'var(--warning)';
-		if (t.includes('http')) return '#8b5cf6';
-		return 'var(--text-secondary)';
+	function getSenderAccent(_type: string): string {
+		return 'var(--accent)';
 	}
 
 	function getArgPreview(args: Record<string, string | number | boolean | string[]>): [string, string][] {
@@ -480,27 +474,30 @@
 
 	.search-icon {
 		position: absolute;
-		left: 0.625rem;
+		left: 0.5rem;
 		color: var(--text-muted);
 		pointer-events: none;
 	}
 
 	.search-input {
-		padding: 0.4rem 0.75rem 0.4rem 2rem;
-		background: var(--bg-raised);
+		padding: 0.375rem 0.75rem 0.375rem 1.875rem;
+		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		color: var(--text-primary);
 		font-size: 0.8125rem;
-		font-family: inherit;
-		width: 200px;
+		font-family: var(--font-ui);
+		width: 192px;
 		transition: border-color 0.15s, width 0.2s;
 	}
+
+	.search-input::placeholder { color: var(--text-muted); }
 
 	.search-input:focus {
 		outline: none;
 		border-color: var(--border-focus);
-		width: 260px;
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+		width: 240px;
 	}
 
 	.loading-state {
@@ -514,8 +511,8 @@
 
 	.card-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 1rem;
+		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		gap: 0.75rem;
 	}
 
 	.sender-card {
@@ -524,62 +521,72 @@
 		border-radius: var(--radius-md);
 		overflow: hidden;
 		cursor: pointer;
-		transition: border-color 0.15s, box-shadow 0.15s;
+		transition: border-color 0.15s, background 0.15s;
 		display: flex;
 		flex-direction: column;
 	}
 
 	.sender-card:hover {
-		border-color: var(--card-accent);
-		box-shadow: 0 0 0 1px var(--card-accent);
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--bg-surface) 96%, var(--accent));
 	}
 
 	.sender-card:focus {
 		outline: none;
-		border-color: var(--card-accent);
-		box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent) 30%, transparent);
+		border-color: var(--accent);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 	}
 
 	.card-top-bar {
-		height: 3px;
-		background: var(--card-accent);
+		height: 2px;
+		background: var(--accent);
 		flex-shrink: 0;
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+
+	.sender-card:hover .card-top-bar,
+	.sender-card:focus .card-top-bar {
+		opacity: 1;
 	}
 
 	.card-inner {
-		padding: 1rem;
+		padding: 0.875rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.625rem;
 		flex: 1;
 	}
 
 	.card-header {
 		display: flex;
 		align-items: flex-start;
-		gap: 0.75rem;
+		gap: 0.625rem;
 	}
 
 	.card-icon {
-		width: 36px;
-		height: 36px;
+		width: 32px;
+		height: 32px;
 		border-radius: var(--radius-sm);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
+		background: var(--accent-light);
+		color: var(--accent);
 	}
 
 	.card-title-block {
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
+		gap: 0.125rem;
 		min-width: 0;
+		flex: 1;
 	}
 
 	.card-name {
-		font-size: 0.9375rem;
-		font-weight: 700;
+		font-size: 0.875rem;
+		font-weight: 600;
 		color: var(--text-primary);
 		white-space: nowrap;
 		overflow: hidden;
@@ -587,23 +594,29 @@
 	}
 
 	.card-type {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--text-muted);
 		font-weight: 500;
+		font-family: var(--font-mono);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 0.1rem 0.375rem;
+		display: inline-block;
+		width: fit-content;
 	}
 
 	.card-args {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
-		min-height: 52px;
+		gap: 0.25rem;
+		min-height: 44px;
 	}
 
 	.arg-row {
 		display: flex;
 		align-items: baseline;
 		gap: 0.5rem;
-		font-size: 0.8125rem;
 	}
 
 	.arg-key {
@@ -611,7 +624,10 @@
 		font-weight: 500;
 		white-space: nowrap;
 		flex-shrink: 0;
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		min-width: 64px;
 	}
 
 	.arg-val {
@@ -620,41 +636,41 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 	}
 
 	.arg-more {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--text-muted);
-		font-style: italic;
 	}
 
 	.arg-empty {
 		font-size: 0.75rem;
 		color: var(--text-muted);
-		font-style: italic;
 	}
 
 	.output-row {
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
-		font-size: 0.8125rem;
-		padding: 0.375rem 0.625rem;
-		background: var(--success-light);
+		padding: 0.3rem 0.5rem;
+		background: var(--bg-base);
+		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 	}
 
 	.output-label {
 		color: var(--text-muted);
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 	}
 
 	.output-val {
 		font-weight: 600;
-		color: var(--success);
+		color: var(--accent);
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 	}
 
 	.card-footer {
@@ -663,6 +679,7 @@
 		justify-content: space-between;
 		padding-top: 0.5rem;
 		border-top: 1px solid var(--border);
+		margin-top: auto;
 	}
 
 	.card-footer-left {
@@ -673,21 +690,23 @@
 	.ref-badge {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.3rem;
-		padding: 0.2rem 0.5rem;
-		border-radius: 100px;
-		font-size: 0.6875rem;
+		gap: 0.25rem;
+		padding: 0.15rem 0.4375rem;
+		border-radius: 4px;
+		font-size: 0.625rem;
 		font-weight: 600;
 	}
 
 	.ref-badge-used {
 		background: var(--warning-light);
 		color: var(--warning);
+		border: 1px solid color-mix(in srgb, var(--warning) 20%, transparent);
 	}
 
 	.ref-badge-free {
 		background: var(--bg-raised);
 		color: var(--text-muted);
+		border: 1px solid var(--border);
 	}
 
 	.card-actions {

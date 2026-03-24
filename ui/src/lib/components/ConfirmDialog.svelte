@@ -31,8 +31,8 @@
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.key === 'Escape' && oncancel()}
 		>
-			<div class="dialog-icon">
-				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2">
+			<div class="dialog-icon-wrap">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2">
 					<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
 					<line x1="12" y1="9" x2="12" y2="13" />
 					<line x1="12" y1="17" x2="12.01" y2="17" />
@@ -62,15 +62,15 @@
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
-		backdrop-filter: blur(2px);
+		backdrop-filter: blur(4px);
 	}
 
 	.dialog {
 		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-lg);
-		padding: 2rem;
-		max-width: 360px;
+		padding: 1.75rem 1.5rem 1.5rem;
+		max-width: 340px;
 		width: 90%;
 		box-shadow: var(--shadow-lg);
 		text-align: center;
@@ -80,42 +80,43 @@
 	@keyframes pop-in {
 		from {
 			opacity: 0;
-			transform: scale(0.95);
+			transform: scale(0.96) translateY(4px);
 		}
 		to {
 			opacity: 1;
-			transform: scale(1);
+			transform: scale(1) translateY(0);
 		}
 	}
 
-	.dialog-icon {
+	.dialog-icon-wrap {
 		display: flex;
 		justify-content: center;
-		margin-bottom: 1rem;
-		padding: 0.75rem;
-		background: var(--danger-light);
-		border-radius: 50%;
-		width: 56px;
-		height: 56px;
 		align-items: center;
+		width: 44px;
+		height: 44px;
+		background: var(--danger-light);
+		border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
+		border-radius: var(--radius-md);
 		margin: 0 auto 1rem;
 	}
 
 	.dialog-title {
-		font-size: 1rem;
-		font-weight: 700;
+		font-size: 0.9375rem;
+		font-weight: 600;
 		margin: 0 0 0.5rem;
+		color: var(--text-primary);
 	}
 
 	.dialog-message {
 		color: var(--text-secondary);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		margin: 0 0 1.5rem;
+		line-height: 1.5;
 	}
 
 	.dialog-actions {
 		display: flex;
-		gap: 0.75rem;
+		gap: 0.625rem;
 		justify-content: center;
 	}
 
@@ -123,17 +124,18 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.375rem;
-		padding: 0.5rem 1.25rem;
+		padding: 0.4375rem 1rem;
 		border-radius: var(--radius-sm);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
+		font-family: var(--font-ui);
 		border: 1px solid transparent;
 		cursor: pointer;
-		transition: all 0.15s;
+		transition: background 0.15s, border-color 0.15s;
 	}
 
 	.btn:disabled {
-		opacity: 0.6;
+		opacity: 0.45;
 		cursor: not-allowed;
 	}
 
@@ -151,15 +153,17 @@
 	.btn-danger {
 		background: var(--danger);
 		color: white;
+		border-color: var(--danger);
 	}
 
 	.btn-danger:hover:not(:disabled) {
 		background: var(--danger-hover);
+		border-color: var(--danger-hover);
 	}
 
 	.spinner {
-		width: 14px;
-		height: 14px;
+		width: 12px;
+		height: 12px;
 		border: 2px solid rgba(255, 255, 255, 0.3);
 		border-top-color: white;
 		border-radius: 50%;
@@ -167,8 +171,6 @@
 	}
 
 	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
+		to { transform: rotate(360deg); }
 	}
 </style>
