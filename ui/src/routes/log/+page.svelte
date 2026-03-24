@@ -1126,12 +1126,20 @@
 		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 	}
 
-	.format-backdrop {
+	.format-backdrop,
+	.format-input {
 		padding: 0.5rem 0.75rem;
+		font-family: var(--font-mono);
 		font-size: 0.8125rem;
 		line-height: 1.6;
 		white-space: pre-wrap;
+		word-wrap: break-word;
 		word-break: break-all;
+		letter-spacing: normal;
+		-webkit-text-size-adjust: none;
+	}
+
+	.format-backdrop {
 		min-height: 80px;
 		pointer-events: none;
 		color: transparent;
@@ -1142,16 +1150,12 @@
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		padding: 0.5rem 0.75rem;
-		font-family: var(--font-mono);
-		font-size: 0.8125rem;
-		line-height: 1.6;
 		background: transparent;
 		border: none;
 		color: transparent;
 		caret-color: var(--text-primary);
 		resize: none;
-		overflow: hidden;
+		overflow: auto;
 	}
 
 	.format-input:focus {
