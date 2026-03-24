@@ -407,20 +407,16 @@
 						</div>
 					{/if}
 
-					<!-- Steps chain with per-step counts -->
-					<div class="sc-steps-row">
-						<span class="sc-section-label">Steps</span>
+					<!-- Steps -->
+					<div class="sc-steps-block">
+						<div class="sc-section-label">Steps{#if running} · Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}{/if}</div>
 						<div class="sc-chain">
 							{#each item.steps as step, si}
 								{#if si > 0}
 									<span class="chain-arrow" aria-hidden="true">→</span>
 								{/if}
 								<span class="chain-step" class:active-step={running && (item.currentStep ?? 0) === si + 1}>
-									<span class="step-label">{step.logName}</span>
-									{#if step.repeat > 1}<span class="step-repeat">×{step.repeat}</span>{/if}
-									{#if item.stepCounts?.[si]}
-										<span class="step-count-badge">{item.stepCounts[si].toLocaleString()}</span>
-									{/if}
+									{step.logName}{step.repeat > 1 ? ` ×${step.repeat}` : ''}{#if item.stepCounts?.[si]} <span class="step-cnt">{item.stepCounts[si].toLocaleString()}</span>{/if}
 								</span>
 							{/each}
 							{#if item.steps.length === 0}
@@ -431,12 +427,6 @@
 
 					<!-- Metrics -->
 					<div class="sc-metrics">
-						{#if running}
-							<div class="sc-metric">
-								<span class="sc-metric-label">Progress</span>
-								<span class="sc-metric-val mono sc-progress">Step {item.currentStep ?? 0}/{item.totalSteps ?? item.steps.length} · Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}</span>
-							</div>
-						{/if}
 						<div class="sc-metric">
 							<span class="sc-metric-label">Interval</span>
 							<span class="sc-metric-val mono">{formatInterval(item.intervalMinMs, item.intervalMaxMs)}</span>
@@ -1018,8 +1008,7 @@
 	}
 
 	/* Shared vars row */
-	.sc-vars-row,
-	.sc-steps-row {
+	.sc-vars-row {
 		display: flex;
 		align-items: flex-start;
 		gap: 0.5rem;
@@ -1062,9 +1051,14 @@
 		min-width: 0;
 	}
 
+	.sc-steps-block {
+		padding: 0.625rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+	}
+
 	.chain-step {
 		display: inline-flex;
-		align-items: center;
+		align-items: baseline;
 		gap: 0.25rem;
 		padding: 0.1875rem 0.4375rem;
 		background: var(--bg-raised);
@@ -1077,36 +1071,20 @@
 		transition: border-color 0.15s, background 0.15s;
 	}
 
-	.step-label {
-	}
-
-	.step-repeat {
-		color: var(--text-muted);
-		font-size: 0.625rem;
-	}
-
-	.step-count-badge {
-		background: var(--accent);
-		color: #fff;
+	.step-cnt {
 		font-size: 0.5625rem;
 		font-weight: 700;
-		padding: 0.0625rem 0.3125rem;
-		border-radius: 100px;
-		line-height: 1;
+		color: var(--accent);
 	}
 
 	.chain-step.active-step {
 		border-color: var(--success);
 		background: var(--success-light);
-	}
-
-	.active-step .step-label {
 		color: var(--success);
-		font-weight: 600;
 	}
 
-	.active-step .step-count-badge {
-		background: var(--success);
+	.active-step .step-cnt {
+		color: var(--success);
 	}
 
 	.chain-arrow {
