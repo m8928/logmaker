@@ -66,7 +66,7 @@ export interface DashboardData {
 }
 
 export interface ScenarioStep {
-	logRef: string;
+	logName: string;
 	repeat: number;
 	delayMinMs: number;
 	delayMaxMs: number;
@@ -75,14 +75,18 @@ export interface ScenarioStep {
 
 export interface Scenario {
 	name: string;
-	status: 'RUNNING' | 'STOPPED';
+	description?: string;
+	status?: boolean;
 	sharedVariables: Record<string, string>;
 	steps: ScenarioStep[];
 	senders: string[];
 	intervalMinMs: number;
 	intervalMaxMs: number;
 	loopCount: number;
-	count: number;
+	count?: number;
+	currentStep?: number;
+	currentLoop?: number;
+	totalSteps?: number;
 }
 
 export interface ApiResult<T = unknown> {

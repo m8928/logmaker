@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -34,6 +35,8 @@ public class ScenarioThread implements Runnable {
 
     private final AtomicLong count = new AtomicLong(0);
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicInteger currentStep = new AtomicInteger(-1);
+    private final AtomicInteger currentLoop = new AtomicInteger(0);
     private volatile Thread runningThread;
 
     public ScenarioThread(MakerService makerService, SenderService senderService,
@@ -66,10 +69,13 @@ public class ScenarioThread implements Runnable {
             int loop = 0;
 
             while (!Thread.currentThread().isInterrupted() && (infinite || loop < loopCount)) {
+                currentLoop.set(loop + 1);
                 // Re-resolve shared variables each loop
                 Map<String, String> resolvedVars = resolveSharedVariables();
 
+                int stepIdx = 0;
                 for (ScenarioStepDto step : scenarioDto.getSteps()) {
+                    currentStep.set(stepIdx + 1);
                     if (Thread.currentThread().isInterrupted()) break;
 
                     LogThread logThread = logService.getLog(step.getLogName());
@@ -112,6 +118,7 @@ public class ScenarioThread implements Runnable {
                         });
                         count.incrementAndGet();
                     }
+                    stepIdx++;
                 }
 
                 if (!infinite) {

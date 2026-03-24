@@ -73,6 +73,9 @@ public class ScenarioService {
                     if (thread != null && !isRunning) scenarioThreadMap.remove(dto.getName());
                     dto.setStatus(isRunning);
                     dto.setCount(thread != null ? thread.getCount().get() : 0);
+                    dto.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
+                    dto.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
+                    dto.setTotalSteps(dto.getSteps() != null ? dto.getSteps().size() : 0);
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -86,6 +89,9 @@ public class ScenarioService {
         if (thread != null && !isRunning) scenarioThreadMap.remove(name);
         dto.setStatus(isRunning);
         dto.setCount(thread != null ? thread.getCount().get() : 0);
+        dto.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
+        dto.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
+        dto.setTotalSteps(dto.getSteps() != null ? dto.getSteps().size() : 0);
         return dto;
     }
 

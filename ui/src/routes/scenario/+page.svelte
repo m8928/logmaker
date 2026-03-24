@@ -116,7 +116,7 @@
 	function addStep() {
 		formSteps = [
 			...formSteps,
-			{ logRef: '', repeat: 1, delayMinMs: 0, delayMaxMs: 0, overrides: {}, _id: stepIdCounter++ }
+			{ logName: '', repeat: 1, delayMinMs: 0, delayMaxMs: 0, overrides: {}, _id: stepIdCounter++ }
 		];
 	}
 
@@ -186,7 +186,7 @@
 		if (formIntervalMax < formIntervalMin) errors.intervalMax = 'Interval max must be >= min';
 		if (formSteps.length === 0) errors.steps = 'At least one step is required';
 		for (const s of formSteps) {
-			if (!s.logRef) {
+			if (!s.logName) {
 				errors.steps = 'All steps must have a log selected';
 				break;
 			}
@@ -373,7 +373,7 @@
 		<!-- GRID VIEW -->
 		<div class="scenario-grid" role="list" aria-label="Scenario list">
 			{#each filtered as item}
-				{@const running = item.status === 'RUNNING'}
+				{@const running = item.status === true}
 				{@const varNames = Object.keys(item.sharedVariables)}
 				<div
 					class="scenario-card"
@@ -416,7 +416,7 @@
 									<span class="chain-arrow" aria-hidden="true">→</span>
 								{/if}
 								<span class="chain-step">
-									{step.logRef}{step.repeat > 1 ? ` ×${step.repeat}` : ''}
+									{step.logName}{step.repeat > 1 ? ` ×${step.repeat}` : ''}
 								</span>
 							{/each}
 							{#if item.steps.length === 0}
@@ -427,6 +427,12 @@
 
 					<!-- Metrics -->
 					<div class="sc-metrics">
+						{#if running}
+							<div class="sc-metric">
+								<span class="sc-metric-label">Progress</span>
+								<span class="sc-metric-val mono sc-progress">Step {item.currentStep ?? 0}/{item.totalSteps ?? item.steps.length} · Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}</span>
+							</div>
+						{/if}
 						<div class="sc-metric">
 							<span class="sc-metric-label">Interval</span>
 							<span class="sc-metric-val mono">{formatInterval(item.intervalMinMs, item.intervalMaxMs)}</span>
@@ -437,7 +443,7 @@
 						</div>
 						<div class="sc-metric">
 							<span class="sc-metric-label">Count</span>
-							<span class="sc-metric-val mono">{item.count.toLocaleString()}</span>
+							<span class="sc-metric-val mono">{(item.count ?? 0).toLocaleString()}</span>
 						</div>
 					</div>
 
@@ -493,14 +499,14 @@
 						<th>Status</th>
 						<th>Steps</th>
 						<th>Vars</th>
-						<th>EPS</th>
+						<th>Progress</th>
 						<th>Count</th>
 						<th class="right">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each filtered as item}
-						{@const running = item.status === 'RUNNING'}
+						{@const running = item.status === true}
 						<tr
 							class="table-row-clickable"
 							onclick={() => openEdit(item)}
@@ -520,7 +526,7 @@
 								<div class="tbl-chain">
 									{#each item.steps as step, si}
 										{#if si > 0}<span class="chain-arrow-sm" aria-hidden="true">→</span>{/if}
-										<span class="tbl-step">{step.logRef}{step.repeat > 1 ? ` ×${step.repeat}` : ''}</span>
+										<span class="tbl-step">{step.logName}{step.repeat > 1 ? ` ×${step.repeat}` : ''}</span>
 									{/each}
 									{#if item.steps.length === 0}<span class="text-muted">—</span>{/if}
 								</div>
@@ -529,9 +535,13 @@
 								<span class="mono text-secondary">{Object.keys(item.sharedVariables).join(', ') || '—'}</span>
 							</td>
 							<td>
-								<span class="mono">{item.currentEps.toLocaleString()}<span class="text-muted">/{item.eps}</span></span>
+								{#if running}
+									<span class="mono">Step {item.currentStep ?? 0}/{item.totalSteps ?? item.steps.length} · L{item.currentLoop ?? 0}</span>
+								{:else}
+									<span class="text-muted">—</span>
+								{/if}
 							</td>
-							<td><span class="mono">{item.count.toLocaleString()}</span></td>
+							<td><span class="mono">{(item.count ?? 0).toLocaleString()}</span></td>
 							<td class="right">
 								<div class="row-actions">
 									{#if running}
@@ -708,10 +718,10 @@
 											<label class="field-label" for="step-log-{i}">Log <span class="required" aria-hidden="true">*</span></label>
 											<Select
 												id="step-log-{i}"
-												value={step.logRef}
+												value={step.logName}
 												options={logOptions}
 												placeholder="Select log…"
-												onchange={(val) => { formSteps[i] = { ...formSteps[i], logRef: val }; }}
+												onchange={(val) => { formSteps[i] = { ...formSteps[i], logName: val }; }}
 											/>
 										</div>
 										<div class="field step-num-field">

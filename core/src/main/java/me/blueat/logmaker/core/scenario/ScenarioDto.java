@@ -23,4 +23,7 @@ public class ScenarioDto {
     // Runtime fields
     private boolean status;
     private long count;
+    private int currentStep;
+    private int currentLoop;
+    private int totalSteps;
 }
