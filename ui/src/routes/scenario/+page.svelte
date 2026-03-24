@@ -624,7 +624,7 @@
 							/>
 						</div>
 						<div class="field" style="flex:1">
-							<label class="field-label">INTERVAL</label>
+							<span class="field-label">INTERVAL</span>
 							<div style="display:flex;align-items:center;gap:4px">
 								<input class="input" type="number" min="0" placeholder="1000" bind:value={formIntervalMin} style="flex:1" />
 								<span style="color:var(--text-muted);font-size:0.75rem">~</span>
@@ -729,7 +729,7 @@
 											/>
 										</div>
 										<div class="field step-num-field">
-											<label class="field-label">Delay (ms)</label>
+											<span class="field-label">Delay (ms)</span>
 											<div style="display:flex;align-items:center;gap:3px">
 												<input class="input" type="number" min="0" bind:value={step.delayMinMs} placeholder="0" style="flex:1" />
 												<span style="color:var(--text-muted);font-size:0.7rem">~</span>
@@ -1168,44 +1168,6 @@
 		color: var(--text-primary);
 	}
 
-	.sc-metric-target {
-		font-weight: 400;
-		color: var(--text-muted);
-	}
-
-	/* EPS bar */
-	.sc-bar-row {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.sc-bar {
-		flex: 1;
-		height: 4px;
-		background: var(--bg-raised);
-		border-radius: 2px;
-		overflow: hidden;
-	}
-
-	.sc-bar-fill {
-		height: 100%;
-		background: var(--accent);
-		border-radius: 2px;
-		transition: width 0.4s ease;
-	}
-
-	.sc-bar-fill.live {
-		background: var(--success);
-	}
-
-	.sc-bar-pct {
-		font-size: 0.6875rem;
-		color: var(--text-muted);
-		width: 2.5rem;
-		text-align: right;
-		flex-shrink: 0;
-	}
 
 	/* Card actions */
 	.sc-actions {

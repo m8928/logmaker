@@ -78,7 +78,7 @@
 			{position === 'right' ? `left:${tipX}px;top:${tipY}px;transform:translateY(-50%);` : ''}
 		"
 	>
-		<table class="tip-table">
+		<table class="tip-table"><tbody>
 			{#if title}
 				<tr class="tip-title-row">
 					<td colspan="2" class="tip-title">{title}</td>
@@ -96,7 +96,7 @@
 					<td colspan="2" class="tip-text">{text}</td>
 				</tr>
 			{/if}
-		</table>
+		</tbody></table>
 	</div>
 {/if}
 
