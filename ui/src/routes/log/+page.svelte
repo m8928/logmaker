@@ -10,6 +10,7 @@
 	let makers = $state<Maker[]>([]);
 	let loading = $state(false);
 	let search = $state('');
+	let expandedOutputs = $state(new Set<string>());
 	let viewMode = $state<'grid' | 'table'>('grid');
 
 	let dialogOpen = $state(false);
@@ -537,7 +538,15 @@
 					<!-- Log output: sample with hoverable maker-generated parts -->
 					<div class="pipeline-body">
 						<div class="body-label">Output</div>
-						<div class="output-line mono">{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
+						<div class="output-line mono" class:collapsed={(item.sample || item.format).length > 120 && !expandedOutputs.has(item.name)}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
+						{#if (item.sample || item.format).length > 120}
+							<button
+								class="output-toggle"
+								onclick={(e) => { e.stopPropagation(); const s = new Set(expandedOutputs); if (s.has(item.name)) s.delete(item.name); else s.add(item.name); expandedOutputs = s; }}
+							>
+								{expandedOutputs.has(item.name) ? '▲ Less' : '▼ More'}
+							</button>
+						{/if}
 					</div>
 
 					<!-- EPS + Count metrics row -->
@@ -1126,6 +1135,45 @@
 		white-space: pre-wrap;
 		word-break: break-all;
 		font-family: var(--font-mono);
+		transition: max-height 0.2s ease;
+	}
+
+	.output-line.collapsed {
+		max-height: 2.8em;
+		overflow: hidden;
+		position: relative;
+	}
+
+	.output-line.collapsed::after {
+		content: '';
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: 1.4em;
+		background: linear-gradient(transparent, var(--bg-base));
+		pointer-events: none;
+	}
+
+	.output-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+		padding: 0.125rem 0.5rem;
+		background: none;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		font-size: 0.625rem;
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition: color 0.12s, border-color 0.12s;
+	}
+
+	.output-toggle:hover {
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.out-static {
