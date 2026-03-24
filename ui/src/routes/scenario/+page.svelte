@@ -729,14 +729,12 @@
 											/>
 										</div>
 										<div class="field step-num-field">
-											<label class="field-label" for="step-delay-{i}">Delay (ms)</label>
-											<input
-												id="step-delay-{i}"
-												class="input"
-												type="number"
-												min="0"
-												bind:value={step.delayMs}
-											/>
+											<label class="field-label">Delay (ms)</label>
+											<div style="display:flex;align-items:center;gap:3px">
+												<input class="input" type="number" min="0" bind:value={step.delayMinMs} placeholder="0" style="flex:1" />
+												<span style="color:var(--text-muted);font-size:0.7rem">~</span>
+												<input class="input" type="number" min="0" bind:value={step.delayMaxMs} placeholder="0" style="flex:1" />
+											</div>
 										</div>
 									</div>
 
