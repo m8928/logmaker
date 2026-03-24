@@ -29,7 +29,7 @@
 	let showMakerHelper = $state(true);
 	let makerHelperShowName = $state(true);
 
-	let formatTextarea = $state<HTMLTextAreaElement | null>(null);
+	let formatTextarea = $state<HTMLDivElement | null>(null);
 
 	const filtered = $derived(
 		search.trim()
@@ -76,6 +76,10 @@
 		previewText = '';
 		dialogOpen = true;
 		fetchSupport();
+		setTimeout(() => {
+			if (formatTextarea) formatTextarea.textContent = item.format;
+			highlightFormat();
+		}, 10);
 		runPreview();
 	}
 
@@ -118,18 +122,68 @@
 		if (!formatTextarea) {
 			formFormat = formFormat + token;
 		} else {
-			const start = formatTextarea.selectionStart;
-			const end = formatTextarea.selectionEnd;
-			formFormat = formFormat.slice(0, start) + token + formFormat.slice(end);
-			setTimeout(() => {
-				if (formatTextarea) {
-					formatTextarea.selectionStart = formatTextarea.selectionEnd = start + token.length;
-					formatTextarea.focus();
-				}
-			}, 0);
+			formatTextarea.focus();
+			document.execCommand('insertText', false, token);
+			formFormat = formatTextarea.textContent ?? '';
 		}
 		runPreview();
 	}
+
+	// Highlight <makerName> in contenteditable
+	function highlightFormat() {
+		if (!formatTextarea || !formFormat) return;
+		// Save cursor position
+		const sel = window.getSelection();
+		let cursorOffset = 0;
+		if (sel && sel.rangeCount > 0) {
+			const range = sel.getRangeAt(0);
+			const preRange = document.createRange();
+			preRange.selectNodeContents(formatTextarea);
+			preRange.setEnd(range.startContainer, range.startOffset);
+			cursorOffset = preRange.toString().length;
+		}
+		// Build highlighted HTML
+		const segments = parseFormatSegments(formFormat);
+		let html = '';
+		for (const seg of segments) {
+			if (seg.maker) {
+				html += `<span class="hl-maker">${seg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+			} else {
+				html += seg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			}
+		}
+		formatTextarea.innerHTML = html;
+		// Restore cursor
+		try {
+			const newSel = window.getSelection();
+			if (newSel) {
+				const newRange = document.createRange();
+				let node = formatTextarea;
+				let offset = 0;
+				const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+				let textNode: Node | null = null;
+				while ((textNode = walker.nextNode())) {
+					const len = (textNode.textContent ?? '').length;
+					if (offset + len >= cursorOffset) {
+						newRange.setStart(textNode, cursorOffset - offset);
+						newRange.collapse(true);
+						newSel.removeAllRanges();
+						newSel.addRange(newRange);
+						break;
+					}
+					offset += len;
+				}
+			}
+		} catch { /* ignore cursor restore errors */ }
+	}
+
+	$effect(() => {
+		if (formFormat !== undefined) {
+			// Small delay to not interfere with typing
+			const id = setTimeout(highlightFormat, 50);
+			return () => clearTimeout(id);
+		}
+	});
 
 	function toggleSender(name: string) {
 		if (formSenders.includes(name)) {
@@ -560,20 +614,25 @@
 
 						<div class="field">
 							<label class="field-label" for="log-format">FORMAT <span class="required">*</span></label>
-							<textarea
+							<div
 								id="log-format"
-								class="input mono"
-								style="font-size:0.8125rem;line-height:1.6;resize:vertical"
-								bind:value={formFormat}
-								bind:this={formatTextarea}
-								oninput={runPreview}
-								rows="3"
+								class="format-editable mono"
+								contenteditable="true"
 								spellcheck="false"
-								placeholder="<maker1> <maker2> some static text"
-							></textarea>
-							{#if formFormat}
-								<div class="format-highlight mono">{#each parseFormatSegments(formFormat) as seg}{#if seg.maker}<span class="hl-maker">{seg.text}</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}</div>
-							{/if}
+								bind:this={formatTextarea}
+								oninput={(e) => {
+									formFormat = e.currentTarget.textContent ?? '';
+									runPreview();
+								}}
+								onpaste={(e) => {
+									e.preventDefault();
+									const text = e.clipboardData?.getData('text/plain') ?? '';
+									document.execCommand('insertText', false, text);
+								}}
+								role="textbox"
+								aria-multiline="true"
+								data-placeholder="<maker1> <maker2> some static text"
+							></div>
 						</div>
 
 						<!-- Maker helper -->
@@ -1114,19 +1173,35 @@
 		.form-cols { grid-template-columns: 1fr; }
 	}
 
-	/* Format highlight (below textarea) */
-	.format-highlight {
-		padding: 0.375rem 0.625rem;
-		background: var(--bg-raised);
+	/* Contenteditable format editor */
+	.format-editable {
+		padding: 0.5rem 0.75rem;
+		background: var(--bg-base);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		font-size: 0.8125rem;
 		line-height: 1.6;
+		min-height: 72px;
+		color: var(--text-secondary);
 		white-space: pre-wrap;
 		word-break: break-all;
-		margin-top: 0.375rem;
+		outline: none;
+		transition: border-color 0.15s, box-shadow 0.15s;
+		cursor: text;
 	}
 
+	.format-editable:focus {
+		border-color: var(--border-focus);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+	}
+
+	.format-editable:empty::before {
+		content: attr(data-placeholder);
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	.format-editable :global(.hl-maker),
 	.hl-maker {
 		color: var(--accent);
 		font-weight: 600;
@@ -1137,6 +1212,10 @@
 
 	.hl-static {
 		color: var(--text-secondary);
+	}
+
+	.hl-placeholder {
+		color: var(--text-muted);
 	}
 
 	.maker-helper { margin-bottom: 1rem; }
