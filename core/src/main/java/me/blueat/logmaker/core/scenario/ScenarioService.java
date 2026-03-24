@@ -69,7 +69,9 @@ public class ScenarioService {
         return scenarioMap.values().stream()
                 .map(dto -> {
                     ScenarioThread thread = scenarioThreadMap.get(dto.getName());
-                    dto.setStatus(thread != null);
+                    boolean isRunning = thread != null && thread.getRunning().get();
+                    if (thread != null && !isRunning) scenarioThreadMap.remove(dto.getName());
+                    dto.setStatus(isRunning);
                     dto.setCount(thread != null ? thread.getCount().get() : 0);
                     return dto;
                 })
@@ -80,7 +82,9 @@ public class ScenarioService {
         ScenarioDto dto = scenarioMap.get(name);
         if (dto == null) return null;
         ScenarioThread thread = scenarioThreadMap.get(name);
-        dto.setStatus(thread != null);
+        boolean isRunning = thread != null && thread.getRunning().get();
+        if (thread != null && !isRunning) scenarioThreadMap.remove(name);
+        dto.setStatus(isRunning);
         dto.setCount(thread != null ? thread.getCount().get() : 0);
         return dto;
     }
@@ -136,8 +140,12 @@ public class ScenarioService {
             return Result.createResultSet(Result.Type.ERROR, "Scenario does not exist");
         }
 
-        if (scenarioThreadMap.containsKey(name)) {
+        ScenarioThread existing = scenarioThreadMap.get(name);
+        if (existing != null && existing.getRunning().get()) {
             return Result.createResultSet(Result.Type.ERROR, "Scenario is already running");
+        }
+        if (existing != null) {
+            scenarioThreadMap.remove(name);
         }
 
         ScenarioThread thread = new ScenarioThread(makerService, senderService, logService, scenarioDto);

@@ -20,6 +20,7 @@ import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -32,6 +33,7 @@ public class ScenarioThread implements Runnable {
     private final ScenarioDto scenarioDto;
 
     private final AtomicLong count = new AtomicLong(0);
+    private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile Thread runningThread;
 
     public ScenarioThread(MakerService makerService, SenderService senderService,
@@ -44,6 +46,7 @@ public class ScenarioThread implements Runnable {
 
     @Override
     public void run() {
+        running.set(true);
         runningThread = Thread.currentThread();
 
         // Resolve senders
@@ -129,6 +132,7 @@ public class ScenarioThread implements Runnable {
             }
         } finally {
             senders.values().forEach(Sender::decreaseRef);
+            running.set(false);
         }
     }
 
