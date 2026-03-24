@@ -16,4 +16,5 @@ public class DashboardDto {
     private long memory;
     private long maxMemory;
     private int thread;
+    private int scenario;
 }

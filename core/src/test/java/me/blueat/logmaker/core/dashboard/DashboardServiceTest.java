@@ -4,6 +4,7 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.plugin.PluginService;
+import me.blueat.logmaker.core.scenario.ScenarioService;
 import me.blueat.logmaker.core.sender.SenderService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,9 @@ class DashboardServiceTest {
     @Mock
     private PluginService pluginService;
 
+    @Mock
+    private ScenarioService scenarioService;
+
     @Test
     void getDashboard() {
         // Given
@@ -41,6 +45,7 @@ class DashboardServiceTest {
         when(logService.getLog()).thenReturn(Collections.singletonList(new LogDto()));
         when(senderService.getSender()).thenReturn(Collections.emptyList());
         when(pluginService.getPlugin()).thenReturn(Collections.emptyList());
+        when(scenarioService.getScenarios()).thenReturn(Collections.emptyList());
 
         // When
         DashboardDto dashboardDto = dashboardService.getDashboard();
