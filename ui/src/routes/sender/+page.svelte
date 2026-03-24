@@ -20,6 +20,16 @@
 	let formName = $state('');
 	let formType = $state('');
 	let formArgs = $state<Record<string, string | number | boolean | string[]>>({});
+	let errors = $state<Record<string, string>>({});
+
+	function validate(): boolean {
+		errors = {};
+		if (!formName.trim()) errors.name = 'Name is required';
+		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName))
+			errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
+		if (!formType) errors.type = 'Type is required';
+		return Object.keys(errors).length === 0;
+	}
 
 	const filtered = $derived(
 		search.trim()
@@ -91,10 +101,7 @@
 	}
 
 	async function submit() {
-		if (!formName.trim() || !formType) {
-			addToast('warning', 'Name and Type are required');
-			return;
-		}
+		if (!validate()) return;
 		loading = true;
 		try {
 			const payload = { name: formName, type: formType, args: formArgs };
@@ -365,18 +372,22 @@
 				</button>
 			</div>
 			<div class="dialog-body">
-				<div class="field">
-					<label class="field-label" for="sender-name">NAME <span class="required">*</span></label>
-					<input id="sender-name" class="input" type="text" bind:value={formName} disabled={editMode} placeholder="my-sender" />
-				</div>
-				<div class="field">
-					<label class="field-label" for="sender-type">TYPE <span class="required">*</span></label>
-					<select id="sender-type" class="input" bind:value={formType} disabled={editMode} onchange={() => (formArgs = {})}>
-						<option value="" disabled>Select type…</option>
-						{#each types as t}
-							<option value={t.type}>{t.type}</option>
-						{/each}
-					</select>
+				<div class="basic-row">
+					<div class="field" style="flex:1">
+						<label class="field-label" for="sender-name">NAME <span class="required">*</span></label>
+						{#if errors.name}<span class="field-error">{errors.name}</span>{/if}
+						<input id="sender-name" class="input" class:input-error={errors.name} type="text" bind:value={formName} disabled={editMode} placeholder="my-sender" />
+					</div>
+					<div class="field" style="flex:1">
+						<label class="field-label" for="sender-type">TYPE <span class="required">*</span></label>
+						{#if errors.type}<span class="field-error">{errors.type}</span>{/if}
+						<select id="sender-type" class="input" class:input-error={errors.type} bind:value={formType} disabled={editMode} onchange={() => (formArgs = {})}>
+							<option value="" disabled>Select type…</option>
+							{#each types as t}
+								<option value={t.type}>{t.type}</option>
+							{/each}
+						</select>
+					</div>
 				</div>
 				{#if formType}
 					{@const args = getCurrentArgs()}

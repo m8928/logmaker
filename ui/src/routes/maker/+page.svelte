@@ -412,20 +412,22 @@
 				</button>
 			</div>
 			<div class="dialog-body">
-				<div class="field">
-					<label class="field-label" for="maker-name">NAME <span class="required">*</span></label>
-					{#if errors.name}<span class="field-error">{errors.name}</span>{/if}
-					<input id="maker-name" class="input" class:input-error={errors.name} type="text" bind:value={formName} disabled={editMode} placeholder="my-maker" />
-				</div>
-				<div class="field">
-					<label class="field-label" for="maker-type">TYPE <span class="required">*</span></label>
-					{#if errors.type}<span class="field-error">{errors.type}</span>{/if}
-					<select id="maker-type" class="input" bind:value={formType} disabled={editMode} onchange={handleTypeChange}>
-						<option value="" disabled>Select type…</option>
-						{#each types as t}
-							<option value={t.type}>{t.type}</option>
-						{/each}
-					</select>
+				<div class="basic-row">
+					<div class="field" style="flex:1">
+						<label class="field-label" for="maker-name">NAME <span class="required">*</span></label>
+						{#if errors.name}<span class="field-error">{errors.name}</span>{/if}
+						<input id="maker-name" class="input" class:input-error={errors.name} type="text" bind:value={formName} disabled={editMode} placeholder="my-maker" />
+					</div>
+					<div class="field" style="flex:1">
+						<label class="field-label" for="maker-type">TYPE <span class="required">*</span></label>
+						{#if errors.type}<span class="field-error">{errors.type}</span>{/if}
+						<select id="maker-type" class="input" class:input-error={errors.type} bind:value={formType} disabled={editMode} onchange={handleTypeChange}>
+							<option value="" disabled>Select type…</option>
+							{#each types as t}
+								<option value={t.type}>{t.type}</option>
+							{/each}
+						</select>
+					</div>
 				</div>
 				{#if formType}
 					{@const args = getCurrentArgs()}
