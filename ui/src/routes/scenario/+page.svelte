@@ -1058,15 +1058,15 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.25rem 0.375rem;
 		min-width: 0;
 	}
 
 	.chain-step {
 		display: inline-flex;
 		align-items: center;
-		gap: 0;
-		padding: 0;
+		gap: 0.25rem;
+		padding: 0.1875rem 0.4375rem;
 		background: var(--bg-raised);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
@@ -1074,27 +1074,25 @@
 		font-family: var(--font-mono);
 		color: var(--text-primary);
 		white-space: nowrap;
-		overflow: hidden;
 		transition: border-color 0.15s, background 0.15s;
 	}
 
 	.step-label {
-		padding: 0.125rem 0.375rem;
 	}
 
 	.step-repeat {
-		padding: 0.125rem 0.25rem;
 		color: var(--text-muted);
 		font-size: 0.625rem;
 	}
 
 	.step-count-badge {
-		padding: 0.125rem 0.375rem;
 		background: var(--accent);
 		color: #fff;
 		font-size: 0.5625rem;
 		font-weight: 700;
-		letter-spacing: 0.02em;
+		padding: 0.0625rem 0.3125rem;
+		border-radius: 100px;
+		line-height: 1;
 	}
 
 	.chain-step.active-step {
