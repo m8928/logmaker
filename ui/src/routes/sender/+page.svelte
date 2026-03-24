@@ -2,6 +2,7 @@
 	import { api } from '$lib/api';
 	import DynamicInput from '$lib/components/DynamicInput.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import type { Sender, PluginType } from '$lib/types';
 
@@ -379,14 +380,17 @@
 						<input id="sender-name" class="input" class:input-error={errors.name} type="text" bind:value={formName} disabled={editMode} placeholder="my-sender" />
 					</div>
 					<div class="field" style="flex:1">
-						<label class="field-label" for="sender-type">TYPE <span class="required">*</span></label>
+						<span class="field-label" id="sender-type-label">TYPE <span class="required">*</span></span>
 						{#if errors.type}<span class="field-error">{errors.type}</span>{/if}
-						<select id="sender-type" class="input" class:input-error={errors.type} bind:value={formType} disabled={editMode} onchange={() => (formArgs = {})}>
-							<option value="" disabled>Select type…</option>
-							{#each types as t}
-								<option value={t.type}>{t.type}</option>
-							{/each}
-						</select>
+						<Select
+							value={formType}
+							options={types.map(t => ({ value: t.type, label: t.type, sublabel: t.name || '' }))}
+							placeholder="Select type…"
+							disabled={editMode}
+							aria-labelledby="sender-type-label"
+							class={errors.type ? 'input-error' : ''}
+							onchange={(v) => { formType = v; formArgs = {}; }}
+						/>
 					</div>
 				</div>
 				{#if formType}
@@ -532,7 +536,7 @@
 		border-radius: var(--radius-md);
 		overflow: hidden;
 		cursor: pointer;
-		transition: border-color 0.15s, background 0.15s;
+		transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 		display: flex;
 		flex-direction: column;
 	}
@@ -545,6 +549,7 @@
 	.sender-card:focus {
 		outline: none;
 		border-color: var(--accent);
+		background: color-mix(in srgb, var(--bg-surface) 96%, var(--accent));
 		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 	}
 
@@ -706,6 +711,7 @@
 		border-radius: 4px;
 		font-size: 0.625rem;
 		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 
 	.ref-badge-used {

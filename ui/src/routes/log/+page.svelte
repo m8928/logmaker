@@ -830,13 +830,14 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		cursor: pointer;
-		transition: border-color 0.15s;
+		transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 		display: flex;
 		flex-direction: column;
 	}
 
 	.pipeline-card:hover {
 		border-color: var(--accent);
+		background: color-mix(in srgb, var(--bg-surface) 96%, var(--accent));
 	}
 
 	.pipeline-card.running {
@@ -845,6 +846,8 @@
 
 	.pipeline-card:focus {
 		outline: none;
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--bg-surface) 96%, var(--accent));
 		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 	}
 
