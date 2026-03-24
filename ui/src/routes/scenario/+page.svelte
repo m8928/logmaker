@@ -620,15 +620,13 @@
 							/>
 						</div>
 						<div class="field" style="flex:1">
-							<label class="field-label" for="s-eps">EPS</label>
-							<input
-								id="s-eps"
-								class="input"
-								type="number"
-								min="1"
-								placeholder="100"
-								bind:value={formEps}
-							/>
+							<label class="field-label">INTERVAL</label>
+							<div style="display:flex;align-items:center;gap:4px">
+								<input class="input" type="number" min="0" placeholder="1000" bind:value={formIntervalMin} style="flex:1" />
+								<span style="color:var(--text-muted);font-size:0.75rem">~</span>
+								<input class="input" type="number" min="0" placeholder="5000" bind:value={formIntervalMax} style="flex:1" />
+								<span style="color:var(--text-muted);font-size:0.75rem">ms</span>
+							</div>
 						</div>
 					</div>
 				</div>
