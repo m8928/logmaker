@@ -560,15 +560,18 @@
 
 						<div class="field">
 							<label class="field-label" for="log-format">FORMAT <span class="required">*</span></label>
-							<textarea
-								id="log-format"
-								class="input mono-input"
-								bind:value={formFormat}
-								bind:this={formatTextarea}
-								oninput={runPreview}
-								rows="4"
-								placeholder="<maker1> <maker2> some static text"
-							></textarea>
+							<div class="format-editor">
+								<div class="format-backdrop mono" aria-hidden="true">{#each parseFormatSegments(formFormat || '') as seg}{#if seg.maker}<span class="hl-maker">&lt;{seg.maker}&gt;</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}{#if !formFormat}<span class="hl-placeholder">&lt;maker1&gt; &lt;maker2&gt; some static text</span>{/if}&#8203;</div>
+								<textarea
+									id="log-format"
+									class="format-input mono"
+									bind:value={formFormat}
+									bind:this={formatTextarea}
+									oninput={runPreview}
+									rows="4"
+									spellcheck="false"
+								></textarea>
+							</div>
 						</div>
 
 						<!-- Maker helper -->
@@ -623,7 +626,7 @@
 									<span class="preview-spinner"></span>
 								{/if}
 							</span>
-							<pre class="preview-box mono">{previewText || 'Type a format above to see preview…'}</pre>
+							<div class="preview-box mono">{#if previewText}{#each mapSampleToFormat(formFormat, previewText) as seg}{#if seg.maker}<span class="hl-maker">{seg.text}</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}{:else}<span class="hl-placeholder">Type a format above to see preview…</span>{/if}</div>
 						</div>
 					</div>
 
@@ -1109,10 +1112,67 @@
 		.form-cols { grid-template-columns: 1fr; }
 	}
 
-	.mono-input {
+	/* Format editor: transparent textarea over highlighted backdrop */
+	.format-editor {
+		position: relative;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg-base);
+		transition: border-color 0.15s, box-shadow 0.15s;
+	}
+
+	.format-editor:focus-within {
+		border-color: var(--border-focus);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+	}
+
+	.format-backdrop {
+		padding: 0.5rem 0.75rem;
+		font-size: 0.8125rem;
+		line-height: 1.6;
+		white-space: pre-wrap;
+		word-break: break-all;
+		min-height: 80px;
+		pointer-events: none;
+		color: transparent;
+	}
+
+	.format-input {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		padding: 0.5rem 0.75rem;
 		font-family: var(--font-mono);
 		font-size: 0.8125rem;
-		resize: vertical;
+		line-height: 1.6;
+		background: transparent;
+		border: none;
+		color: transparent;
+		caret-color: var(--text-primary);
+		resize: none;
+		overflow: hidden;
+	}
+
+	.format-input:focus {
+		outline: none;
+	}
+
+	/* Syntax highlighting */
+	.hl-maker {
+		color: var(--accent);
+		font-weight: 600;
+		background: var(--accent-light);
+		border-radius: 2px;
+		padding: 0 1px;
+	}
+
+	.hl-static {
+		color: var(--text-secondary);
+	}
+
+	.hl-placeholder {
+		color: var(--text-muted);
 	}
 
 	.maker-helper { margin-bottom: 1rem; }
@@ -1195,13 +1255,12 @@
 
 	.preview-box {
 		margin: 0;
-		padding: 0.5rem 0.625rem;
+		padding: 0.5rem 0.75rem;
 		background: var(--bg-base);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--text-secondary);
+		font-size: 0.8125rem;
 		white-space: pre-wrap;
 		word-break: break-all;
 		min-height: 44px;
