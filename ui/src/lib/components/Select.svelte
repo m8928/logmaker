@@ -35,6 +35,7 @@
 	let triggerEl = $state<HTMLButtonElement | null>(null);
 	let dropdownEl = $state<HTMLDivElement | null>(null);
 	let searchEl = $state<HTMLInputElement | null>(null);
+	let dropStyle = $state('');
 
 	const showSearch = $derived(options.length > 5);
 
@@ -52,6 +53,11 @@
 
 	async function openDropdown() {
 		if (disabled) return;
+		// Calculate fixed position from trigger
+		if (triggerEl) {
+			const rect = triggerEl.getBoundingClientRect();
+			dropStyle = `position:fixed;top:${rect.bottom + 3}px;left:${rect.left}px;width:${rect.width}px;z-index:9999;`;
+		}
 		open = true;
 		search = '';
 		activeIndex = selected ? filtered.findIndex((o) => o.value === value) : 0;
@@ -59,7 +65,6 @@
 		if (showSearch && searchEl) {
 			searchEl.focus();
 		} else {
-			// focus active item
 			const items = dropdownEl?.querySelectorAll<HTMLElement>('[data-option]');
 			items?.[Math.max(0, activeIndex)]?.focus();
 		}
@@ -178,6 +183,7 @@
 			aria-label="Options"
 			tabindex="-1"
 			onkeydown={handleDropdownKeydown}
+			style={dropStyle}
 		>
 			{#if showSearch}
 				<div class="search-row">
@@ -310,17 +316,12 @@
 		color: var(--accent);
 	}
 
-	/* Dropdown panel */
+	/* Dropdown panel — position:fixed via inline style to escape overflow:auto parents */
 	.select-dropdown {
-		position: absolute;
-		top: calc(100% + 3px);
-		left: 0;
-		right: 0;
-		z-index: 200;
 		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-md);
+		box-shadow: var(--shadow-lg);
 		overflow: hidden;
 		animation: dropdown-open 0.1s ease-out;
 	}
