@@ -121,7 +121,7 @@
 	}
 
 	.tip-title {
-		padding: 3px 8px;
+		padding: 4px 10px;
 		font-weight: 700;
 		font-size: 11px;
 		color: var(--accent);
@@ -129,7 +129,7 @@
 	}
 
 	.tip-key {
-		padding: 1px 4px 1px 8px;
+		padding: 3px 6px 3px 10px;
 		color: var(--text-muted);
 		white-space: nowrap;
 		text-transform: uppercase;
@@ -140,7 +140,7 @@
 	}
 
 	.tip-val {
-		padding: 1px 8px 1px 4px;
+		padding: 3px 10px 3px 6px;
 		color: var(--text-primary);
 		font-family: var(--font-mono);
 		font-size: 11px;
@@ -149,7 +149,7 @@
 	}
 
 	.tip-text {
-		padding: 3px 8px;
+		padding: 4px 10px;
 		white-space: pre-wrap;
 		word-break: break-word;
 		color: var(--text-secondary);
