@@ -1,5 +1,6 @@
 package me.blueat.logmaker.core.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.Result;
 import org.springframework.http.ResponseEntity;
@@ -28,8 +29,13 @@ public class ValidExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result> handleAllExceptions(Exception ex) {
-        log.error("An unexpected error occurred", ex);
+    public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request) {
+        // Only handle API errors — let non-API requests fall through to SPA routing
+        String uri = request.getRequestURI();
+        if (!uri.startsWith("/api/")) {
+            throw new RuntimeException(ex);
+        }
+        log.error("An unexpected error occurred: {}", uri, ex);
         return Result.createResultSet(Result.Type.ERROR, "An unexpected internal server error occurred");
     }
 }

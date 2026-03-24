@@ -81,7 +81,7 @@ public class LogThread implements Runnable {
         this.vFormat = template.render();
 
         ve = new VelocityEngine();
-        ve.setProperty("runtime.introspector.uberspect", "org.apache.velocity.util.introspection.SecureUberspector");
+        ve.setProperty("introspector.uberspect.class", "org.apache.velocity.util.introspection.SecureUberspector");
         ve.setProperty("introspector.restrict.packages", "java.lang.reflect,java.lang.Runtime,java.lang.Process,java.lang.System");
         ve.setProperty("introspector.restrict.classes", "java.lang.Class,java.lang.ClassLoader,java.lang.Thread,java.lang.Compiler,java.lang.Runtime,java.lang.System");
         ve.setProperty("parser.pool.size", 20);
