@@ -139,21 +139,6 @@
 		</div>
 	</div>
 
-	<!-- Metric strip -->
-	<div class="metric-strip">
-		{#each metricTiles as tile}
-			<a href={tile.href} class="metric-tile">
-				<div class="metric-icon">
-					{@html tile.icon}
-				</div>
-				<div class="metric-body">
-					<span class="metric-value mono">{loading ? '—' : tile.value.toLocaleString()}</span>
-					<span class="metric-label">{tile.label}</span>
-				</div>
-			</a>
-		{/each}
-	</div>
-
 	<!-- Getting Started Guide (shown when system is empty) -->
 	{#if (isEmpty || !guideDismissed) && !loading && !guideDismissed}
 		<div class="guide-panel">
@@ -197,6 +182,21 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Metric strip -->
+	<div class="metric-strip">
+		{#each metricTiles as tile}
+			<a href={tile.href} class="metric-tile">
+				<div class="metric-icon">
+					{@html tile.icon}
+				</div>
+				<div class="metric-body">
+					<span class="metric-value mono">{loading ? '—' : tile.value.toLocaleString()}</span>
+					<span class="metric-label">{tile.label}</span>
+				</div>
+			</a>
+		{/each}
+	</div>
 
 	<!-- Main 2-col layout -->
 	<div class="main-grid">
