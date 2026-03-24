@@ -17,10 +17,9 @@ import org.apache.velocity.runtime.parser.node.SimpleNode;
 
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -33,7 +32,6 @@ public class ScenarioThread implements Runnable {
     private final ScenarioDto scenarioDto;
 
     private final AtomicLong count = new AtomicLong(0);
-    private volatile Instant start = null;
     private volatile Thread runningThread;
 
     public ScenarioThread(MakerService makerService, SenderService senderService,
@@ -47,7 +45,6 @@ public class ScenarioThread implements Runnable {
     @Override
     public void run() {
         runningThread = Thread.currentThread();
-        start = Instant.now();
 
         // Resolve senders
         Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
@@ -60,7 +57,8 @@ public class ScenarioThread implements Runnable {
 
         try {
             int loopCount = scenarioDto.getLoopCount();
-            int eps = scenarioDto.getEps();
+            long intervalMinMs = scenarioDto.getIntervalMinMs();
+            long intervalMaxMs = scenarioDto.getIntervalMaxMs();
             boolean infinite = (loopCount == 0);
             int loop = 0;
 
@@ -89,64 +87,54 @@ public class ScenarioThread implements Runnable {
                     for (int r = 0; r < step.getRepeat(); r++) {
                         if (Thread.currentThread().isInterrupted()) break;
 
-                        // EPS throttling: track per-second sends
-                        if (eps > 0) {
-                            Instant secStart = Instant.now();
-                            long sentThisSec = 0;
-
-                            // Build template data from makers (live data for each repetition)
-                            Map<String, Object> templateData = buildTemplateData(logThread, resolvedVars);
-                            String data = generate(vTemplate, templateData);
-
-                            senders.values().forEach(sender -> {
-                                sender.sendData(data);
-                                sender.increaseCount();
-                            });
-                            count.incrementAndGet();
-                            sentThisSec++;
-
-                            // If eps is set, throttle to eps per second
-                            if (sentThisSec >= eps) {
-                                long elapsed = Duration.between(secStart, Instant.now()).toMillis();
-                                long sleepMs = 1000 - elapsed;
-                                if (sleepMs > 0) {
-                                    try {
-                                        Thread.sleep(sleepMs);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                        break;
-                                    }
-                                }
+                        // Random delay before each repeat execution
+                        long delayMs = randomLong(step.getDelayMinMs(), step.getDelayMaxMs());
+                        if (delayMs > 0) {
+                            try {
+                                Thread.sleep(delayMs);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                break;
                             }
-                        } else {
-                            Map<String, Object> templateData = buildTemplateData(logThread, resolvedVars);
-                            String data = generate(vTemplate, templateData);
-
-                            senders.values().forEach(sender -> {
-                                sender.sendData(data);
-                                sender.increaseCount();
-                            });
-                            count.incrementAndGet();
                         }
-                    }
 
-                    if (step.getDelayMs() > 0) {
-                        try {
-                            Thread.sleep(step.getDelayMs());
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            break;
-                        }
+                        if (Thread.currentThread().isInterrupted()) break;
+
+                        Map<String, Object> templateData = buildTemplateData(logThread, resolvedVars);
+                        String data = generate(vTemplate, templateData);
+
+                        senders.values().forEach(sender -> {
+                            sender.sendData(data);
+                            sender.increaseCount();
+                        });
+                        count.incrementAndGet();
                     }
                 }
 
                 if (!infinite) {
                     loop++;
                 }
+
+                // Sleep random interval between loops
+                if (!Thread.currentThread().isInterrupted() && (infinite || loop < loopCount)) {
+                    long sleepMs = randomLong(intervalMinMs, intervalMaxMs);
+                    if (sleepMs > 0) {
+                        try {
+                            Thread.sleep(sleepMs);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                }
             }
         } finally {
             senders.values().forEach(Sender::decreaseRef);
         }
+    }
+
+    private long randomLong(long min, long max) {
+        if (min >= max) return min;
+        return ThreadLocalRandom.current().nextLong(min, max + 1);
     }
 
     private Map<String, String> resolveSharedVariables() {
@@ -236,15 +224,6 @@ public class ScenarioThread implements Runnable {
         StringWriter writer = new StringWriter();
         vTemplate.merge(context, writer);
         return writer.toString();
-    }
-
-    public long getCurrentEps() {
-        if (start == null) return 0;
-        long timing = Duration.between(start, Instant.now()).toMillis();
-        if (timing > 0) {
-            return Math.round((count.get() / (double) timing) * 1000);
-        }
-        return 0;
     }
 
     public void interrupt() {

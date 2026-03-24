@@ -16,11 +16,11 @@ public class ScenarioDto {
     private Map<String, String> sharedVariables = new HashMap<>();
     private List<ScenarioStepDto> steps = new ArrayList<>();
     private List<String> senders = new ArrayList<>();
-    private int eps;
+    private long intervalMinMs = 1000;
+    private long intervalMaxMs = 5000;
     private int loopCount = 0;
 
     // Runtime fields
     private boolean status;
     private long count;
-    private long currentEps;
 }

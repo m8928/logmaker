@@ -11,6 +11,7 @@ import java.util.Map;
 public class ScenarioStepDto {
     private String logName;
     private int repeat = 1;
-    private long delayMs = 0;
+    private long delayMinMs = 0;
+    private long delayMaxMs = 0;
     private Map<String, String> overrides = new HashMap<>();
 }

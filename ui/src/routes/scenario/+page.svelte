@@ -25,7 +25,8 @@
 
 	// ── Form state ───────────────────────────────────────────────────────────────
 	let formName = $state('');
-	let formEps = $state(100);
+	let formIntervalMin = $state(1000);
+	let formIntervalMax = $state(5000);
 	let formLoop = $state(0);
 	let formSenders = $state<string[]>([]);
 	let formVars = $state<Array<{ name: string; makerRef: string }>>([]);
@@ -72,7 +73,8 @@
 	function openAdd() {
 		editMode = false;
 		formName = '';
-		formEps = 100;
+		formIntervalMin = 1000;
+		formIntervalMax = 5000;
 		formLoop = 0;
 		formSenders = [];
 		formVars = [];
@@ -85,7 +87,8 @@
 	function openEdit(item: Scenario) {
 		editMode = true;
 		formName = item.name;
-		formEps = item.eps;
+		formIntervalMin = item.intervalMinMs;
+		formIntervalMax = item.intervalMaxMs;
 		formLoop = item.loopCount;
 		formSenders = [...item.senders];
 		formVars = Object.entries(item.sharedVariables).map(([name, makerRef]) => ({ name, makerRef }));
@@ -113,7 +116,7 @@
 	function addStep() {
 		formSteps = [
 			...formSteps,
-			{ logRef: '', repeat: 1, delayMs: 0, overrides: {}, _id: stepIdCounter++ }
+			{ logRef: '', repeat: 1, delayMinMs: 0, delayMaxMs: 0, overrides: {}, _id: stepIdCounter++ }
 		];
 	}
 
@@ -179,10 +182,20 @@
 		if (!formName.trim()) errors.name = 'Name is required';
 		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName))
 			errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
+		if (formIntervalMin < 0) errors.intervalMin = 'Interval min must be >= 0';
+		if (formIntervalMax < formIntervalMin) errors.intervalMax = 'Interval max must be >= min';
 		if (formSteps.length === 0) errors.steps = 'At least one step is required';
 		for (const s of formSteps) {
 			if (!s.logRef) {
 				errors.steps = 'All steps must have a log selected';
+				break;
+			}
+			if (s.delayMinMs < 0) {
+				errors.steps = 'Step delay min must be >= 0';
+				break;
+			}
+			if (s.delayMaxMs < s.delayMinMs) {
+				errors.steps = 'Step delay max must be >= min';
 				break;
 			}
 		}
@@ -201,7 +214,8 @@
 			}
 			const payload: Partial<Scenario> = {
 				name: formName,
-				eps: formEps,
+				intervalMinMs: formIntervalMin,
+				intervalMaxMs: formIntervalMax,
 				loopCount: formLoop,
 				senders: formSenders,
 				sharedVariables,
@@ -273,9 +287,10 @@
 	}
 
 	// ── Helpers ────────────────────────────────────────────────────────────────
-	function epsPct(s: Scenario): number {
-		if (s.eps <= 0) return 0;
-		return Math.min(100, Math.round((s.currentEps / s.eps) * 100));
+	function formatInterval(minMs: number, maxMs: number): string {
+		const minS = (minMs / 1000).toFixed(minMs % 1000 ? 1 : 0);
+		const maxS = (maxMs / 1000).toFixed(maxMs % 1000 ? 1 : 0);
+		return minMs === maxMs ? `${minS}s` : `${minS}~${maxS}s`;
 	}
 
 	// ── Auto-refresh ──────────────────────────────────────────────────────────
@@ -359,7 +374,6 @@
 		<div class="scenario-grid" role="list" aria-label="Scenario list">
 			{#each filtered as item}
 				{@const running = item.status === 'RUNNING'}
-				{@const pct = epsPct(item)}
 				{@const varNames = Object.keys(item.sharedVariables)}
 				<div
 					class="scenario-card"
@@ -414,8 +428,8 @@
 					<!-- Metrics -->
 					<div class="sc-metrics">
 						<div class="sc-metric">
-							<span class="sc-metric-label">EPS</span>
-							<span class="sc-metric-val mono">{item.currentEps.toLocaleString()}<span class="sc-metric-target">/{item.eps}</span></span>
+							<span class="sc-metric-label">Interval</span>
+							<span class="sc-metric-val mono">{formatInterval(item.intervalMinMs, item.intervalMaxMs)}</span>
 						</div>
 						<div class="sc-metric">
 							<span class="sc-metric-label">Loop</span>
@@ -425,14 +439,6 @@
 							<span class="sc-metric-label">Count</span>
 							<span class="sc-metric-val mono">{item.count.toLocaleString()}</span>
 						</div>
-					</div>
-
-					<!-- EPS bar -->
-					<div class="sc-bar-row">
-						<div class="sc-bar">
-							<div class="sc-bar-fill" class:live={running} style="width:{pct}%"></div>
-						</div>
-						<span class="sc-bar-pct mono">{pct}%</span>
 					</div>
 
 					<!-- Actions -->

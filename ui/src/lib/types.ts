@@ -68,7 +68,8 @@ export interface DashboardData {
 export interface ScenarioStep {
 	logRef: string;
 	repeat: number;
-	delayMs: number;
+	delayMinMs: number;
+	delayMaxMs: number;
 	overrides: Record<string, string>;
 }
 
@@ -78,9 +79,9 @@ export interface Scenario {
 	sharedVariables: Record<string, string>;
 	steps: ScenarioStep[];
 	senders: string[];
-	eps: number;
+	intervalMinMs: number;
+	intervalMaxMs: number;
 	loopCount: number;
-	currentEps: number;
 	count: number;
 }
 

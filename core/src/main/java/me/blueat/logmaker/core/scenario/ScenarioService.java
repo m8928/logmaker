@@ -71,7 +71,6 @@ public class ScenarioService {
                     ScenarioThread thread = scenarioThreadMap.get(dto.getName());
                     dto.setStatus(thread != null);
                     dto.setCount(thread != null ? thread.getCount().get() : 0);
-                    dto.setCurrentEps(thread != null ? thread.getCurrentEps() : 0);
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -83,7 +82,6 @@ public class ScenarioService {
         ScenarioThread thread = scenarioThreadMap.get(name);
         dto.setStatus(thread != null);
         dto.setCount(thread != null ? thread.getCount().get() : 0);
-        dto.setCurrentEps(thread != null ? thread.getCurrentEps() : 0);
         return dto;
     }
 
@@ -175,7 +173,8 @@ public class ScenarioService {
                     clean.setSharedVariables(dto.getSharedVariables());
                     clean.setSteps(dto.getSteps());
                     clean.setSenders(dto.getSenders());
-                    clean.setEps(dto.getEps());
+                    clean.setIntervalMinMs(dto.getIntervalMinMs());
+                    clean.setIntervalMaxMs(dto.getIntervalMaxMs());
                     clean.setLoopCount(dto.getLoopCount());
                     return clean;
                 })
