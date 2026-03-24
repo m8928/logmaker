@@ -1,38 +1,39 @@
 @import 'tailwindcss';
 
 /* ============================================================
-   DESIGN TOKENS — DARK MODE (warm neutral, easy on eyes)
-   Inspired by: Linear, GitHub Dark Dimmed, Apple Dark
+   DESIGN TOKENS — DARK MODE
+   Inspired by: CrowdStrike Falcon, Splunk, Elastic Security
+   Near-black base + high-contrast text + orange-red accent
    ============================================================ */
 :root {
-	--bg-base: #1C1C1E;
-	--bg-surface: #2C2C2E;
-	--bg-raised: #3A3A3C;
-	--bg-overlay: rgba(0, 0, 0, 0.55);
-	--border: #48484A;
-	--border-focus: #7B8CDE;
+	--bg-base: #111113;
+	--bg-surface: #1A1A1D;
+	--bg-raised: #242428;
+	--bg-overlay: rgba(0, 0, 0, 0.6);
+	--border: #333338;
+	--border-focus: #E8612D;
 
-	--text-primary: #E5E5E7;
-	--text-secondary: #A1A1A6;
-	--text-muted: #7C7C80;
+	--text-primary: #EDEDEF;
+	--text-secondary: #9494A0;
+	--text-muted: #6C6C78;
 
-	--accent: #7B8CDE;
-	--accent-hover: #6B7BD0;
-	--accent-light: rgba(123, 140, 222, 0.12);
+	--accent: #E8612D;
+	--accent-hover: #D4551F;
+	--accent-light: rgba(232, 97, 45, 0.12);
 
-	--danger: #E5706A;
-	--danger-hover: #D4534D;
-	--danger-light: rgba(229, 112, 106, 0.12);
-	--success: #6BC77A;
-	--success-light: rgba(107, 199, 122, 0.12);
-	--warning: #E0A84E;
-	--warning-light: rgba(224, 168, 78, 0.12);
-	--info: #6BA3E0;
-	--info-light: rgba(107, 163, 224, 0.12);
+	--danger: #EF4444;
+	--danger-hover: #DC2626;
+	--danger-light: rgba(239, 68, 68, 0.12);
+	--success: #34D399;
+	--success-light: rgba(52, 211, 153, 0.12);
+	--warning: #FBBF24;
+	--warning-light: rgba(251, 191, 36, 0.12);
+	--info: #60A5FA;
+	--info-light: rgba(96, 165, 250, 0.12);
 
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.7);
 
 	--radius-sm: 6px;
 	--radius-md: 8px;
@@ -46,37 +47,37 @@
 }
 
 /* ============================================================
-   LIGHT MODE TOKENS (soft warm gray)
+   LIGHT MODE TOKENS
    ============================================================ */
 .light {
-	--bg-base: #F5F5F7;
+	--bg-base: #F4F4F5;
 	--bg-surface: #FFFFFF;
-	--bg-raised: #ECECEE;
+	--bg-raised: #E8E8EA;
 	--bg-overlay: rgba(0, 0, 0, 0.35);
-	--border: #D5D5D7;
-	--border-focus: #5B6BC0;
+	--border: #D1D1D6;
+	--border-focus: #C84E22;
 
-	--text-primary: #1C1C1E;
-	--text-secondary: #6E6E73;
-	--text-muted: #AEAEB2;
+	--text-primary: #111113;
+	--text-secondary: #52525B;
+	--text-muted: #A1A1AA;
 
-	--accent: #5B6BC0;
-	--accent-hover: #4A5AB0;
-	--accent-light: rgba(91, 107, 192, 0.08);
+	--accent: #C84E22;
+	--accent-hover: #B5431B;
+	--accent-light: rgba(200, 78, 34, 0.08);
 
-	--danger: #C4453E;
-	--danger-hover: #A33A34;
-	--danger-light: rgba(196, 69, 62, 0.08);
-	--success: #4CAF60;
-	--success-light: rgba(76, 175, 96, 0.08);
-	--warning: #C68A30;
-	--warning-light: rgba(198, 138, 48, 0.08);
-	--info: #4A8AD4;
-	--info-light: rgba(74, 138, 212, 0.08);
+	--danger: #DC2626;
+	--danger-hover: #B91C1C;
+	--danger-light: rgba(220, 38, 38, 0.08);
+	--success: #059669;
+	--success-light: rgba(5, 150, 105, 0.08);
+	--warning: #D97706;
+	--warning-light: rgba(217, 119, 6, 0.08);
+	--info: #2563EB;
+	--info-light: rgba(37, 99, 235, 0.08);
 
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
-	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 /* ============================================================
