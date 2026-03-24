@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { slide } from 'svelte/transition';
 	import { api } from '$lib/api';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
@@ -26,8 +25,6 @@
 	let formSenders = $state<string[]>([]);
 	let previewText = $state('');
 	let previewLoading = $state(false);
-	let showMakerHelper = $state(true);
-	let makerHelperShowName = $state(true);
 
 	let formatTextarea = $state<HTMLDivElement | null>(null);
 
@@ -605,124 +602,112 @@
 				</button>
 			</div>
 			<div class="dialog-body">
-				<div class="form-cols">
-					<div class="form-col">
-						<div class="field">
+				<!-- Section 1: Basic Info -->
+				<div class="pipeline-section">
+					<div class="basic-info-row">
+						<div class="field field-name">
 							<label class="field-label" for="log-name">NAME <span class="required">*</span></label>
 							<input id="log-name" class="input" type="text" bind:value={formName} disabled={editMode} placeholder="my-log" />
 						</div>
-
-						<div class="field">
-							<label class="field-label" for="log-format">FORMAT <span class="required">*</span></label>
-							<div
-								id="log-format"
-								class="format-editable mono"
-								contenteditable="true"
-								spellcheck="false"
-								bind:this={formatTextarea}
-								oninput={(e) => {
-									formFormat = e.currentTarget.textContent ?? '';
-									runPreview();
-								}}
-								onpaste={(e) => {
-									e.preventDefault();
-									const text = e.clipboardData?.getData('text/plain') ?? '';
-									document.execCommand('insertText', false, text);
-								}}
-								role="textbox"
-								aria-multiline="true"
-								data-placeholder="<maker1> <maker2> some static text"
-							></div>
-						</div>
-
-						<!-- Maker helper -->
-						<div class="maker-helper">
-							<button
-								class="helper-toggle"
-								type="button"
-								onclick={() => (showMakerHelper = !showMakerHelper)}
-							>
-								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-								Maker Palette
-								<svg
-									width="12" height="12"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									style="transform: rotate({showMakerHelper ? 90 : 0}deg); transition: transform 0.15s"
-								><polyline points="9 18 15 12 9 6"/></svg>
-							</button>
-
-							{#if showMakerHelper}
-								<div class="helper-panel" transition:slide={{ duration: 150 }}>
-									<div class="helper-controls">
-										<button class="mode-pill" class:active={makerHelperShowName} onclick={() => (makerHelperShowName = true)}>Name</button>
-										<button class="mode-pill" class:active={!makerHelperShowName} onclick={() => (makerHelperShowName = false)}>Sample</button>
-									</div>
-									<div class="maker-chips">
-										{#if makers.length === 0}
-											<span class="text-muted" style="font-size:0.8125rem">No makers available</span>
-										{:else}
-											{#each makers as maker}
-												<button
-													class="maker-chip"
-													onclick={() => insertMaker(maker.name)}
-													title={makerHelperShowName ? (maker.sample ?? maker.name) : maker.name}
-												>
-													{makerHelperShowName ? maker.name : (maker.sample ?? maker.name)}
-												</button>
-											{/each}
-										{/if}
-									</div>
-								</div>
-							{/if}
-						</div>
-
-						<!-- Preview -->
-						<div class="field">
-							<span class="field-label">
-								PREVIEW
-								{#if previewLoading}
-									<span class="preview-spinner"></span>
-								{/if}
-							</span>
-							<div class="preview-box mono">{#if previewText}{#each mapSampleToFormat(formFormat, previewText) as seg}{#if seg.maker}<span class="hl-maker">{seg.text}</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}{:else}<span class="hl-placeholder">Type a format above to see preview…</span>{/if}</div>
+						<div class="field field-eps">
+							<label class="field-label" for="log-eps">EPS <span class="required">*</span></label>
+							<input id="log-eps" class="input" type="number" bind:value={formEps} min="0" placeholder="1000" />
 						</div>
 					</div>
+				</div>
 
-					<div class="form-col">
-						<div class="field">
-							<label class="field-label" for="log-eps">EVENTS / SECOND <span class="required">*</span></label>
-							<input id="log-eps" class="input" type="number" bind:value={formEps} min="0" />
-						</div>
+				<!-- Section 2: Maker Palette (always visible) -->
+				<div class="pipeline-section">
+					<div class="section-header">
+						<span class="field-label">AVAILABLE MAKERS</span>
+					</div>
+					<div class="maker-palette">
+						{#if makers.length === 0}
+							<span class="palette-empty">No makers available — create one first</span>
+						{:else}
+							{#each makers as maker}
+								<button
+									class="palette-chip"
+									type="button"
+									onclick={() => insertMaker(maker.name)}
+									title="Insert &lt;{maker.name}&gt;"
+								>
+									<span class="palette-chip-name">{maker.name}</span>
+									{#if maker.type}
+										<span class="palette-chip-type">{maker.type}</span>
+									{/if}
+								</button>
+							{/each}
+						{/if}
+					</div>
+				</div>
 
-						<div class="field">
-							<span class="field-label">SENDERS <span class="required">*</span></span>
-							<div class="sender-list">
-								{#if senders.length === 0}
-									<p class="text-muted" style="font-size:0.8125rem;margin:0">No senders available</p>
-								{:else}
-									{#each senders as s}
-										<label class="sender-option" class:selected={formSenders.includes(s.name)}>
-											<input
-												type="checkbox"
-												class="sr-only"
-												checked={formSenders.includes(s.name)}
-												onchange={() => toggleSender(s.name)}
-											/>
-											<span class="sender-check">
-												{#if formSenders.includes(s.name)}
-													<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-												{/if}
-											</span>
-											<span>{s.name}</span>
-											<span class="sender-type">{s.type}</span>
-										</label>
-									{/each}
-								{/if}
-							</div>
-						</div>
+				<!-- Section 3: Format Editor -->
+				<div class="pipeline-section">
+					<div class="section-header">
+						<label class="field-label" for="log-format">FORMAT TEMPLATE <span class="required">*</span></label>
+					</div>
+					<div
+						id="log-format"
+						class="format-editable mono"
+						contenteditable="true"
+						spellcheck="false"
+						bind:this={formatTextarea}
+						oninput={(e) => {
+							formFormat = e.currentTarget.textContent ?? '';
+							runPreview();
+						}}
+						onpaste={(e) => {
+							e.preventDefault();
+							const text = e.clipboardData?.getData('text/plain') ?? '';
+							document.execCommand('insertText', false, text);
+						}}
+						role="textbox"
+						aria-multiline="true"
+						data-placeholder="<maker1> <maker2> some static text"
+					></div>
+				</div>
+
+				<!-- Section 4: Live Preview -->
+				<div class="pipeline-section preview-section">
+					<div class="section-header">
+						<span class="field-label">
+							LIVE PREVIEW
+							{#if previewLoading}
+								<span class="preview-spinner"></span>
+							{/if}
+						</span>
+					</div>
+					<div class="preview-box mono">{#if previewText}{#each mapSampleToFormat(formFormat, previewText) as seg}{#if seg.maker}<span class="hl-maker">{seg.text}</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}{:else}<span class="hl-placeholder">Output will appear here…</span>{/if}</div>
+				</div>
+
+				<!-- Section 5: Senders -->
+				<div class="pipeline-section last-section">
+					<div class="section-header">
+						<span class="field-label">SEND TO <span class="required">*</span></span>
+					</div>
+					<div class="sender-chips">
+						{#if senders.length === 0}
+							<span class="palette-empty">No senders available</span>
+						{:else}
+							{#each senders as s}
+								<label class="sender-chip" class:selected={formSenders.includes(s.name)}>
+									<input
+										type="checkbox"
+										class="sr-only"
+										checked={formSenders.includes(s.name)}
+										onchange={() => toggleSender(s.name)}
+									/>
+									<span class="sender-chip-check" aria-hidden="true">
+										{#if formSenders.includes(s.name)}
+											<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+										{/if}
+									</span>
+									<span class="sender-chip-name">{s.name}</span>
+									<span class="sender-chip-type">{s.type}</span>
+								</label>
+							{/each}
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -1162,26 +1147,114 @@
 		border-color: color-mix(in srgb, var(--danger) 25%, transparent);
 	}
 
-	/* Dialog form */
-	.form-cols {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1.5rem;
+	/* ── Pipeline Builder Dialog ── */
+
+	/* Each section in the form flow */
+	.pipeline-section {
+		padding: 0.875rem 0;
+		border-bottom: 1px solid var(--border);
 	}
 
-	@media (max-width: 600px) {
-		.form-cols { grid-template-columns: 1fr; }
+	.pipeline-section.last-section {
+		border-bottom: none;
+		padding-bottom: 0;
+	}
+
+	.pipeline-section.preview-section {
+		/* Visually tighter connection to format editor above */
+		padding-top: 0.625rem;
+	}
+
+	.section-header {
+		margin-bottom: 0.5rem;
+	}
+
+	/* Basic info: Name + EPS on same row */
+	.basic-info-row {
+		display: flex;
+		gap: 0.75rem;
+		align-items: flex-end;
+	}
+
+	.field-name {
+		flex: 1;
+		margin-bottom: 0;
+	}
+
+	.field-eps {
+		width: 120px;
+		flex-shrink: 0;
+		margin-bottom: 0;
+	}
+
+	/* Maker palette — always visible chip strip */
+	.maker-palette {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+		padding: 0.625rem 0.75rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		min-height: 40px;
+		align-items: center;
+	}
+
+	.palette-empty {
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	.palette-chip {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.0625rem;
+		padding: 0.25rem 0.625rem;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: 5px;
+		cursor: pointer;
+		transition: background 0.12s, border-color 0.12s, color 0.12s;
+		line-height: 1.2;
+	}
+
+	.palette-chip:hover {
+		background: var(--accent-light);
+		border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+	}
+
+	.palette-chip-name {
+		font-size: 0.75rem;
+		font-family: var(--font-mono);
+		font-weight: 600;
+		color: var(--text-secondary);
+		transition: color 0.12s;
+	}
+
+	.palette-chip:hover .palette-chip-name {
+		color: var(--accent);
+	}
+
+	.palette-chip-type {
+		font-size: 0.5625rem;
+		font-family: var(--font-ui);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		font-weight: 500;
 	}
 
 	/* Contenteditable format editor */
 	.format-editable {
-		padding: 0.5rem 0.75rem;
+		padding: 0.625rem 0.75rem;
 		background: var(--bg-base);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		font-size: 0.8125rem;
-		line-height: 1.6;
-		min-height: 72px;
+		line-height: 1.7;
+		min-height: 100px;
 		color: var(--text-secondary);
 		white-space: pre-wrap;
 		word-break: break-all;
@@ -1218,96 +1291,32 @@
 		color: var(--text-muted);
 	}
 
-	.maker-helper { margin-bottom: 1rem; }
-
-	.helper-toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.375rem;
-		background: none;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		padding: 0.375rem 0.75rem;
-		font-size: 0.8125rem;
-		font-family: var(--font-ui);
-		color: var(--text-secondary);
-		cursor: pointer;
-		transition: background 0.12s, color 0.12s;
-	}
-
-	.helper-toggle:hover {
-		background: var(--bg-raised);
-		color: var(--text-primary);
-	}
-
-	.helper-panel {
-		margin-top: 0.5rem;
-		padding: 0.75rem;
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-	}
-
-	.helper-controls {
-		display: flex;
-		gap: 0.375rem;
-		margin-bottom: 0.625rem;
-	}
-
-	.mode-pill {
-		padding: 0.2rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.6875rem;
-		font-weight: 600;
-		border: 1px solid var(--border);
-		background: none;
-		color: var(--text-muted);
-		cursor: pointer;
-		transition: background 0.12s, color 0.12s;
-	}
-
-	.mode-pill.active {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: #000;
-	}
-
-	.maker-chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.3rem;
-	}
-
-	.maker-chip {
-		padding: 0.2rem 0.5rem;
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-family: var(--font-mono);
-		cursor: pointer;
-		color: var(--text-secondary);
-		transition: background 0.12s, border-color 0.12s, color 0.12s;
-	}
-
-	.maker-chip:hover {
-		background: var(--accent-light);
-		border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-		color: var(--accent);
-	}
-
+	/* Preview box — visually connected below format editor */
 	.preview-box {
 		margin: 0;
-		padding: 0.5rem 0.75rem;
+		padding: 0.625rem 0.75rem;
 		background: var(--bg-base);
 		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
+		border-top: none;
+		border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 		font-family: var(--font-mono);
 		font-size: 0.8125rem;
 		white-space: pre-wrap;
 		word-break: break-all;
 		min-height: 44px;
-		line-height: 1.6;
+		line-height: 1.7;
+		position: relative;
+	}
+
+	/* Thin accent connector between format and preview */
+	.preview-box::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0.75rem;
+		right: 0.75rem;
+		height: 1px;
+		background: color-mix(in srgb, var(--accent) 22%, transparent);
 	}
 
 	.preview-spinner {
@@ -1324,33 +1333,38 @@
 		to { transform: rotate(360deg); }
 	}
 
-	.sender-list {
+	/* Sender chips — horizontal flex-wrap */
+	.sender-chips {
 		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-		max-height: 200px;
-		overflow-y: auto;
-		padding: 0.25rem;
-		background: var(--bg-base);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
+		flex-wrap: wrap;
+		gap: 0.375rem;
 	}
 
-	.sender-option {
-		display: flex;
+	.sender-chip {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.4375rem 0.5rem;
+		gap: 0.4rem;
+		padding: 0.3125rem 0.625rem 0.3125rem 0.5rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		cursor: pointer;
 		font-size: 0.8125rem;
-		transition: background 0.12s;
+		transition: background 0.12s, border-color 0.12s;
+		user-select: none;
 	}
 
-	.sender-option:hover { background: var(--bg-raised); }
-	.sender-option.selected { background: var(--accent-light); }
+	.sender-chip:hover {
+		background: var(--bg-surface);
+		border-color: var(--text-muted);
+	}
 
-	.sender-check {
+	.sender-chip.selected {
+		background: var(--accent-light);
+		border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+	}
+
+	.sender-chip-check {
 		width: 14px;
 		height: 14px;
 		border: 1px solid var(--border);
@@ -1360,16 +1374,26 @@
 		justify-content: center;
 		flex-shrink: 0;
 		color: var(--accent);
+		background: var(--bg-base);
+		transition: background 0.12s, border-color 0.12s;
 	}
 
-	.sender-option.selected .sender-check {
+	.sender-chip.selected .sender-chip-check {
 		background: var(--accent);
 		border-color: var(--accent);
 		color: #000;
 	}
 
-	.sender-type {
-		margin-left: auto;
+	.sender-chip-name {
+		font-weight: 500;
+		color: var(--text-primary);
+	}
+
+	.sender-chip.selected .sender-chip-name {
+		color: var(--accent);
+	}
+
+	.sender-chip-type {
 		font-size: 0.6875rem;
 		color: var(--text-muted);
 		font-family: var(--font-mono);
