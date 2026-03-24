@@ -43,7 +43,6 @@
 		visible = false;
 	}
 
-	// Parse "key: value\nkey2: value2" into structured entries
 	function parseEntries(t: string): Array<{key: string; val: string}> | null {
 		if (!t || !t.includes(':')) return null;
 		const lines = t.split('\n').filter(l => l.includes(':'));
@@ -70,31 +69,34 @@
 {#if visible && (text || title)}
 	{@const entries = parseEntries(text)}
 	<div
-		class="tooltip tooltip-{position}"
+		class="tip"
 		role="tooltip"
-		style="
-			position: fixed;
-			{position === 'top' ? `bottom: ${window.innerHeight - tipY}px; left: ${tipX}px; transform: translateX(-50%);` : ''}
-			{position === 'bottom' ? `top: ${tipY}px; left: ${tipX}px; transform: translateX(-50%);` : ''}
-			{position === 'left' ? `right: ${window.innerWidth - tipX}px; top: ${tipY}px; transform: translateY(-50%);` : ''}
-			{position === 'right' ? `left: ${tipX}px; top: ${tipY}px; transform: translateY(-50%);` : ''}
+		style="position:fixed;z-index:9999;pointer-events:none;
+			{position === 'top' ? `bottom:${window.innerHeight - tipY}px;left:${tipX}px;transform:translateX(-50%);` : ''}
+			{position === 'bottom' ? `top:${tipY}px;left:${tipX}px;transform:translateX(-50%);` : ''}
+			{position === 'left' ? `right:${window.innerWidth - tipX}px;top:${tipY}px;transform:translateY(-50%);` : ''}
+			{position === 'right' ? `left:${tipX}px;top:${tipY}px;transform:translateY(-50%);` : ''}
 		"
 	>
-		<div class="tooltip-card">
+		<table class="tip-table">
 			{#if title}
-				<div class="tooltip-title">{title}</div>
+				<tr class="tip-title-row">
+					<td colspan="2" class="tip-title">{title}</td>
+				</tr>
 			{/if}
 			{#if entries}
-				<div class="tooltip-entries">
-					{#each entries as e}
-						<span class="entry-key">{e.key}</span>
-						<span class="entry-val">{e.val}</span>
-					{/each}
-				</div>
+				{#each entries as e}
+					<tr>
+						<td class="tip-key">{e.key}</td>
+						<td class="tip-val">{e.val}</td>
+					</tr>
+				{/each}
 			{:else if text}
-				<div class="tooltip-body">{text}</div>
+				<tr>
+					<td colspan="2" class="tip-text">{text}</td>
+				</tr>
 			{/if}
-		</div>
+		</table>
 	</div>
 {/if}
 
@@ -104,73 +106,53 @@
 		display: inline-flex;
 	}
 
-	.tooltip {
-		z-index: 9999;
-		pointer-events: none;
-		animation: tooltip-fade 0.12s ease;
-	}
-
-	.tooltip-card {
+	.tip-table {
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		border: 1px solid var(--border);
-		font-size: 0.75rem;
-		line-height: 1.4;
-		padding: 0;
+		border-collapse: collapse;
 		border-radius: var(--radius-sm);
-		min-width: 140px;
+		min-width: 120px;
 		max-width: 320px;
 		box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+		font-size: 11px;
+		line-height: 1.2;
 		overflow: hidden;
 	}
 
-	.tooltip-title {
-		padding: 2px 8px;
+	.tip-title {
+		padding: 3px 8px;
 		font-weight: 700;
 		font-size: 11px;
 		color: var(--accent);
 		background: var(--bg-raised);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 
-	.tooltip-entries {
-		display: grid;
-		grid-template-columns: auto 1fr;
-		align-items: baseline;
-		gap: 0 8px;
-		padding: 2px 8px 3px;
-		font-size: 11px;
-		line-height: 1.3;
-	}
-
-	.entry-key {
+	.tip-key {
+		padding: 1px 4px 1px 8px;
 		color: var(--text-muted);
 		white-space: nowrap;
 		text-transform: uppercase;
 		font-weight: 600;
 		font-size: 10px;
 		letter-spacing: 0.04em;
+		vertical-align: baseline;
 	}
 
-	.entry-val {
+	.tip-val {
+		padding: 1px 8px 1px 4px;
 		color: var(--text-primary);
 		font-family: var(--font-mono);
 		font-size: 11px;
 		word-break: break-all;
+		vertical-align: baseline;
 	}
 
-	.tooltip-body {
-		padding: 2px 8px 3px;
+	.tip-text {
+		padding: 3px 8px;
 		white-space: pre-wrap;
 		word-break: break-word;
 		color: var(--text-secondary);
 		font-size: 11px;
-	}
-
-	@keyframes tooltip-fade {
-		from { opacity: 0; }
-		to { opacity: 1; }
 	}
 </style>
