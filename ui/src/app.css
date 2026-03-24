@@ -1,37 +1,38 @@
 @import 'tailwindcss';
 
 /* ============================================================
-   DESIGN TOKENS — DARK MODE (primary, developer tool aesthetic)
+   DESIGN TOKENS — DARK MODE (warm neutral, easy on eyes)
+   Inspired by: Linear, GitHub Dark Dimmed, Apple Dark
    ============================================================ */
 :root {
-	--bg-base: #0F172A;
-	--bg-surface: #1E293B;
-	--bg-raised: #334155;
-	--bg-overlay: rgba(0, 0, 0, 0.6);
-	--border: #475569;
-	--border-focus: #22C55E;
+	--bg-base: #1C1C1E;
+	--bg-surface: #2C2C2E;
+	--bg-raised: #3A3A3C;
+	--bg-overlay: rgba(0, 0, 0, 0.55);
+	--border: #48484A;
+	--border-focus: #7B8CDE;
 
-	--text-primary: #F8FAFC;
-	--text-secondary: #94A3B8;
-	--text-muted: #64748B;
+	--text-primary: #E5E5E7;
+	--text-secondary: #A1A1A6;
+	--text-muted: #7C7C80;
 
-	--accent: #22C55E;
-	--accent-hover: #16A34A;
-	--accent-light: rgba(34, 197, 94, 0.1);
+	--accent: #7B8CDE;
+	--accent-hover: #6B7BD0;
+	--accent-light: rgba(123, 140, 222, 0.12);
 
-	--danger: #EF4444;
-	--danger-hover: #DC2626;
-	--danger-light: rgba(239, 68, 68, 0.1);
-	--success: #22C55E;
-	--success-light: rgba(34, 197, 94, 0.1);
-	--warning: #F59E0B;
-	--warning-light: rgba(245, 158, 11, 0.1);
-	--info: #3B82F6;
-	--info-light: rgba(59, 130, 246, 0.1);
+	--danger: #E5706A;
+	--danger-hover: #D4534D;
+	--danger-light: rgba(229, 112, 106, 0.12);
+	--success: #6BC77A;
+	--success-light: rgba(107, 199, 122, 0.12);
+	--warning: #E0A84E;
+	--warning-light: rgba(224, 168, 78, 0.12);
+	--info: #6BA3E0;
+	--info-light: rgba(107, 163, 224, 0.12);
 
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-	--shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 
 	--radius-sm: 6px;
 	--radius-md: 8px;
@@ -45,37 +46,37 @@
 }
 
 /* ============================================================
-   LIGHT MODE TOKENS
+   LIGHT MODE TOKENS (soft warm gray)
    ============================================================ */
 .light {
-	--bg-base: #F8FAFC;
+	--bg-base: #F5F5F7;
 	--bg-surface: #FFFFFF;
-	--bg-raised: #F1F5F9;
-	--bg-overlay: rgba(0, 0, 0, 0.4);
-	--border: #E2E8F0;
-	--border-focus: #16A34A;
+	--bg-raised: #ECECEE;
+	--bg-overlay: rgba(0, 0, 0, 0.35);
+	--border: #D5D5D7;
+	--border-focus: #5B6BC0;
 
-	--text-primary: #0F172A;
-	--text-secondary: #475569;
-	--text-muted: #94A3B8;
+	--text-primary: #1C1C1E;
+	--text-secondary: #6E6E73;
+	--text-muted: #AEAEB2;
 
-	--accent: #16A34A;
-	--accent-hover: #15803D;
-	--accent-light: rgba(22, 163, 74, 0.08);
+	--accent: #5B6BC0;
+	--accent-hover: #4A5AB0;
+	--accent-light: rgba(91, 107, 192, 0.08);
 
-	--danger: #DC2626;
-	--danger-hover: #B91C1C;
-	--danger-light: rgba(220, 38, 38, 0.08);
-	--success: #16A34A;
-	--success-light: rgba(22, 163, 74, 0.08);
-	--warning: #D97706;
-	--warning-light: rgba(217, 119, 6, 0.08);
-	--info: #2563EB;
-	--info-light: rgba(37, 99, 235, 0.08);
+	--danger: #C4453E;
+	--danger-hover: #A33A34;
+	--danger-light: rgba(196, 69, 62, 0.08);
+	--success: #4CAF60;
+	--success-light: rgba(76, 175, 96, 0.08);
+	--warning: #C68A30;
+	--warning-light: rgba(198, 138, 48, 0.08);
+	--info: #4A8AD4;
+	--info-light: rgba(74, 138, 212, 0.08);
 
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.1);
-	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-	--shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
+	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
 /* ============================================================
