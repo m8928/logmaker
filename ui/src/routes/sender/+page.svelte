@@ -217,6 +217,7 @@
 		<div class="header-left">
 			<h1 class="page-title">Sender</h1>
 			<span class="item-count">{filtered.length} of {items.length}</span>
+			<span class="page-hint">Destinations where generated logs are delivered — Kafka, Syslog, Debug output.</span>
 		</div>
 		<div class="header-actions">
 			<div class="search-wrap">

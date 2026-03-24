@@ -399,6 +399,7 @@
 		<div class="header-left">
 			<h1 class="page-title">Log</h1>
 			<span class="item-count">{filtered.length} of {items.length}</span>
+			<span class="page-hint">Log pipelines — combine makers into a format template, set EPS, and send to destinations.</span>
 		</div>
 		<div class="header-actions">
 			<div class="search-wrap">

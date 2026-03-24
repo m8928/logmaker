@@ -180,6 +180,14 @@ h1, h2, h3, h4 {
 	color: var(--text-primary);
 }
 
+.page-hint {
+	display: block;
+	font-size: 0.75rem;
+	color: var(--text-muted);
+	font-weight: 400;
+	margin-top: 2px;
+}
+
 .header-actions {
 	display: flex;
 	gap: 0.5rem;

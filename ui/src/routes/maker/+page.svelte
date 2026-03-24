@@ -259,6 +259,7 @@
 		<div class="header-left">
 			<h1 class="page-title">Maker</h1>
 			<span class="item-count">{filtered.length} of {items.length}</span>
+			<span class="page-hint">Data generators used in log format templates — IP, date, UUID, regex, etc.</span>
 		</div>
 		<div class="header-actions">
 			<div class="search-wrap">
