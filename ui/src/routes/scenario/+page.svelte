@@ -397,8 +397,8 @@
 
 					<!-- Shared vars -->
 					{#if varNames.length > 0}
-						<div class="sc-vars-row">
-							<span class="sc-section-label">Shared</span>
+						<div class="sc-section-block">
+							<div class="sc-section-label">Shared</div>
 							<div class="sc-chips">
 								{#each varNames as v}
 									<span class="chip chip-var">{v}</span>
@@ -408,7 +408,7 @@
 					{/if}
 
 					<!-- Steps -->
-					<div class="sc-steps-block">
+					<div class="sc-section-block">
 						<div class="sc-section-label">Steps{#if running} · Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}{/if}</div>
 						<div class="sc-chain">
 							{#each item.steps as step, si}
@@ -1005,11 +1005,10 @@
 		animation: pulse-ring 1.4s ease-out infinite;
 	}
 
-	/* Shared vars row */
-	.sc-vars-row {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.5rem;
+	/* Section block (shared vars, steps) */
+	.sc-section-block {
+		padding: 0.625rem 0.75rem;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.sc-section-label {
@@ -1027,6 +1026,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.25rem;
+		margin-top: 0.3rem;
 	}
 
 	.chip-var {
@@ -1047,11 +1047,7 @@
 		align-items: center;
 		gap: 0.25rem 0.375rem;
 		min-width: 0;
-	}
-
-	.sc-steps-block {
-		padding: 0.625rem 0.75rem;
-		border-bottom: 1px solid var(--border);
+		margin-top: 0.3rem;
 	}
 
 	.chain-step {
