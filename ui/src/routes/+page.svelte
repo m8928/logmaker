@@ -410,6 +410,8 @@
 		flex-direction: column;
 		gap: 0;
 		width: 100%;
+		overflow-x: hidden;
+		min-width: 0;
 	}
 
 	/* ── Top bar ── */
@@ -508,6 +510,7 @@
 		grid-template-columns: repeat(4, 1fr);
 		background: var(--bg-surface);
 		border: 1px solid var(--border);
+		min-width: 0;
 		border-radius: var(--radius-md);
 		overflow: hidden;
 		margin-bottom: 1.25rem;
@@ -703,6 +706,16 @@
 		grid-template-columns: 3fr 2fr;
 		gap: 1.25rem;
 		align-items: start;
+		min-width: 0;
+	}
+
+	@media (max-width: 900px) {
+		.metric-strip { grid-template-columns: repeat(2, 1fr); }
+		.main-grid { grid-template-columns: 1fr; }
+	}
+
+	@media (max-width: 500px) {
+		.metric-strip { grid-template-columns: 1fr; }
 	}
 
 	/* ── Panel ── */
