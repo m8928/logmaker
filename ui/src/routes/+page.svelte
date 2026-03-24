@@ -39,6 +39,24 @@
 
 	const runningLogs = $derived(logs.filter((l) => l.status === true || l.currentEps > 0));
 
+	// Onboarding: show guide when system is empty
+	const isEmpty = $derived(data !== null && data.maker === 0 && data.sender === 0 && logs.length === 0);
+	let guideDismissed = $state(false);
+
+	$effect(() => {
+		guideDismissed = localStorage.getItem('logmaker-guide-dismissed') === 'true';
+	});
+
+	function dismissGuide() {
+		guideDismissed = true;
+		localStorage.setItem('logmaker-guide-dismissed', 'true');
+	}
+
+	function showGuide() {
+		guideDismissed = false;
+		localStorage.removeItem('logmaker-guide-dismissed');
+	}
+
 	const metricTiles = $derived([
 		{
 			label: 'Makers',
@@ -109,6 +127,11 @@
 					Server unreachable
 				</span>
 			{/if}
+			{#if guideDismissed}
+				<button class="btn btn-ghost btn-sm" onclick={showGuide} aria-label="Show getting started guide" title="Getting Started">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+				</button>
+			{/if}
 			<button class="btn btn-ghost btn-sm" onclick={fetchData} disabled={loading} aria-label="Refresh dashboard">
 				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:spin={loading}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
 				Refresh
@@ -130,6 +153,50 @@
 			</a>
 		{/each}
 	</div>
+
+	<!-- Getting Started Guide (shown when system is empty) -->
+	{#if (isEmpty || !guideDismissed) && !loading && !guideDismissed}
+		<div class="guide-panel">
+			<div class="guide-header">
+				<div class="guide-title-row">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+					<span class="guide-title">Getting Started</span>
+				</div>
+				<button class="guide-dismiss" onclick={dismissGuide} aria-label="Dismiss guide">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+				</button>
+			</div>
+			<p class="guide-desc">LogMaker generates log data and sends it to destinations. Follow these 3 steps:</p>
+			<div class="guide-steps">
+				<a href="/maker" class="guide-step">
+					<div class="step-num">1</div>
+					<div class="step-body">
+						<span class="step-title">Create Makers</span>
+						<span class="step-desc">Define data generators — IP, date, UUID, regex, etc.</span>
+					</div>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="step-arrow"><polyline points="9 18 15 12 9 6"/></svg>
+				</a>
+				<div class="step-connector" aria-hidden="true"></div>
+				<a href="/sender" class="guide-step">
+					<div class="step-num">2</div>
+					<div class="step-body">
+						<span class="step-title">Create Senders</span>
+						<span class="step-desc">Configure destinations — Kafka, Syslog, Debug output.</span>
+					</div>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="step-arrow"><polyline points="9 18 15 12 9 6"/></svg>
+				</a>
+				<div class="step-connector" aria-hidden="true"></div>
+				<a href="/log" class="guide-step">
+					<div class="step-num">3</div>
+					<div class="step-body">
+						<span class="step-title">Create Logs</span>
+						<span class="step-desc">Build a template with makers, set EPS, pick senders, and run.</span>
+					</div>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="step-arrow"><polyline points="9 18 15 12 9 6"/></svg>
+				</a>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Main 2-col layout -->
 	<div class="main-grid">
@@ -489,6 +556,138 @@
 		font-weight: 500;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	/* ── Getting Started Guide ── */
+	.guide-panel {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: 1rem 1.25rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.guide-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.375rem;
+	}
+
+	.guide-title-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: var(--accent);
+	}
+
+	.guide-title {
+		font-weight: 700;
+		font-size: 0.875rem;
+	}
+
+	.guide-dismiss {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 4px;
+		border-radius: var(--radius-sm);
+		transition: color 0.12s, background 0.12s;
+	}
+
+	.guide-dismiss:hover {
+		color: var(--text-primary);
+		background: var(--bg-raised);
+	}
+
+	.guide-desc {
+		font-size: 0.8125rem;
+		color: var(--text-secondary);
+		margin: 0 0 0.75rem;
+	}
+
+	.guide-steps {
+		display: flex;
+		align-items: center;
+		gap: 0;
+	}
+
+	.guide-step {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		flex: 1;
+		padding: 0.625rem 0.75rem;
+		background: var(--bg-base);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		text-decoration: none;
+		color: var(--text-primary);
+		transition: border-color 0.12s, background 0.12s;
+	}
+
+	.guide-step:hover {
+		border-color: var(--accent);
+		background: var(--accent-light);
+	}
+
+	.step-num {
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		background: var(--accent-light);
+		color: var(--accent);
+		font-size: 0.75rem;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	.step-body {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.step-title {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.step-desc {
+		font-size: 0.6875rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.step-arrow {
+		flex-shrink: 0;
+		color: var(--text-muted);
+	}
+
+	.step-connector {
+		width: 24px;
+		height: 2px;
+		background: var(--border);
+		flex-shrink: 0;
+	}
+
+	@media (max-width: 700px) {
+		.guide-steps {
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+		.step-connector {
+			width: 2px;
+			height: 12px;
+		}
 	}
 
 	/* ── Main 2-col grid ── */
