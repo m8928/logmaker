@@ -65,6 +65,25 @@ export interface DashboardData {
 	thread?: number;
 }
 
+export interface ScenarioStep {
+	logRef: string;
+	repeat: number;
+	delayMs: number;
+	overrides: Record<string, string>;
+}
+
+export interface Scenario {
+	name: string;
+	status: 'RUNNING' | 'STOPPED';
+	sharedVariables: Record<string, string>;
+	steps: ScenarioStep[];
+	senders: string[];
+	eps: number;
+	loopCount: number;
+	currentEps: number;
+	count: number;
+}
+
 export interface ApiResult<T = unknown> {
 	type: 'SUCCESS' | 'ERROR' | 'VOID';
 	message: string;

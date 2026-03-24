@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { api } from '$lib/api';
-	import type { DashboardData, Log } from '$lib/types';
+	import type { DashboardData, Log, Scenario } from '$lib/types';
 
 	let data = $state<DashboardData | null>(null);
 	let logs = $state<Log[]>([]);
+	let scenarios = $state<Scenario[]>([]);
 	let loading = $state(true);
 	let error = $state(false);
 	let lastUpdated = $state(0);
@@ -13,7 +14,7 @@
 		loading = true;
 		error = false;
 		try {
-			[data, logs] = await Promise.all([api.getDashboard(), api.getLogs()]);
+			[data, logs, scenarios] = await Promise.all([api.getDashboard(), api.getLogs(), api.getScenarios().catch(() => [] as Scenario[])]);
 			lastUpdated = Date.now();
 			secondsAgo = 0;
 		} catch {
@@ -75,6 +76,12 @@
 			value: runningLogs.length,
 			icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="10 15 15 12 10 9 10 15"/></svg>`,
 			href: '/log'
+		},
+		{
+			label: 'Scenarios',
+			value: scenarios.length,
+			icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11.5" x2="17" y2="6.5"/><line x1="7" y1="12.5" x2="17" y2="17.5"/></svg>`,
+			href: '/scenario'
 		},
 		{
 			label: 'Plugins',

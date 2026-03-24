@@ -1,5 +1,5 @@
 import { addToast } from '$lib/stores/toast.svelte';
-import type { ApiResult, DashboardData, Log, Maker, Plugin, PluginType, Sender } from '$lib/types';
+import type { ApiResult, DashboardData, Log, Maker, Plugin, PluginType, Scenario, Sender } from '$lib/types';
 
 const BASE = '/api/v1';
 
@@ -76,5 +76,17 @@ export const api = {
 
 	// Plugins
 	getPlugins: () => fetchJson<Plugin[]>('/plugin'),
-	deletePlugin: (name: string) => request<ApiResult>(`/plugin/${name}`, { method: 'DELETE' })
+	deletePlugin: (name: string) => request<ApiResult>(`/plugin/${name}`, { method: 'DELETE' }),
+
+	// Scenarios
+	getScenarios: () => fetchJson<Scenario[]>('/scenario'),
+	createScenario: (data: Partial<Scenario>) =>
+		request<ApiResult>('/scenario', { method: 'POST', body: JSON.stringify(data) }),
+	updateScenario: (name: string, data: Partial<Scenario>) =>
+		request<ApiResult>(`/scenario/${name}`, { method: 'PUT', body: JSON.stringify(data) }),
+	deleteScenario: (name: string) => request<ApiResult>(`/scenario/${name}`, { method: 'DELETE' }),
+	startScenario: (name: string) =>
+		request<ApiResult>(`/scenario/${name}:start`, { method: 'POST' }),
+	stopScenario: (name: string) =>
+		request<ApiResult>(`/scenario/${name}:stop`, { method: 'POST' })
 };

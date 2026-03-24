@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/m8928/logmaker && git add -A ':!.omc' ':!.claude' ':!node_modules' ':!t1.png' ':!t2.png' && git commit -m \\\"fix: move Getting Started guide above metric strip\\\"\",\"description\":\"C...",
+  "error": "Exit code 128\nfatal: pathspec ':\\!.omc' did not match any files",
+  "timestamp": "2026-03-24T05:24:43.062Z",
+  "retry_count": 1
+}
