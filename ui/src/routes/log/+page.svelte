@@ -560,18 +560,20 @@
 
 						<div class="field">
 							<label class="field-label" for="log-format">FORMAT <span class="required">*</span></label>
-							<div class="format-editor">
-								<div class="format-backdrop mono" aria-hidden="true">{#each parseFormatSegments(formFormat || '') as seg}{#if seg.maker}<span class="hl-maker">&lt;{seg.maker}&gt;</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}{#if !formFormat}<span class="hl-placeholder">&lt;maker1&gt; &lt;maker2&gt; some static text</span>{/if}&#8203;</div>
-								<textarea
-									id="log-format"
-									class="format-input mono"
-									bind:value={formFormat}
-									bind:this={formatTextarea}
-									oninput={runPreview}
-									rows="4"
-									spellcheck="false"
-								></textarea>
-							</div>
+							<textarea
+								id="log-format"
+								class="input mono"
+								style="font-size:0.8125rem;line-height:1.6;resize:vertical"
+								bind:value={formFormat}
+								bind:this={formatTextarea}
+								oninput={runPreview}
+								rows="3"
+								spellcheck="false"
+								placeholder="<maker1> <maker2> some static text"
+							></textarea>
+							{#if formFormat}
+								<div class="format-highlight mono">{#each parseFormatSegments(formFormat) as seg}{#if seg.maker}<span class="hl-maker">{seg.text}</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}</div>
+							{/if}
 						</div>
 
 						<!-- Maker helper -->
@@ -1112,71 +1114,29 @@
 		.form-cols { grid-template-columns: 1fr; }
 	}
 
-	/* Format editor: transparent textarea over highlighted backdrop */
-	.format-editor {
-		position: relative;
+	/* Format highlight (below textarea) */
+	.format-highlight {
+		padding: 0.375rem 0.625rem;
+		background: var(--bg-raised);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
-		background: var(--bg-base);
-		transition: border-color 0.15s, box-shadow 0.15s;
-	}
-
-	.format-editor:focus-within {
-		border-color: var(--border-focus);
-		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
-	}
-
-	.format-backdrop,
-	.format-input {
-		padding: 0.5rem 0.75rem;
-		font-family: var(--font-mono);
 		font-size: 0.8125rem;
 		line-height: 1.6;
 		white-space: pre-wrap;
-		word-wrap: break-word;
 		word-break: break-all;
-		letter-spacing: normal;
-		-webkit-text-size-adjust: none;
+		margin-top: 0.375rem;
 	}
 
-	.format-backdrop {
-		min-height: 80px;
-		pointer-events: none;
-		color: transparent;
-	}
-
-	.format-input {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		background: transparent;
-		border: none;
-		color: transparent;
-		caret-color: var(--text-primary);
-		resize: none;
-		overflow: auto;
-	}
-
-	.format-input:focus {
-		outline: none;
-	}
-
-	/* Syntax highlighting */
 	.hl-maker {
 		color: var(--accent);
 		font-weight: 600;
 		background: var(--accent-light);
 		border-radius: 2px;
-		padding: 0 1px;
+		padding: 0 2px;
 	}
 
 	.hl-static {
 		color: var(--text-secondary);
-	}
-
-	.hl-placeholder {
-		color: var(--text-muted);
 	}
 
 	.maker-helper { margin-bottom: 1rem; }
