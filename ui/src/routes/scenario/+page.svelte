@@ -1007,7 +1007,7 @@
 
 	/* Section block (shared vars, steps) */
 	.sc-section-block {
-		padding: 0.5rem 0.75rem;
+		padding: 0.5rem 0;
 		border-bottom: 1px solid var(--border);
 	}
 
@@ -1145,6 +1145,7 @@
 	.sc-metrics {
 		display: flex;
 		gap: 1rem;
+		padding: 0.5rem 0;
 	}
 
 	.sc-metric {
