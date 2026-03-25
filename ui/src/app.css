@@ -3,7 +3,7 @@
 /* ============================================================
    DESIGN TOKENS — DARK MODE
    Inspired by: CrowdStrike Falcon, Splunk, Elastic Security
-   Near-black base + high-contrast text + CrowdStrike Red accent
+   Near-black base + high-contrast text + Sumo Logic Blue accent
    ============================================================ */
 :root {
 	--bg-base: #111113;
@@ -11,15 +11,15 @@
 	--bg-raised: #242428;
 	--bg-overlay: rgba(0, 0, 0, 0.6);
 	--border: #333338;
-	--border-focus: #E0273B;
+	--border-focus: #0054B4;
 
 	--text-primary: #EDEDEF;
 	--text-secondary: #9494A0;
 	--text-muted: #6C6C78;
 
-	--accent: #E0273B;
-	--accent-hover: #C42033;
-	--accent-light: rgba(224, 39, 59, 0.12);
+	--accent: #0054B4;
+	--accent-hover: #003D8A;
+	--accent-light: rgba(0, 84, 180, 0.15);
 
 	--danger: #EF4444;
 	--danger-hover: #DC2626;
@@ -55,15 +55,15 @@
 	--bg-raised: #E8E8EA;
 	--bg-overlay: rgba(0, 0, 0, 0.35);
 	--border: #D1D1D6;
-	--border-focus: #C42033;
+	--border-focus: #003D8A;
 
 	--text-primary: #111113;
 	--text-secondary: #52525B;
 	--text-muted: #A1A1AA;
 
-	--accent: #C42033;
-	--accent-hover: #A81B2C;
-	--accent-light: rgba(196, 32, 51, 0.08);
+	--accent: #003D8A;
+	--accent-hover: #002E6B;
+	--accent-light: rgba(0, 61, 138, 0.1);
 
 	--danger: #DC2626;
 	--danger-hover: #B91C1C;
