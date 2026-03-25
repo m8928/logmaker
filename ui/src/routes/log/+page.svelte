@@ -975,6 +975,8 @@
 		transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 		display: flex;
 		flex-direction: column;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.pipeline-card:hover {
@@ -1137,6 +1139,8 @@
 	.pipeline-body {
 		padding: 0.625rem 0.875rem;
 		border-bottom: 1px solid var(--border);
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.body-label {
