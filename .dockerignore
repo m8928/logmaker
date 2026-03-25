@@ -1,0 +1,14 @@
+.git
+.github
+.claude
+.omc
+.mvn/wrapper/maven-wrapper.jar
+ui/node_modules
+ui/.svelte-kit
+core/target
+plugin-api/target
+default-plugin/target
+*.md
+*.png
+t1.png
+t2.png
