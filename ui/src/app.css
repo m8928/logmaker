@@ -11,15 +11,15 @@
 	--bg-raised: #242428;
 	--bg-overlay: rgba(0, 0, 0, 0.6);
 	--border: #333338;
-	--border-focus: #0054B4;
+	--border-focus: #4A90E2;
 
 	--text-primary: #EDEDEF;
 	--text-secondary: #9494A0;
 	--text-muted: #6C6C78;
 
-	--accent: #0054B4;
-	--accent-hover: #003D8A;
-	--accent-light: rgba(0, 84, 180, 0.15);
+	--accent: #4A90E2;
+	--accent-hover: #3A7BD5;
+	--accent-light: rgba(74, 144, 226, 0.15);
 
 	--danger: #EF4444;
 	--danger-hover: #DC2626;
