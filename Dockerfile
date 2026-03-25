@@ -51,7 +51,7 @@ WORKDIR /app
 
 # Copy built artifacts
 COPY --from=builder /app/core/target/logmaker-core-*-exec.jar app.jar
-COPY --from=builder /app/default-plugin/target/default-plugin-*-jar-with-dependencies.jar plugins/
+COPY --from=builder /app/default-plugin/target/default-plugin-*.jar plugins/
 
 # Create data directory
 RUN mkdir -p /app/data /app/plugins
