@@ -561,7 +561,7 @@
 					<!-- Log output: sample with hoverable maker-generated parts -->
 					<div class="pipeline-body">
 						<div class="body-label">Output</div>
-						<div class="output-line mono" class:collapsed={overflowingOutputs.has(item.name) && !expandedOutputs.has(item.name)} data-output-name={item.name}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
+						<div class="output-line mono" class:expanded={expandedOutputs.has(item.name)} data-output-name={item.name}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
 						{#if overflowingOutputs.has(item.name) || expandedOutputs.has(item.name)}
 							<button
 								class="output-toggle"
@@ -1156,19 +1156,17 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		padding: 0.5rem 0.625rem;
-		white-space: pre-wrap;
-		word-break: break-all;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		font-family: var(--font-mono);
-		transition: max-height 0.2s ease;
 	}
 
-	.output-line.collapsed {
-		display: -webkit-box;
-		-webkit-line-clamp: 1;
-		line-clamp: 1;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-		white-space: normal;
+	.output-line.expanded {
+		white-space: pre-wrap;
+		word-break: break-all;
+		overflow: visible;
+		text-overflow: unset;
 	}
 
 	.output-toggle {
