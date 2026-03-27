@@ -29,6 +29,7 @@
 	let formName = $state('');
 	let formType = $state('');
 	let formArgs = $state<Record<string, string | number | boolean | string[]>>({});
+	let formLimit = $state(0);
 	let errors = $state<Record<string, string>>({});
 
 	function validate(): boolean {
@@ -74,6 +75,7 @@
 		formName = '';
 		formType = '';
 		formArgs = {};
+		formLimit = 0;
 		dialogOpen = true;
 		fetchTypes();
 	}
@@ -83,6 +85,7 @@
 		formName = item.name;
 		formType = item.type;
 		formArgs = { ...item.args };
+		formLimit = item.limit ?? 0;
 		dialogOpen = true;
 		fetchTypes();
 	}
@@ -113,7 +116,7 @@
 		if (!validate()) return;
 		loading = true;
 		try {
-			const payload = { name: formName, type: formType, args: formArgs };
+			const payload = { name: formName, type: formType, args: formArgs, limit: formLimit };
 			if (editMode) await api.updateSender(formName, payload);
 			else await api.createSender(payload);
 			closeDialog();
@@ -345,7 +348,7 @@
 							<div class="output-row">
 								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
 								<span class="output-label">Output</span>
-								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()} events · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
+								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()}{(item.limit ?? 0) > 0 ? `/${(item.limit ?? 0).toLocaleString()}` : ''} events · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
 							</div>
 						{/if}
 
@@ -502,6 +505,10 @@
 						<label class="field-label" for="sender-name">NAME <span class="required">*</span></label>
 						{#if errors.name}<span class="field-error">{errors.name}</span>{/if}
 						<input id="sender-name" class="input" class:input-error={errors.name} type="text" bind:value={formName} disabled={editMode} placeholder="my-sender" />
+					</div>
+					<div class="field" style="width:120px;flex-shrink:0">
+						<label class="field-label" for="sender-limit">LIMIT</label>
+						<input id="sender-limit" class="input" type="number" min="0" bind:value={formLimit} placeholder="0 = unlimited" />
 					</div>
 					<div class="field" style="flex:1">
 						<span class="field-label" id="sender-type-label">TYPE <span class="required">*</span></span>

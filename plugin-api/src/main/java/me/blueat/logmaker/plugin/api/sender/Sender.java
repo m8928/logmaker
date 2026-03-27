@@ -15,6 +15,7 @@ public abstract class Sender<T> {
     private AtomicInteger ref = new AtomicInteger(0);
     private AtomicLong count = new AtomicLong(0);
     private AtomicLong bytes = new AtomicLong(0);
+    private long limit = 0; // 0 = unlimited
     private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 
     abstract public String getSenderName();
@@ -50,6 +51,10 @@ public abstract class Sender<T> {
         return elapsed > 0 ? bytes.get() / elapsed : 0;
     }
     public void decreaseCount() { count.decrementAndGet(); }
+
+    public long getLimit() { return limit; }
+    public void setLimit(long limit) { this.limit = limit; }
+    public boolean isLimitReached() { return limit > 0 && count.get() >= limit; }
 
     abstract public void update(Map<String, Object> args);
     public long getRegTime() {

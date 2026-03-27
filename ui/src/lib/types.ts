@@ -15,6 +15,7 @@ export interface Sender {
 	count?: number;
 	bytes?: number;
 	bytesPerSec?: number;
+	limit?: number;
 	args: Record<string, string | number | boolean | string[]>;
 }
 

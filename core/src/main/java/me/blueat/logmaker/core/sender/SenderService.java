@@ -78,6 +78,7 @@ public class SenderService {
                         .count(v.getValue().getCount())
                         .bytes(v.getValue().getBytes())
                         .bytesPerSec(v.getValue().getBytesPerSec())
+                        .limit(v.getValue().getLimit())
                         .regTime(v.getValue().getRegTime())
                         .build())
                 .sorted(Comparator.comparing(SenderDto::getRegTime).reversed()).collect(Collectors.toList());
@@ -121,6 +122,9 @@ public class SenderService {
                 Sender sender = senderPlugin.get().getValue().getSender(senderDto.getName(), senderDto.getArgs());
 
                 if (sender != null) {
+                    if (senderDto.getLimit() != null && senderDto.getLimit() > 0) {
+                        sender.setLimit(senderDto.getLimit());
+                    }
                     if (addSender(senderDto, senderPlugin.get().getKey(), sender)) {
                         result = Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
 

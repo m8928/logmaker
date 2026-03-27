@@ -152,9 +152,11 @@ public class LogThread implements Runnable {
 
                         final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                         senders.values().forEach(sender -> {
-                            sender.sendData(data);
-                            sender.increaseCount();
-                            sender.addBytes(dataBytes);
+                            if (!sender.isLimitReached()) {
+                                sender.sendData(data);
+                                sender.increaseCount();
+                                sender.addBytes(dataBytes);
+                            }
                         });
                         bytes.addAndGet(dataBytes);
                         createCount.incrementAndGet();
