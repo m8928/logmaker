@@ -45,6 +45,10 @@ public abstract class Sender<T> {
     public long getBytes() {
         return bytes.get();
     }
+    public long getBytesPerSec() {
+        long elapsed = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond() - regTime;
+        return elapsed > 0 ? bytes.get() / elapsed : 0;
+    }
     public void decreaseCount() { count.decrementAndGet(); }
 
     abstract public void update(Map<String, Object> args);

@@ -77,6 +77,7 @@ public class SenderService {
                         .ref(v.getValue().getRef())
                         .count(v.getValue().getCount())
                         .bytes(v.getValue().getBytes())
+                        .bytesPerSec(v.getValue().getBytesPerSec())
                         .regTime(v.getValue().getRegTime())
                         .build())
                 .sorted(Comparator.comparing(SenderDto::getRegTime).reversed()).collect(Collectors.toList());

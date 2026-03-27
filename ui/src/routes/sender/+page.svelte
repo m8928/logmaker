@@ -345,7 +345,7 @@
 							<div class="output-row">
 								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
 								<span class="output-label">Output</span>
-								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()} events · {formatBytes(item.bytes ?? 0)}</span>
+								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()} events · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
 							</div>
 						{/if}
 
@@ -424,7 +424,7 @@
 							</td>
 							<td class="right">
 								{#if (item.output ?? item.count ?? 0) > 0}
-									<span class="tbl-output mono">{((item.output ?? item.count) ?? 0).toLocaleString()} · {formatBytes(item.bytes ?? 0)}</span>
+									<span class="tbl-output mono">{((item.output ?? item.count) ?? 0).toLocaleString()} · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
 								{:else}
 									<span class="tbl-empty">—</span>
 								{/if}

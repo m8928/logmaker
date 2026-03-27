@@ -38,6 +38,9 @@ public class SenderDto {
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     Long bytes;
 
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    Long bytesPerSec;
+
     @Builder.Default
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
