@@ -8,6 +8,13 @@
 
 	let items = $state<Sender[]>([]);
 	let types = $state<PluginType[]>([]);
+
+	function formatBytes(b: number): string {
+		if (b < 1024) return `${b} B`;
+		if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+		if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+		return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+	}
 	let loading = $state(false);
 	let search = $state('');
 	let viewMode = $state<'grid' | 'table'>('grid');
@@ -338,7 +345,7 @@
 							<div class="output-row">
 								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
 								<span class="output-label">Output</span>
-								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()} events</span>
+								<span class="output-val">{((item.output ?? item.count) ?? 0).toLocaleString()} events · {formatBytes(item.bytes ?? 0)}</span>
 							</div>
 						{/if}
 
@@ -417,7 +424,7 @@
 							</td>
 							<td class="right">
 								{#if (item.output ?? item.count ?? 0) > 0}
-									<span class="tbl-output mono">{((item.output ?? item.count) ?? 0).toLocaleString()}</span>
+									<span class="tbl-output mono">{((item.output ?? item.count) ?? 0).toLocaleString()} · {formatBytes(item.bytes ?? 0)}</span>
 								{:else}
 									<span class="tbl-empty">—</span>
 								{/if}

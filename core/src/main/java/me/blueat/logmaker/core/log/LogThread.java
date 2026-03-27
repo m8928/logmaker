@@ -149,9 +149,11 @@ public class LogThread implements Runnable {
                     while (createCount.get() < logDto.getEps()) {
                         String data = generate(vTemplate, getTemplateData());
 
+                        final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                         senders.values().forEach(sender -> {
                             sender.sendData(data);
                             sender.increaseCount();
+                            sender.addBytes(dataBytes);
                         });
                         createCount.incrementAndGet();
                         count.incrementAndGet();

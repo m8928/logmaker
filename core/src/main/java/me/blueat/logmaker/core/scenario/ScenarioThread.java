@@ -114,9 +114,11 @@ public class ScenarioThread implements Runnable {
                         Map<String, Object> templateData = buildTemplateData(logThread, resolvedVars);
                         String data = generate(vTemplate, templateData);
 
+                        final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                         senders.values().forEach(sender -> {
                             sender.sendData(data);
                             sender.increaseCount();
+                            sender.addBytes(dataBytes);
                         });
                         count.incrementAndGet();
                         if (stepIdx < stepCounts.length) stepCounts[stepIdx]++;

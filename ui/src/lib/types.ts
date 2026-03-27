@@ -13,6 +13,7 @@ export interface Sender {
 	ref: number;
 	output?: number;
 	count?: number;
+	bytes?: number;
 	args: Record<string, string | number | boolean | string[]>;
 }
 

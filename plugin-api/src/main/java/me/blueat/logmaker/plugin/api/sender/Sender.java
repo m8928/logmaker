@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class Sender<T> {
     private AtomicInteger ref = new AtomicInteger(0);
     private AtomicLong count = new AtomicLong(0);
+    private AtomicLong bytes = new AtomicLong(0);
     private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 
     abstract public String getSenderName();
@@ -37,6 +38,12 @@ public abstract class Sender<T> {
     }
     public void increaseCount() {
         count.incrementAndGet();
+    }
+    public void addBytes(long size) {
+        bytes.addAndGet(size);
+    }
+    public long getBytes() {
+        return bytes.get();
     }
     public void decreaseCount() { count.decrementAndGet(); }
 
