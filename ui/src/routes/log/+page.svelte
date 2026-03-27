@@ -10,6 +10,13 @@
 	let makers = $state<Maker[]>([]);
 	let loading = $state(false);
 	let search = $state('');
+
+	function formatBytes(b: number): string {
+		if (b < 1024) return `${b} B`;
+		if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+		if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+		return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+	}
 	let expandedOutputs = $state(new Set<string>());
 	let overflowingOutputs = $state(new Set<string>());
 
@@ -593,7 +600,7 @@
 						</div>
 						<div class="metric-item metric-count">
 							<span class="metric-label-sm">Count</span>
-							<span class="metric-count-val">{item.count.toLocaleString()}</span>
+							<span class="metric-count-val">{item.count.toLocaleString()} · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
 						</div>
 					</div>
 
@@ -679,7 +686,7 @@
 								</span>
 							</td>
 							<td class="right">
-								<span class="tbl-count mono">{item.count.toLocaleString()}</span>
+								<span class="tbl-count mono">{item.count.toLocaleString()} · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
 							</td>
 							<td>
 								<span class="tbl-senders">

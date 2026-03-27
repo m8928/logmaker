@@ -27,6 +27,10 @@ public class LogDto {
     private long currentEps;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private long count;
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    private long bytes;
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    private long bytesPerSec;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();

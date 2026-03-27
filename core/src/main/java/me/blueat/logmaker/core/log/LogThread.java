@@ -36,6 +36,7 @@ public class LogThread implements Runnable {
     private Instant start = null;
 
     private final AtomicLong count = new AtomicLong(0);
+    private final AtomicLong bytes = new AtomicLong(0);
     private Set<String> makerName;
     private List<String> senderName;
     private VelocityEngine ve;
@@ -155,6 +156,7 @@ public class LogThread implements Runnable {
                             sender.increaseCount();
                             sender.addBytes(dataBytes);
                         });
+                        bytes.addAndGet(dataBytes);
                         createCount.incrementAndGet();
                         count.incrementAndGet();
                     }
@@ -193,6 +195,9 @@ public class LogThread implements Runnable {
     public LogDto getLogDto() {
         this.logDto.setCount(count.get());
         this.logDto.setCurrentEps(getCurrentEps());
+        this.logDto.setBytes(bytes.get());
+        long elapsed = start != null ? java.time.Duration.between(start, Instant.now()).getSeconds() : 0;
+        this.logDto.setBytesPerSec(elapsed > 0 ? bytes.get() / elapsed : 0);
         this.logDto.setSample(getSample(this.vTemplate, this.getTemplateData()));
         return this.logDto;
     }

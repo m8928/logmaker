@@ -25,6 +25,8 @@ export interface Log {
 	eps: number;
 	sender: string[];
 	description?: string;
+	bytes?: number;
+	bytesPerSec?: number;
 	status?: boolean;
 	currentEps: number;
 	count: number;
