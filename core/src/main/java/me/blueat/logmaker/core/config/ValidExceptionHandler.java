@@ -32,9 +32,17 @@ public class ValidExceptionHandler {
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        // Static resource not found (favicon, etc.) — silently redirect to SPA index
-        response.sendRedirect("/index.html");
+    public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws Exception {
+        String uri = request.getRequestURI();
+        // API paths return 404 JSON
+        if (uri.startsWith("/api/")) {
+            response.setStatus(404);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
+            return;
+        }
+        // SPA routes — forward (not redirect) to index.html to preserve URL
+        request.getRequestDispatcher("/index.html").forward(request, response);
     }
 
     @ExceptionHandler(Exception.class)
