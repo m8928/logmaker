@@ -43,7 +43,7 @@ public class LogController {
     }
 
     @PostMapping(value = "/log:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public List<ResponseEntity<Result>> uploadLogFile(@RequestBody MultipartFile file) {
+    public List<ResponseEntity<Result>> uploadLogFile(@RequestPart("file") MultipartFile file) {
         return logService.importLog(file);
     }
 

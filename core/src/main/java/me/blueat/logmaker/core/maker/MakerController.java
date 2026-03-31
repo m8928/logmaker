@@ -42,7 +42,7 @@ public class MakerController {
     }
 
     @PostMapping(value = "/maker:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public List<ResponseEntity<Result>> uploadMakerFile(@RequestBody MultipartFile file) {
+    public List<ResponseEntity<Result>> uploadMakerFile(@RequestPart("file") MultipartFile file) {
         return makerService.importMaker(file);
     }
 

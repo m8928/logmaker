@@ -1,0 +1,553 @@
+#!/usr/bin/env node
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+const BASE_URL = process.env.LOGMAKER_URL ?? "http://localhost:19999";
+const API = `${BASE_URL}/api/v1`;
+
+// ---------------------------------------------------------------------------
+// HTTP helper
+// ---------------------------------------------------------------------------
+async function api<T = unknown>(
+  path: string,
+  opts: { method?: string; body?: unknown } = {}
+): Promise<{ ok: boolean; status: number; data: T }> {
+  const { method = "GET", body } = opts;
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await res.text();
+  let data: T;
+  try {
+    data = JSON.parse(text) as T;
+  } catch {
+    data = text as unknown as T;
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
+function formatResult(r: { ok: boolean; status: number; data: unknown }): {
+  content: { type: "text"; text: string }[];
+  isError?: boolean;
+} {
+  const text =
+    typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2);
+  return {
+    content: [{ type: "text" as const, text }],
+    ...(r.ok ? {} : { isError: true }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// MCP Server
+// ---------------------------------------------------------------------------
+const server = new McpServer({
+  name: "logmaker",
+  version: "1.0.0",
+});
+
+// ── Dashboard ───────────────────────────────────────────────────────────────
+server.tool(
+  "get_dashboard",
+  "Get LogMaker dashboard metrics (maker/sender/log/plugin counts, EPS, CPU, memory, threads, scenarios)",
+  {},
+  async () => formatResult(await api("/dashboard"))
+);
+
+// ── Makers ──────────────────────────────────────────────────────────────────
+server.tool(
+  "list_makers",
+  "List all registered makers",
+  {},
+  async () => formatResult(await api("/maker"))
+);
+
+server.tool(
+  "create_maker",
+  "Create a new maker",
+  {
+    name: z.string().describe("Maker name"),
+    type: z.string().describe("Maker type (e.g. IP, Date, Regex, Pick, UUID, NumberRange, IPRange)"),
+    args: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .default({})
+      .describe("Maker arguments (type-specific)"),
+  },
+  async ({ name, type, args }) =>
+    formatResult(await api("/maker", { method: "POST", body: { name, type, args } }))
+);
+
+server.tool(
+  "update_maker",
+  "Update an existing maker",
+  {
+    name: z.string().describe("Maker name to update"),
+    type: z.string().describe("Maker type"),
+    args: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .default({})
+      .describe("Updated arguments"),
+  },
+  async ({ name, type, args }) =>
+    formatResult(
+      await api(`/maker/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        body: { name, type, args },
+      })
+    )
+);
+
+server.tool(
+  "delete_maker",
+  "Delete a maker by name",
+  { name: z.string().describe("Maker name to delete") },
+  async ({ name }) =>
+    formatResult(await api(`/maker/${encodeURIComponent(name)}`, { method: "DELETE" }))
+);
+
+// ── Senders ─────────────────────────────────────────────────────────────────
+server.tool(
+  "list_senders",
+  "List all registered senders",
+  {},
+  async () => formatResult(await api("/sender"))
+);
+
+server.tool(
+  "create_sender",
+  "Create a new sender",
+  {
+    name: z.string().describe("Sender name"),
+    type: z.string().describe("Sender type (e.g. Syslog, Kafka, Debug)"),
+    args: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .default({})
+      .describe("Sender arguments (type-specific, e.g. ip, port, facility, severity, messageFormat, hosts)"),
+    limit: z
+      .number()
+      .optional()
+      .default(0)
+      .describe("Send limit (0 = unlimited)"),
+  },
+  async ({ name, type, args, limit }) =>
+    formatResult(
+      await api("/sender", { method: "POST", body: { name, type, args, limit } })
+    )
+);
+
+server.tool(
+  "update_sender",
+  "Update an existing sender",
+  {
+    name: z.string().describe("Sender name to update"),
+    type: z.string().describe("Sender type"),
+    args: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .default({})
+      .describe("Updated arguments"),
+    limit: z
+      .number()
+      .optional()
+      .default(0)
+      .describe("Send limit (0 = unlimited)"),
+  },
+  async ({ name, type, args, limit }) =>
+    formatResult(
+      await api(`/sender/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        body: { name, type, args, limit },
+      })
+    )
+);
+
+server.tool(
+  "delete_sender",
+  "Delete a sender by name",
+  { name: z.string().describe("Sender name to delete") },
+  async ({ name }) =>
+    formatResult(await api(`/sender/${encodeURIComponent(name)}`, { method: "DELETE" }))
+);
+
+// ── Logs ────────────────────────────────────────────────────────────────────
+server.tool(
+  "list_logs",
+  "List all log definitions",
+  {},
+  async () => formatResult(await api("/log"))
+);
+
+server.tool(
+  "create_log",
+  "Create a new log definition and start generating",
+  {
+    name: z.string().describe("Log name"),
+    format: z
+      .string()
+      .describe("Log format string (use <maker_name> to reference makers, e.g. <ip_maker>)"),
+    eps: z.number().describe("Events per second"),
+    sender: z
+      .array(z.string())
+      .describe("List of sender names to deliver logs to"),
+  },
+  async ({ name, format, eps, sender }) =>
+    formatResult(
+      await api("/log", { method: "POST", body: { name, format, eps, sender } })
+    )
+);
+
+server.tool(
+  "update_log",
+  "Update an existing log definition",
+  {
+    name: z.string().describe("Log name to update"),
+    format: z.string().describe("Updated log format string"),
+    eps: z.number().describe("Updated events per second"),
+    sender: z
+      .array(z.string())
+      .describe("Updated list of sender names"),
+  },
+  async ({ name, format, eps, sender }) =>
+    formatResult(
+      await api(`/log/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        body: { name, format, eps, sender },
+      })
+    )
+);
+
+server.tool(
+  "delete_log",
+  "Delete a log definition and stop generation",
+  { name: z.string().describe("Log name to delete") },
+  async ({ name }) =>
+    formatResult(await api(`/log/${encodeURIComponent(name)}`, { method: "DELETE" }))
+);
+
+server.tool(
+  "preview_log",
+  "Preview log output without creating it",
+  {
+    format: z
+      .string()
+      .describe("Log format string to preview"),
+    name: z.string().optional().default("preview").describe("Temporary name"),
+    eps: z.number().optional().default(1),
+    sender: z.array(z.string()).optional().default([]),
+  },
+  async ({ format, name, eps, sender }) =>
+    formatResult(
+      await api("/log:preview", {
+        method: "POST",
+        body: { name, format, eps, sender },
+      })
+    )
+);
+
+// ── Plugins ─────────────────────────────────────────────────────────────────
+server.tool(
+  "list_plugins",
+  "List all installed plugins",
+  {},
+  async () => formatResult(await api("/plugin"))
+);
+
+server.tool(
+  "list_plugin_makers",
+  "List all available maker types from plugins (shows type names and argument schemas)",
+  {},
+  async () => formatResult(await api("/plugin/maker"))
+);
+
+server.tool(
+  "list_plugin_senders",
+  "List all available sender types from plugins (shows type names and argument schemas)",
+  {},
+  async () => formatResult(await api("/plugin/sender"))
+);
+
+// ── Scenarios ───────────────────────────────────────────────────────────────
+server.tool(
+  "list_scenarios",
+  "List all scenarios",
+  {},
+  async () => formatResult(await api("/scenario"))
+);
+
+const scenarioStepSchema = z.object({
+  logName: z.string().describe("Log name to execute in this step"),
+  repeat: z.number().optional().default(1).describe("Repeat count for this step"),
+  delayMinMs: z.number().optional().default(0).describe("Minimum delay before step (ms)"),
+  delayMaxMs: z.number().optional().default(0).describe("Maximum delay before step (ms)"),
+  overrides: z
+    .record(z.string(), z.string())
+    .optional()
+    .default({})
+    .describe("Variable overrides for this step"),
+});
+
+server.tool(
+  "create_scenario",
+  "Create a new scenario for correlated multi-step log generation",
+  {
+    name: z.string().describe("Scenario name"),
+    description: z.string().optional().describe("Scenario description"),
+    sharedVariables: z
+      .record(z.string(), z.string())
+      .optional()
+      .default({})
+      .describe("Shared variables across all steps (e.g. {\"src_ip\": \"$ip_maker\"})"),
+    steps: z.array(scenarioStepSchema).describe("Ordered list of scenario steps"),
+    senders: z.array(z.string()).describe("List of sender names"),
+    intervalMinMs: z
+      .number()
+      .optional()
+      .default(1000)
+      .describe("Minimum interval between loops (ms)"),
+    intervalMaxMs: z
+      .number()
+      .optional()
+      .default(5000)
+      .describe("Maximum interval between loops (ms)"),
+    loopCount: z
+      .number()
+      .optional()
+      .default(0)
+      .describe("Number of loops (0 = infinite)"),
+  },
+  async (args) =>
+    formatResult(await api("/scenario", { method: "POST", body: args }))
+);
+
+server.tool(
+  "update_scenario",
+  "Update an existing scenario",
+  {
+    name: z.string().describe("Scenario name to update"),
+    description: z.string().optional(),
+    sharedVariables: z.record(z.string(), z.string()).optional().default({}),
+    steps: z.array(scenarioStepSchema),
+    senders: z.array(z.string()),
+    intervalMinMs: z.number().optional().default(1000),
+    intervalMaxMs: z.number().optional().default(5000),
+    loopCount: z.number().optional().default(0),
+  },
+  async ({ name, ...rest }) =>
+    formatResult(
+      await api(`/scenario/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        body: { name, ...rest },
+      })
+    )
+);
+
+server.tool(
+  "delete_scenario",
+  "Delete a scenario",
+  { name: z.string().describe("Scenario name to delete") },
+  async ({ name }) =>
+    formatResult(
+      await api(`/scenario/${encodeURIComponent(name)}`, { method: "DELETE" })
+    )
+);
+
+server.tool(
+  "start_scenario",
+  "Start executing a scenario",
+  { name: z.string().describe("Scenario name to start") },
+  async ({ name }) =>
+    formatResult(
+      await api(`/scenario/${encodeURIComponent(name)}:start`, { method: "POST" })
+    )
+);
+
+server.tool(
+  "stop_scenario",
+  "Stop a running scenario",
+  { name: z.string().describe("Scenario name to stop") },
+  async ({ name }) =>
+    formatResult(
+      await api(`/scenario/${encodeURIComponent(name)}:stop`, { method: "POST" })
+    )
+);
+
+// ---------------------------------------------------------------------------
+// Resources — expose live data as readable resources
+// ---------------------------------------------------------------------------
+server.resource(
+  "dashboard",
+  "logmaker://dashboard",
+  { description: "Live dashboard metrics", mimeType: "application/json" },
+  async () => {
+    const r = await api("/dashboard");
+    return {
+      contents: [
+        {
+          uri: "logmaker://dashboard",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
+  "logs",
+  "logmaker://logs",
+  { description: "All log definitions and their status", mimeType: "application/json" },
+  async () => {
+    const r = await api("/log");
+    return {
+      contents: [
+        {
+          uri: "logmaker://logs",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
+  "makers",
+  "logmaker://makers",
+  { description: "All registered makers", mimeType: "application/json" },
+  async () => {
+    const r = await api("/maker");
+    return {
+      contents: [
+        {
+          uri: "logmaker://makers",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
+  "senders",
+  "logmaker://senders",
+  { description: "All registered senders", mimeType: "application/json" },
+  async () => {
+    const r = await api("/sender");
+    return {
+      contents: [
+        {
+          uri: "logmaker://senders",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
+  "scenarios",
+  "logmaker://scenarios",
+  { description: "All scenarios and their execution status", mimeType: "application/json" },
+  async () => {
+    const r = await api("/scenario");
+    return {
+      contents: [
+        {
+          uri: "logmaker://scenarios",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Prompts — common workflows
+// ---------------------------------------------------------------------------
+server.prompt(
+  "setup_syslog_pipeline",
+  "Guide: Set up a complete syslog pipeline (maker → sender → log)",
+  {
+    target_ip: z.string().default("127.0.0.1").describe("Syslog target IP"),
+    target_port: z.string().default("514").describe("Syslog target port"),
+    eps: z.string().default("10").describe("Events per second"),
+  },
+  ({ target_ip, target_port, eps }) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: `Set up a complete syslog log generation pipeline on LogMaker:
+
+1. First, check available maker and sender types with list_plugin_makers and list_plugin_senders
+2. Create an IP maker for source IPs
+3. Create a Syslog sender targeting ${target_ip}:${target_port}
+4. Create a log definition with a realistic syslog format at ${eps} EPS, referencing the maker and sender
+5. Verify everything is running with get_dashboard
+
+Use the LogMaker MCP tools to execute each step.`,
+        },
+      },
+    ],
+  })
+);
+
+server.prompt(
+  "setup_scenario",
+  "Guide: Create a correlated multi-step scenario",
+  {
+    description: z.string().default("Login flow").describe("What the scenario simulates"),
+  },
+  ({ description }) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: `Create a correlated log generation scenario on LogMaker for: "${description}"
+
+1. Check existing logs with list_logs and available types with list_plugin_makers / list_plugin_senders
+2. Create necessary makers for IP addresses, usernames, etc.
+3. Create appropriate senders
+4. Create log definitions for each step in the scenario
+5. Create the scenario with shared variables, steps, and appropriate delays
+6. Start the scenario
+
+Use the LogMaker MCP tools to execute each step.`,
+        },
+      },
+    ],
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error(`LogMaker MCP server running (API: ${API})`);
+}
+
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
+});
