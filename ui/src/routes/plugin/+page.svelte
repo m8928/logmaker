@@ -245,14 +245,13 @@
 
 <!-- Upload Dialog -->
 {#if uploadOpen}
-	<div class="overlay" role="presentation" onclick={() => (uploadOpen = false)}>
+	<div class="overlay" role="presentation">
 		<div
 			class="dialog"
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
 			aria-label="Add Plugin"
-			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.key === 'Escape' && (uploadOpen = false)}
 		>
 			<div class="dialog-header">

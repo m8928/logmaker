@@ -24,6 +24,7 @@ export interface Log {
 	format: string;
 	sample?: string;
 	eps: number;
+	epsUnit?: 'events' | 'bytes';
 	sender: string[];
 	description?: string;
 	bytes?: number;
@@ -65,6 +66,8 @@ export interface DashboardData {
 	plugin: number;
 	eps: number;
 	actualEps: number;
+	bps: number;
+	actualBps: number;
 	cpu: number;
 	memory: number;
 	thread?: number;

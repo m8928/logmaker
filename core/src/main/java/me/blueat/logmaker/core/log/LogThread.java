@@ -37,6 +37,8 @@ public class LogThread implements Runnable {
 
     private final AtomicLong count = new AtomicLong(0);
     private final AtomicLong bytes = new AtomicLong(0);
+    private volatile long lastSecondEvents = 0;
+    private volatile long lastSecondBytes = 0;
     private Set<String> makerName;
     private List<String> senderName;
     private VelocityEngine ve;
@@ -144,10 +146,13 @@ public class LogThread implements Runnable {
             createCount.set(0);
             Instant currentStart = Instant.now();
 
-            if (!senderName.isEmpty()) {
+            if (!senders.isEmpty()) {
                 updateLock.lock();
                 try {
-                    while (createCount.get() < logDto.getEps()) {
+                    boolean isBytesMode = "bytes".equals(logDto.getEpsUnit());
+                    long secBytes = 0;
+                    long secEvents = 0;
+                    while (isBytesMode ? secBytes < logDto.getEps() : createCount.get() < logDto.getEps()) {
                         String data = generate(vTemplate, getTemplateData());
 
                         final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
@@ -159,12 +164,19 @@ public class LogThread implements Runnable {
                             }
                         });
                         bytes.addAndGet(dataBytes);
+                        secBytes += dataBytes;
+                        secEvents++;
                         createCount.incrementAndGet();
                         count.incrementAndGet();
                     }
+                    lastSecondEvents = secEvents;
+                    lastSecondBytes = secBytes;
                 } finally {
                     updateLock.unlock();
                 }
+            } else {
+                lastSecondEvents = 0;
+                lastSecondBytes = 0;
             }
 
             try {
@@ -196,10 +208,9 @@ public class LogThread implements Runnable {
 
     public LogDto getLogDto() {
         this.logDto.setCount(count.get());
-        this.logDto.setCurrentEps(getCurrentEps());
+        this.logDto.setCurrentEps(lastSecondEvents);
         this.logDto.setBytes(bytes.get());
-        long elapsed = start != null ? java.time.Duration.between(start, Instant.now()).getSeconds() : 0;
-        this.logDto.setBytesPerSec(elapsed > 0 ? bytes.get() / elapsed : 0);
+        this.logDto.setBytesPerSec(lastSecondBytes);
         this.logDto.setSample(getSample(this.vTemplate, this.getTemplateData()));
         return this.logDto;
     }

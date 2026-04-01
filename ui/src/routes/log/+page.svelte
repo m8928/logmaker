@@ -40,10 +40,24 @@
 	function onResize() {
 		checkOutputOverflow();
 	}
+
+	// Sync hoveredMaker highlight in format editor
+	$effect(() => {
+		if (!formatTextarea) return;
+		const spans = formatTextarea.querySelectorAll<HTMLElement>('[data-maker]');
+		spans.forEach(el => {
+			if (hoveredMaker && el.dataset.maker === hoveredMaker) {
+				el.classList.add('hl-active');
+			} else {
+				el.classList.remove('hl-active');
+			}
+		});
+	});
 	let viewMode = $state<'grid' | 'table'>('grid');
 
 	let dialogOpen = $state(false);
 	let editMode = $state(false);
+	let maximized = $state(false);
 	let importOpen = $state(false);
 	let confirmOpen = $state(false);
 	let confirmName = $state('');
@@ -53,9 +67,30 @@
 	let formName = $state('');
 	let formFormat = $state('');
 	let formEps = $state(0);
+	let formEpsUnit = $state<'events' | 'bytes'>('events');
 	let formSenders = $state<string[]>([]);
 	let previewText = $state('');
 	let previewLoading = $state(false);
+	let hoveredMaker = $state<string | null>(null);
+
+	// Floating tooltip (no wrapper element needed)
+	let ftip = $state({ show: false, x: 0, y: 0, title: '', text: '' });
+
+	function showMakerTip(e: MouseEvent, makerName: string) {
+		const mk = makers.find(m => m.name === makerName);
+		const rect = (e.target as HTMLElement).getBoundingClientRect();
+		ftip = {
+			show: true,
+			x: rect.left + rect.width / 2,
+			y: rect.top - 4,
+			title: makerName,
+			text: 'TYPE: ' + (mk?.type ?? '?') + '\nSAMPLE: ' + (mk?.sample ?? '?')
+		};
+	}
+
+	function hideMakerTip() {
+		ftip.show = false;
+	}
 
 	let formatTextarea = $state<HTMLDivElement | null>(null);
 
@@ -68,7 +103,7 @@
 	async function fetchItems() {
 		loading = true;
 		try {
-			items = await api.getLogs();
+			[items] = await Promise.all([api.getLogs(), fetchSupport()]);
 		} catch {
 			/* toast shown */
 		} finally {
@@ -89,6 +124,7 @@
 		formName = '';
 		formFormat = '';
 		formEps = 0;
+		formEpsUnit = 'events';
 		formSenders = [];
 		previewText = '';
 		dialogOpen = true;
@@ -100,6 +136,7 @@
 		formName = item.name;
 		formFormat = item.format;
 		formEps = item.eps;
+		formEpsUnit = item.epsUnit ?? 'events';
 		formSenders = [...item.sender];
 		previewText = '';
 		dialogOpen = true;
@@ -116,6 +153,7 @@
 		formName = 'copy-of-' + item.name;
 		formFormat = item.format;
 		formEps = item.eps;
+		formEpsUnit = item.epsUnit ?? 'events';
 		formSenders = [...item.sender];
 		previewText = '';
 		dialogOpen = true;
@@ -124,6 +162,7 @@
 
 	function closeDialog() {
 		dialogOpen = false;
+		maximized = false;
 		previewText = '';
 	}
 
@@ -175,7 +214,7 @@
 		let html = '';
 		for (const seg of segments) {
 			if (seg.maker) {
-				html += `<span class="hl-maker">${seg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+				html += `<span class="hl-maker" data-maker="${seg.maker}">${seg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
 			} else {
 				html += seg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 			}
@@ -226,13 +265,9 @@
 			addToast('warning', 'Name and Format are required');
 			return;
 		}
-		if (formSenders.length === 0) {
-			addToast('warning', 'At least one sender must be selected');
-			return;
-		}
 		loading = true;
 		try {
-			const payload = { name: formName, format: formFormat, eps: formEps, sender: formSenders };
+			const payload = { name: formName, format: formFormat, eps: formEps, epsUnit: formEpsUnit, sender: formSenders };
 			if (editMode) await api.updateLog(formName, payload);
 			else await api.createLog(payload);
 			closeDialog();
@@ -405,7 +440,8 @@
 
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
-		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
+		const actual = log.epsUnit === 'bytes' ? (log.bytesPerSec ?? 0) : log.currentEps;
+		return Math.min(100, Math.round((actual / log.eps) * 100));
 	}
 
 	// Truncate format string for table display, keep <maker> parts visually intact
@@ -568,7 +604,8 @@
 					<!-- Log output: sample with hoverable maker-generated parts -->
 					<div class="pipeline-body">
 						<div class="body-label">Output</div>
-						<div class="output-line mono" class:expanded={expandedOutputs.has(item.name)} data-output-name={item.name}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<Tooltip title={getMakerTitle(seg.maker)} text={getMakerDetail(seg.maker)} position="top"><span class="out-maker">{seg.text}</span></Tooltip>{:else}<span class="out-static">{seg.text}</span>{/if}{/each}{/if}</div>
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="output-line mono" class:expanded={expandedOutputs.has(item.name)} data-output-name={item.name}>{#if item.sample}{#each mapSampleToFormat(item.format, item.sample) as seg}{#if seg.maker}<span class="out-maker" onmouseenter={(e) => showMakerTip(e, seg.maker ?? '')} onmouseleave={hideMakerTip}>{seg.text}</span>{:else}{seg.text}{/if}{/each}{:else}{#each parseFormatSegments(item.format) as seg}{#if seg.maker}<span class="out-maker" onmouseenter={(e) => showMakerTip(e, seg.maker ?? '')} onmouseleave={hideMakerTip}>{seg.text}</span>{:else}{seg.text}{/if}{/each}{/if}</div>
 						{#if overflowingOutputs.has(item.name) || expandedOutputs.has(item.name)}
 							<button
 								class="output-toggle"
@@ -582,12 +619,8 @@
 					<!-- EPS + Count metrics row -->
 					<div class="pipeline-metrics">
 						<div class="metric-item">
-							<span class="metric-label-sm">EPS</span>
-							<div class="metric-eps">
-								<span class="metric-actual" class:live={running}>{item.currentEps.toLocaleString()}</span>
-								<span class="metric-sep">/</span>
-								<span class="metric-target">{item.eps.toLocaleString()}</span>
-							</div>
+							<span class="metric-label-sm">Target</span>
+							<span class="metric-count-val">{item.epsUnit === 'bytes' ? formatBytes(item.eps) + '/s' : item.eps.toLocaleString() + ' evt/s'}</span>
 						</div>
 						<div class="eps-bar-wrap">
 							<div class="eps-bar">
@@ -598,9 +631,13 @@
 							</div>
 							<span class="eps-pct">{pct}%</span>
 						</div>
+						<div class="metric-item">
+							<span class="metric-label-sm">Current</span>
+							<span class="metric-count-val">{item.currentEps.toLocaleString()} evt/s · {formatBytes(item.bytesPerSec ?? 0)}/s</span>
+						</div>
 						<div class="metric-item metric-count">
-							<span class="metric-label-sm">Count</span>
-							<span class="metric-count-val">{item.count.toLocaleString()} · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
+							<span class="metric-label-sm">Total</span>
+							<span class="metric-count-val">{item.count.toLocaleString()} evt · {formatBytes(item.bytes ?? 0)}</span>
 						</div>
 					</div>
 
@@ -735,20 +772,28 @@
 
 <!-- Add/Edit Dialog -->
 {#if dialogOpen}
-	<div class="overlay" role="presentation" onclick={closeDialog}>
+	<div class="overlay" role="presentation">
 		<div
-			class="dialog wide"
+			class="dialog wide {maximized ? 'maximized' : ''}"
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
-			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
 		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">{editMode ? 'Edit Log' : 'Add Log'}</h2>
-				<button class="close-btn" onclick={closeDialog} aria-label="Close">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-				</button>
+				<div class="dialog-header-actions">
+					<button class="close-btn" onclick={() => (maximized = !maximized)} aria-label={maximized ? 'Restore' : 'Maximize'}>
+						{#if maximized}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+						{:else}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+						{/if}
+					</button>
+					<button class="close-btn" onclick={closeDialog} aria-label="Close">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					</button>
+				</div>
 			</div>
 			<div class="dialog-body">
 				<!-- Section 1: Basic Info -->
@@ -759,8 +804,13 @@
 							<input id="log-name" class="input" type="text" bind:value={formName} disabled={editMode} placeholder="my-log" />
 						</div>
 						<div class="field field-eps">
-							<label class="field-label" for="log-eps">EPS <span class="required">*</span></label>
-							<input id="log-eps" class="input" type="number" bind:value={formEps} min="0" placeholder="1000" />
+							<label class="field-label" for="log-eps">{formEpsUnit === 'bytes' ? 'BPS' : 'EPS'} <span class="required">*</span></label>
+							<div class="eps-input-group">
+								<input id="log-eps" class="input eps-input" type="number" bind:value={formEps} min="0" placeholder={formEpsUnit === 'bytes' ? '1048576' : '1000'} />
+								<button type="button" class="eps-unit-toggle" onclick={() => (formEpsUnit = formEpsUnit === 'events' ? 'bytes' : 'events')}>
+									{formEpsUnit === 'bytes' ? 'B/s' : 'evt/s'}
+								</button>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -775,17 +825,22 @@
 							<span class="palette-empty">No makers available — create one first</span>
 						{:else}
 							{#each makers as maker}
-								<button
-									class="palette-chip"
-									type="button"
-									onclick={() => insertMaker(maker.name)}
-									title="Insert &lt;{maker.name}&gt;"
+								<Tooltip
+									title={maker.name}
+									text={"TYPE: " + maker.type + (maker.sample != null ? "\nSAMPLE: " + maker.sample : "")}
+									position="bottom"
 								>
-									<span class="palette-chip-name">{maker.name}</span>
-									{#if maker.type}
-										<span class="palette-chip-type">{maker.type}</span>
-									{/if}
-								</button>
+									<button
+										class="palette-chip"
+										type="button"
+										onclick={() => insertMaker(maker.name)}
+									>
+										<span class="palette-chip-name">{maker.name}</span>
+										{#if maker.type}
+											<span class="palette-chip-type">{maker.type}</span>
+										{/if}
+									</button>
+								</Tooltip>
 							{/each}
 						{/if}
 					</div>
@@ -796,6 +851,7 @@
 					<div class="section-header">
 						<label class="field-label" for="log-format">FORMAT TEMPLATE <span class="required">*</span></label>
 					</div>
+					<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 					<div
 						id="log-format"
 						class="format-editable mono"
@@ -811,7 +867,18 @@
 							const text = e.clipboardData?.getData('text/plain') ?? '';
 							document.execCommand('insertText', false, text);
 						}}
+						onmouseover={(e) => {
+							const el = (e.target as HTMLElement).closest('[data-maker]');
+							hoveredMaker = el ? (el as HTMLElement).dataset.maker ?? null : null;
+						}}
+						onfocusin={(e) => {
+							const el = (e.target as HTMLElement).closest('[data-maker]');
+							hoveredMaker = el ? (el as HTMLElement).dataset.maker ?? null : null;
+						}}
+						onmouseleave={() => (hoveredMaker = null)}
+						onfocusout={() => (hoveredMaker = null)}
 						role="textbox"
+						tabindex="0"
 						aria-multiline="true"
 						data-placeholder="<maker1> <maker2> some static text"
 					></div>
@@ -827,13 +894,14 @@
 							{/if}
 						</span>
 					</div>
-					<div class="preview-box mono">{#if previewText}{#each mapSampleToFormat(formFormat, previewText) as seg}{#if seg.maker}<span class="hl-maker">{seg.text}</span>{:else}<span class="hl-static">{seg.text}</span>{/if}{/each}{:else}<span class="hl-placeholder">Output will appear here…</span>{/if}</div>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="preview-box mono" onmouseleave={() => { hoveredMaker = null; hideMakerTip(); }}>{#if previewText}{#each mapSampleToFormat(formFormat, previewText) as seg}{#if seg.maker}<span class="hl-maker {hoveredMaker === seg.maker ? 'hl-active' : ''}" data-maker={seg.maker} onmouseenter={(e) => { hoveredMaker = seg.maker ?? null; showMakerTip(e, seg.maker ?? ''); }} onmouseleave={() => { hoveredMaker = null; hideMakerTip(); }}>{seg.text}</span>{:else}{seg.text}{/if}{/each}{:else}<span class="hl-placeholder">Output will appear here…</span>{/if}</div>
 				</div>
 
 				<!-- Section 5: Senders -->
 				<div class="pipeline-section last-section">
 					<div class="section-header">
-						<span class="field-label">SEND TO <span class="required">*</span></span>
+						<span class="field-label">SEND TO</span>
 					</div>
 					<div class="sender-chips">
 						{#if senders.length === 0}
@@ -873,7 +941,7 @@
 
 <!-- Import Dialog -->
 {#if importOpen}
-	<div class="overlay" role="presentation" onclick={() => (importOpen = false)}>
+	<div class="overlay" role="presentation">
 		<div
 			class="dialog narrow"
 			role="dialog"
@@ -910,6 +978,17 @@
 	onconfirm={confirmDelete}
 	oncancel={() => (confirmOpen = false)}
 />
+
+<!-- Floating maker tooltip (no wrapper, same design as Tooltip component) -->
+{#if ftip.show}
+	{@const entries = ftip.text.split('\n').filter(l => l.includes(': ')).map(l => { const i = l.indexOf(': '); return { key: l.slice(0, i), val: l.slice(i + 2) }; })}
+	<div class="ftip" style="position:fixed;z-index:9999;pointer-events:none;bottom:{window.innerHeight - ftip.y}px;left:{ftip.x}px;transform:translateX(-50%);">
+		<table class="ftip-table"><tbody>
+			{#if ftip.title}<tr><td colspan="2" class="ftip-title">{ftip.title}</td></tr>{/if}
+			{#each entries as e}<tr><td class="ftip-key">{e.key}</td><td class="ftip-val">{e.val}</td></tr>{/each}
+		</tbody></table>
+	</div>
+{/if}
 
 <style>
 	.header-left {
@@ -1201,21 +1280,16 @@
 		border-color: var(--accent);
 	}
 
-	.out-static {
-		color: var(--text-secondary);
-	}
 
-	.out-maker {
+	:global(.out-maker) {
 		color: var(--accent);
 		font-weight: 600;
 		border-bottom: 1px dotted color-mix(in srgb, var(--accent) 50%, transparent);
 		cursor: help;
 		transition: background 0.12s;
-		border-radius: 2px;
-		padding: 0 0.1rem;
 	}
 
-	.out-maker:hover {
+	:global(.out-maker:hover) {
 		background: var(--accent-light);
 		border-bottom-color: var(--accent);
 	}
@@ -1485,9 +1559,39 @@
 	}
 
 	.field-eps {
-		width: 120px;
+		width: 160px;
 		flex-shrink: 0;
 		margin-bottom: 0;
+	}
+
+	.eps-input-group {
+		display: flex;
+		gap: 0;
+	}
+
+	.eps-input {
+		border-top-right-radius: 0 !important;
+		border-bottom-right-radius: 0 !important;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.eps-unit-toggle {
+		padding: 0 0.5rem;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-left: none;
+		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+		color: var(--accent);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background 0.12s;
+	}
+
+	.eps-unit-toggle:hover {
+		background: var(--accent-light);
 	}
 
 	.maker-palette {
@@ -1508,7 +1612,7 @@
 		font-style: italic;
 	}
 
-	.palette-chip {
+	:global(.palette-chip) {
 		display: inline-flex;
 		flex-direction: column;
 		align-items: center;
@@ -1522,12 +1626,12 @@
 		line-height: 1.2;
 	}
 
-	.palette-chip:hover {
+	:global(.palette-chip:hover) {
 		background: var(--accent-light);
 		border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 	}
 
-	.palette-chip-name {
+	:global(.palette-chip-name) {
 		font-size: 0.75rem;
 		font-family: var(--font-mono);
 		font-weight: 600;
@@ -1535,11 +1639,11 @@
 		transition: color 0.12s;
 	}
 
-	.palette-chip:hover .palette-chip-name {
+	:global(.palette-chip:hover .palette-chip-name) {
 		color: var(--accent);
 	}
 
-	.palette-chip-type {
+	:global(.palette-chip-type) {
 		font-size: 0.5625rem;
 		font-family: var(--font-ui);
 		color: var(--text-muted);
@@ -1576,20 +1680,70 @@
 	}
 
 	.format-editable :global(.hl-maker),
-	.hl-maker {
+	:global(.hl-maker) {
 		color: var(--accent);
 		font-weight: 600;
 		background: var(--accent-light);
 		border-radius: 2px;
-		padding: 0 2px;
+		transition: background 0.15s, box-shadow 0.15s;
+		cursor: default;
 	}
 
-	.hl-static {
-		color: var(--text-secondary);
+	.format-editable :global(.hl-active),
+	:global(.hl-active) {
+		background: rgba(74, 144, 226, 0.35);
+		box-shadow: 0 0 0 1.5px var(--accent);
+		border-radius: 3px;
 	}
+
 
 	.hl-placeholder {
 		color: var(--text-muted);
+	}
+
+	.ftip-table {
+		background: var(--bg-raised);
+		color: var(--text-primary);
+		border: 1px solid var(--border);
+		border-collapse: collapse;
+		border-radius: var(--radius-sm);
+		min-width: 120px;
+		max-width: 320px;
+		box-shadow: var(--shadow-md);
+		font-size: 11px;
+		line-height: 1.3;
+		overflow: hidden;
+		font-family: var(--font-ui);
+	}
+
+	.ftip-title {
+		padding: 5px 10px 4px;
+		font-weight: 600;
+		font-size: 11px;
+		color: var(--accent);
+		background: color-mix(in srgb, var(--bg-raised) 70%, var(--accent));
+		border-bottom: 1px solid var(--border);
+		white-space: nowrap;
+	}
+
+	.ftip-key {
+		padding: 3px 6px 3px 10px;
+		color: var(--text-muted);
+		white-space: nowrap;
+		text-transform: uppercase;
+		font-weight: 600;
+		font-size: 10px;
+		letter-spacing: 0.05em;
+		vertical-align: baseline;
+	}
+
+	.ftip-val {
+		padding: 3px 10px 3px 4px;
+		color: var(--text-primary);
+		font-family: var(--font-mono);
+		font-size: 11px;
+		word-break: break-all;
+		vertical-align: baseline;
 	}
 
 	.preview-box {

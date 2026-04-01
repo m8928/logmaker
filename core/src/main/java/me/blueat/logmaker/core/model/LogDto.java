@@ -19,6 +19,8 @@ public class LogDto {
     private String format;
     @Schema(example = "10")
     private long eps;
+    @Schema(example = "events", allowableValues = {"events", "bytes"})
+    private String epsUnit = "events";
     private List<String> sender = new ArrayList<>();
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)

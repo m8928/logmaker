@@ -91,6 +91,29 @@
 		}
 	]);
 
+	function formatBytes(b: number): string {
+		if (b < 1024) return `${b} B`;
+		if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+		if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+		return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+	}
+
+	function splitBytes(b: number): { val: string; unit: string } {
+		if (b === 0) return { val: '0', unit: 'bytes/s' };
+		if (b < 1024) return { val: String(b), unit: 'B/s' };
+		if (b < 1024 * 1024) return { val: (b / 1024).toFixed(1), unit: 'KB/s' };
+		if (b < 1024 * 1024 * 1024) return { val: (b / (1024 * 1024)).toFixed(1), unit: 'MB/s' };
+		return { val: (b / (1024 * 1024 * 1024)).toFixed(2), unit: 'GB/s' };
+	}
+
+	/** Format `b` using the same unit scale as `ref` */
+	function splitBytesAs(b: number, ref: number): string {
+		if (ref < 1024) return String(b);
+		if (ref < 1024 * 1024) return (b / 1024).toFixed(1);
+		if (ref < 1024 * 1024 * 1024) return (b / (1024 * 1024)).toFixed(1);
+		return (b / (1024 * 1024 * 1024)).toFixed(2);
+	}
+
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
 		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
@@ -238,10 +261,10 @@
 									<span class="name-text">{log.name}</span>
 								</div>
 								<div class="activity-eps mono">
-									<span class="eps-actual">{log.currentEps.toLocaleString()}</span>
+									<span class="eps-actual">{log.epsUnit === 'bytes' ? splitBytesAs(log.bytesPerSec ?? 0, log.eps) : log.currentEps.toLocaleString()}</span>
 									<span class="eps-sep">/</span>
-									<span class="eps-target">{log.eps.toLocaleString()}</span>
-									<span class="eps-unit">eps</span>
+									<span class="eps-target">{log.epsUnit === 'bytes' ? splitBytes(log.eps).val : log.eps.toLocaleString()}</span>
+									<span class="eps-unit">{log.epsUnit === 'bytes' ? splitBytes(log.eps).unit : 'evt/s'}</span>
 								</div>
 							</div>
 							<div class="activity-format mono">{log.format.length > 64 ? log.format.slice(0, 64) + '…' : log.format}</div>
@@ -277,18 +300,18 @@
 			</div>
 
 			<div class="health-body">
-				<!-- EPS overview -->
+				<!-- Throughput overview -->
 				<div class="health-section">
-					<div class="section-label">Events / Second</div>
+					<div class="section-label">Throughput</div>
 					<div class="eps-overview">
 						<div class="eps-big">
 							<span class="eps-big-val mono">{loading ? '—' : (data?.actualEps ?? 0).toLocaleString()}</span>
-							<span class="eps-big-sub">actual</span>
+							<span class="eps-big-sub">evt/s</span>
 						</div>
-						<span class="eps-divider">/</span>
-						<div class="eps-big eps-big-dim">
-							<span class="eps-big-val mono">{loading ? '—' : (data?.eps ?? 0).toLocaleString()}</span>
-							<span class="eps-big-sub">target</span>
+						<span class="eps-divider">·</span>
+						<div class="eps-big">
+							<span class="eps-big-val mono">{loading ? '—' : splitBytes(data?.actualBps ?? 0).val}</span>
+							<span class="eps-big-sub">{splitBytes(data?.actualBps ?? 0).unit}</span>
 						</div>
 					</div>
 					<div class="h-bar-wrap">

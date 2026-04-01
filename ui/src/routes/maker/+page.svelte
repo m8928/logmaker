@@ -15,6 +15,7 @@
 
 	// Dialog state
 	let dialogOpen = $state(false);
+	let maximized = $state(false);
 	let editMode = $state(false);
 	let importOpen = $state(false);
 	let confirmOpen = $state(false);
@@ -102,6 +103,7 @@
 
 	function closeDialog() {
 		dialogOpen = false;
+		maximized = false;
 		triggerElement?.focus();
 		triggerElement = null;
 	}
@@ -515,21 +517,29 @@
 
 <!-- Add/Edit Dialog -->
 {#if dialogOpen}
-	<div class="overlay" role="presentation" onclick={closeDialog}>
+	<div class="overlay" role="presentation">
 		<div
-			class="dialog"
+			class="dialog {maximized ? 'maximized' : ''}"
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
 			aria-label="{editMode ? 'Edit' : 'Add'} Maker"
-			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
 		>
 			<div class="dialog-header">
 				<h2 class="dialog-title">{editMode ? 'Edit Maker' : 'Add Maker'}</h2>
-				<button class="close-btn" onclick={closeDialog} aria-label="Close">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-				</button>
+				<div class="dialog-header-actions">
+					<button class="close-btn" onclick={() => (maximized = !maximized)} aria-label={maximized ? 'Restore' : 'Maximize'}>
+						{#if maximized}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+						{:else}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+						{/if}
+					</button>
+					<button class="close-btn" onclick={closeDialog} aria-label="Close">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					</button>
+				</div>
 			</div>
 			<div class="dialog-body">
 				<div class="basic-row">
@@ -591,7 +601,7 @@
 
 <!-- Import Dialog -->
 {#if importOpen}
-	<div class="overlay" role="presentation" onclick={() => (importOpen = false)}>
+	<div class="overlay" role="presentation">
 		<div
 			class="dialog narrow"
 			role="dialog"

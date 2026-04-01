@@ -16,7 +16,7 @@
 	let visible = $state(false);
 	let tipX = $state(0);
 	let tipY = $state(0);
-	let triggerEl: HTMLDivElement | undefined = $state();
+	let triggerEl: HTMLSpanElement | undefined = $state();
 
 	function show() {
 		if (!text && !title) return;
@@ -54,7 +54,7 @@
 	}
 </script>
 
-<div
+<span
 	class="tooltip-trigger"
 	role="group"
 	bind:this={triggerEl}
@@ -62,9 +62,7 @@
 	onmouseleave={hide}
 	onfocusin={() => show()}
 	onfocusout={() => hide()}
->
-	{@render children()}
-</div>
+>{@render children()}</span>
 
 {#if visible && (text || title)}
 	{@const entries = parseEntries(text)}
@@ -102,8 +100,7 @@
 
 <style>
 	.tooltip-trigger {
-		position: relative;
-		display: inline-flex;
+		display: inline;
 	}
 
 	.tip-table {

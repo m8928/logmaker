@@ -223,7 +223,7 @@ h1, h2, h3, h4 {
 
 .btn-primary {
 	background: var(--accent);
-	color: #000;
+	color: #fff;
 	border-color: var(--accent);
 	font-weight: 600;
 }
@@ -559,21 +559,25 @@ input[type='number'] {
 	background: var(--bg-surface);
 	border: 1px solid var(--border);
 	border-radius: var(--radius-lg);
-	width: 90%;
-	max-width: 440px;
+	width: 440px;
+	max-width: 95vw;
 	max-height: 90vh;
+	min-width: 320px;
+	min-height: 200px;
 	display: flex;
 	flex-direction: column;
 	box-shadow: var(--shadow-lg);
 	animation: pop-in 0.15s ease-out;
+	resize: both;
+	overflow: hidden;
 }
 
 .dialog.narrow {
-	max-width: 380px;
+	width: 380px;
 }
 
 .dialog.wide {
-	max-width: 780px;
+	width: 780px;
 }
 
 @keyframes pop-in {
@@ -587,6 +591,14 @@ input[type='number'] {
 	}
 }
 
+.dialog.maximized {
+	width: 98vw !important;
+	height: 96vh !important;
+	max-width: 98vw !important;
+	max-height: 96vh !important;
+	resize: none;
+}
+
 .dialog-header {
 	display: flex;
 	align-items: center;
@@ -594,6 +606,12 @@ input[type='number'] {
 	padding: 1rem 1.25rem;
 	border-bottom: 1px solid var(--border);
 	flex-shrink: 0;
+}
+
+.dialog-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
 }
 
 .dialog-title {
