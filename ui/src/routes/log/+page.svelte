@@ -68,6 +68,64 @@
 	let formFormat = $state('');
 	let formEps = $state(0);
 	let formEpsUnit = $state<'events' | 'bytes'>('events');
+	let formEpsTimeUnit = $state<'sec' | 'min' | 'hour' | 'day'>('sec');
+
+	const byteScales = [
+		{ label: 'B', factor: 1 },
+		{ label: 'KB', factor: 1024 },
+		{ label: 'MB', factor: 1024 * 1024 },
+		{ label: 'GB', factor: 1024 * 1024 * 1024 },
+	] as const;
+	let formByteScaleIdx = $state(0);
+
+	const rateOptions = [
+		{ value: 'evt-sec', label: 'evt/s' },
+		{ value: 'evt-min', label: 'evt/m' },
+		{ value: 'evt-hour', label: 'evt/h' },
+		{ value: 'evt-day', label: 'evt/d' },
+		{ value: 'B-sec', label: 'B/s' },
+		{ value: 'B-min', label: 'B/m' },
+		{ value: 'B-hour', label: 'B/h' },
+		{ value: 'B-day', label: 'B/d' },
+		{ value: 'KB-sec', label: 'KB/s' },
+		{ value: 'KB-min', label: 'KB/m' },
+		{ value: 'KB-hour', label: 'KB/h' },
+		{ value: 'KB-day', label: 'KB/d' },
+		{ value: 'MB-sec', label: 'MB/s' },
+		{ value: 'MB-min', label: 'MB/m' },
+		{ value: 'MB-hour', label: 'MB/h' },
+		{ value: 'MB-day', label: 'MB/d' },
+		{ value: 'GB-sec', label: 'GB/s' },
+		{ value: 'GB-min', label: 'GB/m' },
+		{ value: 'GB-hour', label: 'GB/h' },
+		{ value: 'GB-day', label: 'GB/d' },
+	];
+
+	function getRateKey(): string {
+		const unit = formEpsUnit === 'events' ? 'evt' : byteScales[formByteScaleIdx].label;
+		return `${unit}-${formEpsTimeUnit}`;
+	}
+
+	function applyRateKey(key: string) {
+		const [unit, time] = key.split('-');
+		formEpsTimeUnit = (time as 'sec' | 'min' | 'hour' | 'day');
+		if (unit === 'evt') {
+			formEpsUnit = 'events';
+			formByteScaleIdx = 0;
+		} else {
+			formEpsUnit = 'bytes';
+			formByteScaleIdx = byteScales.findIndex(s => s.label === unit);
+		}
+	}
+
+	function detectByteScale(rawBytes: number): { value: number; idx: number } {
+		for (let i = byteScales.length - 1; i > 0; i--) {
+			if (rawBytes >= byteScales[i].factor && rawBytes % byteScales[i].factor === 0) {
+				return { value: rawBytes / byteScales[i].factor, idx: i };
+			}
+		}
+		return { value: rawBytes, idx: 0 };
+	}
 	let formSenders = $state<string[]>([]);
 	let previewText = $state('');
 	let previewLoading = $state(false);
@@ -90,6 +148,17 @@
 
 	function hideMakerTip() {
 		ftip.show = false;
+	}
+
+	let rateDropOpen = $state(false);
+	let rateDropEl = $state<HTMLDivElement | null>(null);
+
+	function handleRateClickOutside(e: MouseEvent) {
+		if (!rateDropOpen) return;
+		if (rateDropEl?.contains(e.target as Node)) return;
+		const trigger = (e.target as HTMLElement).closest('.rate-select-trigger');
+		if (trigger) return;
+		rateDropOpen = false;
 	}
 
 	let formatTextarea = $state<HTMLDivElement | null>(null);
@@ -125,6 +194,8 @@
 		formFormat = '';
 		formEps = 0;
 		formEpsUnit = 'events';
+		formEpsTimeUnit = 'sec';
+		formByteScaleIdx = 0;
 		formSenders = [];
 		previewText = '';
 		dialogOpen = true;
@@ -137,6 +208,14 @@
 		formFormat = item.format;
 		formEps = item.eps;
 		formEpsUnit = item.epsUnit ?? 'events';
+		formEpsTimeUnit = item.epsTimeUnit ?? 'sec';
+		if (formEpsUnit === 'bytes') {
+			const d = detectByteScale(item.eps);
+			formEps = d.value;
+			formByteScaleIdx = d.idx;
+		} else {
+			formByteScaleIdx = 0;
+		}
 		formSenders = [...item.sender];
 		previewText = '';
 		dialogOpen = true;
@@ -154,6 +233,14 @@
 		formFormat = item.format;
 		formEps = item.eps;
 		formEpsUnit = item.epsUnit ?? 'events';
+		formEpsTimeUnit = item.epsTimeUnit ?? 'sec';
+		if (formEpsUnit === 'bytes') {
+			const d = detectByteScale(item.eps);
+			formEps = d.value;
+			formByteScaleIdx = d.idx;
+		} else {
+			formByteScaleIdx = 0;
+		}
 		formSenders = [...item.sender];
 		previewText = '';
 		dialogOpen = true;
@@ -267,7 +354,8 @@
 		}
 		loading = true;
 		try {
-			const payload = { name: formName, format: formFormat, eps: formEps, epsUnit: formEpsUnit, sender: formSenders };
+			const actualEps = formEpsUnit === 'bytes' ? formEps * byteScales[formByteScaleIdx].factor : formEps;
+			const payload = { name: formName, format: formFormat, eps: actualEps, epsUnit: formEpsUnit, epsTimeUnit: formEpsTimeUnit, sender: formSenders };
 			if (editMode) await api.updateLog(formName, payload);
 			else await api.createLog(payload);
 			closeDialog();
@@ -438,10 +526,22 @@
 		return result;
 	}
 
+	function timeUnitLabel(tu?: string): string {
+		return tu === 'min' ? '/m' : tu === 'hour' ? '/h' : tu === 'day' ? '/d' : '/s';
+	}
+
+	function timeDivisor(tu?: string): number {
+		return tu === 'min' ? 60 : tu === 'hour' ? 3600 : tu === 'day' ? 86400 : 1;
+	}
+
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
+		const div = timeDivisor(log.epsTimeUnit);
 		const actual = log.epsUnit === 'bytes' ? (log.bytesPerSec ?? 0) : log.currentEps;
-		return Math.min(100, Math.round((actual / log.eps) * 100));
+		const targetPerSec = log.eps / div;
+		const raw = (actual / targetPerSec) * 100;
+		if (raw > 0 && raw < 1) return Math.max(0.1, parseFloat(raw.toFixed(1)));
+		return Math.min(100, Math.round(raw));
 	}
 
 	// Truncate format string for table display, keep <maker> parts visually intact
@@ -458,7 +558,7 @@
 	});
 </script>
 
-<svelte:window onresize={onResize} />
+<svelte:window onresize={onResize} onclick={handleRateClickOutside} />
 <svelte:head><title>Log — LogMaker</title></svelte:head>
 
 <div class="page">
@@ -620,7 +720,7 @@
 					<div class="pipeline-metrics">
 						<div class="metric-item">
 							<span class="metric-label-sm">Target</span>
-							<span class="metric-count-val">{item.epsUnit === 'bytes' ? formatBytes(item.eps) + '/s' : item.eps.toLocaleString() + ' evt/s'}</span>
+							<span class="metric-count-val">{item.epsUnit === 'bytes' ? formatBytes(item.eps) + timeUnitLabel(item.epsTimeUnit) : item.eps.toLocaleString() + ' evt' + timeUnitLabel(item.epsTimeUnit)}</span>
 						</div>
 						<div class="eps-bar-wrap">
 							<div class="eps-bar">
@@ -804,12 +904,36 @@
 							<input id="log-name" class="input" type="text" bind:value={formName} disabled={editMode} placeholder="my-log" />
 						</div>
 						<div class="field field-eps">
-							<label class="field-label" for="log-eps">{formEpsUnit === 'bytes' ? 'BPS' : 'EPS'} <span class="required">*</span></label>
+							<label class="field-label" for="log-eps">RATE <span class="required">*</span></label>
 							<div class="eps-input-group">
 								<input id="log-eps" class="input eps-input" type="number" bind:value={formEps} min="0" placeholder={formEpsUnit === 'bytes' ? '1048576' : '1000'} />
-								<button type="button" class="eps-unit-toggle" onclick={() => (formEpsUnit = formEpsUnit === 'events' ? 'bytes' : 'events')}>
-									{formEpsUnit === 'bytes' ? 'B/s' : 'evt/s'}
-								</button>
+								<div class="rate-select-wrap">
+									<button type="button" class="rate-select-trigger" onclick={() => (rateDropOpen = !rateDropOpen)}>
+										{rateOptions.find(o => o.value === getRateKey())?.label ?? 'evt/s'}
+										<svg class="rate-chevron" class:rotated={rateDropOpen} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+									</button>
+									{#if rateDropOpen}
+										{@const triggerRect = (() => { const el = rateDropEl?.previousElementSibling ?? rateDropEl?.parentElement?.querySelector('.rate-select-trigger'); return el?.getBoundingClientRect() ?? { bottom: 0, left: 0 }; })()}
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div class="rate-dropdown" bind:this={rateDropEl} style="top:{triggerRect.bottom + 4}px;left:{triggerRect.left}px;" onkeydown={(e) => e.key === 'Escape' && (rateDropOpen = false)}>
+											{#each ['evt', 'B', 'KB', 'MB', 'GB'] as unit}
+												<div class="rate-group-label">{unit}</div>
+												<div class="rate-group-row">
+													{#each ['sec', 'min', 'hour', 'day'] as time}
+														{@const key = `${unit}-${time}`}
+														{@const label = `${unit === 'evt' ? 'evt' : unit}/${time === 'sec' ? 's' : time === 'min' ? 'm' : time === 'hour' ? 'h' : 'd'}`}
+														<button
+															type="button"
+															class="rate-option"
+															class:selected={getRateKey() === key}
+															onclick={() => { applyRateKey(key); rateDropOpen = false; }}
+														>{label}</button>
+													{/each}
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
 							</div>
 						</div>
 					</div>
@@ -1322,36 +1446,6 @@
 		color: var(--text-muted);
 	}
 
-	.metric-eps {
-		display: flex;
-		align-items: baseline;
-		gap: 0.2rem;
-	}
-
-	.metric-actual {
-		font-size: 0.9375rem;
-		font-weight: 700;
-		letter-spacing: -0.03em;
-		color: var(--text-primary);
-		font-family: var(--font-mono);
-	}
-
-	.metric-actual.live {
-		color: var(--accent);
-	}
-
-	.metric-sep {
-		color: var(--text-muted);
-		font-size: 0.75rem;
-	}
-
-	.metric-target {
-		font-size: 0.8125rem;
-		color: var(--text-secondary);
-		font-weight: 500;
-		font-family: var(--font-mono);
-	}
-
 	.eps-bar-wrap {
 		flex: 1;
 		display: flex;
@@ -1559,7 +1653,7 @@
 	}
 
 	.field-eps {
-		width: 160px;
+		width: 260px;
 		flex-shrink: 0;
 		margin-bottom: 0;
 	}
@@ -1567,6 +1661,7 @@
 	.eps-input-group {
 		display: flex;
 		gap: 0;
+		align-items: stretch;
 	}
 
 	.eps-input {
@@ -1576,22 +1671,98 @@
 		min-width: 0;
 	}
 
-	.eps-unit-toggle {
+	.rate-select-wrap {
+		position: relative;
+		flex-shrink: 0;
+		display: flex;
+	}
+
+	.rate-select-trigger {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 		padding: 0 0.5rem;
 		background: var(--bg-raised);
 		border: 1px solid var(--border);
 		border-left: none;
 		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 		color: var(--accent);
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		font-weight: 600;
 		cursor: pointer;
 		white-space: nowrap;
 		transition: background 0.12s;
+		font-family: var(--font-mono);
 	}
 
-	.eps-unit-toggle:hover {
+	.rate-select-trigger:hover {
 		background: var(--accent-light);
+	}
+
+	.rate-chevron {
+		color: var(--text-muted);
+		transition: transform 0.15s;
+	}
+
+	.rate-chevron.rotated {
+		transform: rotate(180deg);
+	}
+
+	.rate-dropdown {
+		position: fixed;
+		z-index: 9999;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: 0.375rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		animation: pop-in 0.1s ease-out;
+	}
+
+	.rate-group-label {
+		font-size: 0.5625rem;
+		font-weight: 700;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		padding: 0.25rem 0.25rem 0.0625rem;
+	}
+
+	.rate-group-row {
+		display: flex;
+		gap: 0.1875rem;
+	}
+
+	.rate-option {
+		flex: 1;
+		padding: 0.25rem 0.375rem;
+		font-size: 0.6875rem;
+		font-family: var(--font-mono);
+		font-weight: 500;
+		color: var(--text-secondary);
+		background: var(--bg-raised);
+		border: 1px solid transparent;
+		border-radius: 4px;
+		cursor: pointer;
+		text-align: center;
+		transition: background 0.1s, color 0.1s, border-color 0.1s;
+		white-space: nowrap;
+	}
+
+	.rate-option:hover {
+		background: var(--accent-light);
+		color: var(--accent);
+		border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	.rate-option.selected {
+		background: var(--accent);
+		color: #fff;
+		border-color: var(--accent);
+		font-weight: 700;
 	}
 
 	.maker-palette {

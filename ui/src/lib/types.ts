@@ -25,6 +25,7 @@ export interface Log {
 	sample?: string;
 	eps: number;
 	epsUnit?: 'events' | 'bytes';
+	epsTimeUnit?: 'sec' | 'min' | 'hour' | 'day';
 	sender: string[];
 	description?: string;
 	bytes?: number;

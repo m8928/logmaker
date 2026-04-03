@@ -98,12 +98,17 @@
 		return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 	}
 
-	function splitBytes(b: number): { val: string; unit: string } {
-		if (b === 0) return { val: '0', unit: 'bytes/s' };
-		if (b < 1024) return { val: String(b), unit: 'B/s' };
-		if (b < 1024 * 1024) return { val: (b / 1024).toFixed(1), unit: 'KB/s' };
-		if (b < 1024 * 1024 * 1024) return { val: (b / (1024 * 1024)).toFixed(1), unit: 'MB/s' };
-		return { val: (b / (1024 * 1024 * 1024)).toFixed(2), unit: 'GB/s' };
+	function timeUnitSuffix(tu?: string): string {
+		return tu === 'min' ? '/m' : tu === 'hour' ? '/h' : tu === 'day' ? '/d' : '/s';
+	}
+
+	function splitBytes(b: number, tu?: string): { val: string; unit: string } {
+		const s = timeUnitSuffix(tu);
+		if (b === 0) return { val: '0', unit: 'bytes' + s };
+		if (b < 1024) return { val: String(b), unit: 'B' + s };
+		if (b < 1024 * 1024) return { val: (b / 1024).toFixed(1), unit: 'KB' + s };
+		if (b < 1024 * 1024 * 1024) return { val: (b / (1024 * 1024)).toFixed(1), unit: 'MB' + s };
+		return { val: (b / (1024 * 1024 * 1024)).toFixed(2), unit: 'GB' + s };
 	}
 
 	/** Format `b` using the same unit scale as `ref` */
@@ -114,9 +119,17 @@
 		return (b / (1024 * 1024 * 1024)).toFixed(2);
 	}
 
+	function timeMul(tu?: string): number {
+		return tu === 'min' ? 60 : tu === 'hour' ? 3600 : tu === 'day' ? 86400 : 1;
+	}
+
 	function epsPct(log: Log): number {
 		if (log.eps <= 0) return 0;
-		return Math.min(100, Math.round((log.currentEps / log.eps) * 100));
+		const m = timeMul(log.epsTimeUnit);
+		const actual = log.epsUnit === 'bytes' ? (log.bytesPerSec ?? 0) * m : log.currentEps * m;
+		const raw = (actual / log.eps) * 100;
+		if (raw > 0 && raw < 1) return Math.max(0.1, parseFloat(raw.toFixed(1)));
+		return Math.min(100, Math.round(raw));
 	}
 
 	const cpuPct = $derived(Math.min(100, data?.cpu ?? 0));
@@ -261,10 +274,10 @@
 									<span class="name-text">{log.name}</span>
 								</div>
 								<div class="activity-eps mono">
-									<span class="eps-actual">{log.epsUnit === 'bytes' ? splitBytesAs(log.bytesPerSec ?? 0, log.eps) : log.currentEps.toLocaleString()}</span>
+									<span class="eps-actual">{log.epsUnit === 'bytes' ? splitBytesAs((log.bytesPerSec ?? 0) * timeMul(log.epsTimeUnit), log.eps) : (log.currentEps * timeMul(log.epsTimeUnit)).toLocaleString()}</span>
 									<span class="eps-sep">/</span>
-									<span class="eps-target">{log.epsUnit === 'bytes' ? splitBytes(log.eps).val : log.eps.toLocaleString()}</span>
-									<span class="eps-unit">{log.epsUnit === 'bytes' ? splitBytes(log.eps).unit : 'evt/s'}</span>
+									<span class="eps-target">{log.epsUnit === 'bytes' ? splitBytes(log.eps, log.epsTimeUnit).val : log.eps.toLocaleString()}</span>
+									<span class="eps-unit">{log.epsUnit === 'bytes' ? splitBytes(log.eps, log.epsTimeUnit).unit : 'evt' + timeUnitSuffix(log.epsTimeUnit)}</span>
 								</div>
 							</div>
 							<div class="activity-format mono">{log.format.length > 64 ? log.format.slice(0, 64) + '…' : log.format}</div>
@@ -992,11 +1005,6 @@
 		letter-spacing: -0.04em;
 		line-height: 1;
 		color: var(--text-primary);
-	}
-
-	.eps-big-dim .eps-big-val {
-		font-size: 1.125rem;
-		color: var(--text-secondary);
 	}
 
 	.eps-big-sub {

@@ -147,33 +147,43 @@ public class LogThread implements Runnable {
             Instant currentStart = Instant.now();
 
             if (!senders.isEmpty()) {
-                updateLock.lock();
-                try {
-                    boolean isBytesMode = "bytes".equals(logDto.getEpsUnit());
-                    long secBytes = 0;
-                    long secEvents = 0;
-                    while (isBytesMode ? secBytes < logDto.getEps() : createCount.get() < logDto.getEps()) {
-                        String data = generate(vTemplate, getTemplateData());
+                boolean isBytesMode = "bytes".equals(logDto.getEpsUnit());
+                long secBytes = 0;
+                long secEvents = 0;
+                long rawTarget = logDto.getEps();
+                long divisor = "min".equals(logDto.getEpsTimeUnit()) ? 60 : "hour".equals(logDto.getEpsTimeUnit()) ? 3600 : "day".equals(logDto.getEpsTimeUnit()) ? 86400 : 1;
+                long targetEps = Math.max(1, rawTarget / divisor);
+                final int BATCH = 1000;
 
-                        final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                        senders.values().forEach(sender -> {
-                            if (!sender.isLimitReached()) {
-                                sender.sendData(data);
-                                sender.increaseCount();
-                                sender.addBytes(dataBytes);
-                            }
-                        });
-                        bytes.addAndGet(dataBytes);
-                        secBytes += dataBytes;
-                        secEvents++;
-                        createCount.incrementAndGet();
-                        count.incrementAndGet();
+                outer:
+                while (!Thread.currentThread().isInterrupted()
+                        && (isBytesMode ? secBytes < targetEps : secEvents < targetEps)
+                        && Duration.between(currentStart, Instant.now()).toMillis() < 1000) {
+                    updateLock.lock();
+                    try {
+                        for (int i = 0; i < BATCH; i++) {
+                            if (isBytesMode ? secBytes >= targetEps : secEvents >= targetEps) break;
+                            String data = generate(vTemplate, getTemplateData());
+
+                            final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                            senders.values().forEach(sender -> {
+                                if (!sender.isLimitReached()) {
+                                    sender.sendData(data);
+                                    sender.increaseCount();
+                                    sender.addBytes(dataBytes);
+                                }
+                            });
+                            bytes.addAndGet(dataBytes);
+                            secBytes += dataBytes;
+                            secEvents++;
+                            count.incrementAndGet();
+                        }
+                    } finally {
+                        updateLock.unlock();
                     }
-                    lastSecondEvents = secEvents;
-                    lastSecondBytes = secBytes;
-                } finally {
-                    updateLock.unlock();
                 }
+                lastSecondEvents = secEvents;
+                lastSecondBytes = secBytes;
             } else {
                 lastSecondEvents = 0;
                 lastSecondBytes = 0;
