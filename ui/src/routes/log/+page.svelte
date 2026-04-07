@@ -644,12 +644,14 @@
 	{:else if viewMode === 'grid'}
 		<div class="pipeline-grid" role="list" aria-label="Log pipeline list">
 			{#each filtered as item}
-				{@const running = item.status === true || item.currentEps > 0}
+				{@const running = item.eps > 0 && item.sender.length > 0 && (item.currentEps > 0 || (item.bytesPerSec ?? 0) > 0)}
 				{@const pct = epsPct(item)}
+				{@const lagging = running && pct < 80}
 				{@const makerNames = extractMakers(item.format)}
 				<div
 					class="pipeline-card"
 					class:running
+					class:lagging
 					role="button"
 					onclick={() => openEdit(item)}
 					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
@@ -664,9 +666,9 @@
 								<span class="pipeline-desc">{item.description}</span>
 							{/if}
 						</div>
-						<div class="pipeline-status" class:running>
+						<div class="pipeline-status" class:running class:lagging>
 							<span class="status-dot" class:pulse={running}></span>
-							{running ? 'Running' : 'Stopped'}
+							{lagging ? 'Lag' : running ? 'Running' : 'Stopped'}
 						</div>
 					</div>
 
@@ -792,8 +794,9 @@
 				</thead>
 				<tbody>
 					{#each filtered as item}
-						{@const running = item.status === true || item.currentEps > 0}
+						{@const running = item.eps > 0 && item.sender.length > 0 && (item.currentEps > 0 || (item.bytesPerSec ?? 0) > 0)}
 						{@const pct = epsPct(item)}
+						{@const lagging = running && pct < 80}
 						{@const formatSegs = parseFormatSegments(truncateFormat(item.format))}
 						<tr
 							class="table-row-clickable"
@@ -807,9 +810,9 @@
 								<span class="tbl-name mono">{item.name}</span>
 							</td>
 							<td>
-								<span class="tbl-status" class:tbl-status-running={running}>
+								<span class="tbl-status" class:tbl-status-running={running && !lagging} class:tbl-status-lagging={lagging}>
 									<span class="tbl-status-dot" class:pulse={running}></span>
-									{running ? 'Run' : 'Stop'}
+									{lagging ? 'Lag' : running ? 'Run' : 'Stop'}
 								</span>
 							</td>
 							<td class="tbl-format-cell">
@@ -1198,6 +1201,10 @@
 		border-left: 2px solid var(--accent);
 	}
 
+	.pipeline-card.lagging {
+		border-left: 2px solid var(--warning);
+	}
+
 	.pipeline-card:focus {
 		outline: none;
 		border-color: var(--accent);
@@ -1259,6 +1266,12 @@
 		background: var(--success-light);
 		color: var(--success);
 		border-color: color-mix(in srgb, var(--success) 25%, transparent);
+	}
+
+	.pipeline-status.lagging {
+		background: var(--warning-light);
+		color: var(--warning);
+		border-color: color-mix(in srgb, var(--warning) 25%, transparent);
 	}
 
 	.status-dot {
@@ -1538,6 +1551,12 @@
 		background: var(--success-light);
 		color: var(--success);
 		border-color: color-mix(in srgb, var(--success) 25%, transparent);
+	}
+
+	.tbl-status.tbl-status-lagging {
+		background: var(--warning-light);
+		color: var(--warning);
+		border-color: color-mix(in srgb, var(--warning) 25%, transparent);
 	}
 
 	.tbl-status-dot {

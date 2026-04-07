@@ -152,7 +152,7 @@ public class LogThread implements Runnable {
                 long secEvents = 0;
                 long rawTarget = logDto.getEps();
                 long divisor = "min".equals(logDto.getEpsTimeUnit()) ? 60 : "hour".equals(logDto.getEpsTimeUnit()) ? 3600 : "day".equals(logDto.getEpsTimeUnit()) ? 86400 : 1;
-                long targetEps = Math.max(1, rawTarget / divisor);
+                long targetEps = rawTarget / divisor;
                 final int BATCH = 1000;
 
                 outer:
