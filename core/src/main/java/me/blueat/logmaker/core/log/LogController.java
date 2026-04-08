@@ -56,4 +56,14 @@ public class LogController {
     public ResponseEntity<Result> previewLog(@RequestBody LogDto logDto) {
         return logService.previewLog(logDto.getFormat());
     }
+
+    @PostMapping("/log/{name}:start")
+    public ResponseEntity<Result> startLog(@PathVariable("name") String name) {
+        return logService.setPaused(name, false);
+    }
+
+    @PostMapping("/log/{name}:stop")
+    public ResponseEntity<Result> stopLog(@PathVariable("name") String name) {
+        return logService.setPaused(name, true);
+    }
 }

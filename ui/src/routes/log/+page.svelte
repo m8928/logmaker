@@ -53,7 +53,8 @@
 			}
 		});
 	});
-	let viewMode = $state<'grid' | 'table'>('grid');
+	let viewMode = $state<'grid' | 'table'>((typeof localStorage !== 'undefined' && localStorage.getItem('logmaker-viewMode-log') as 'grid' | 'table') || 'grid');
+	$effect(() => { localStorage.setItem('logmaker-viewMode-log', viewMode); });
 
 	let dialogOpen = $state(false);
 	let editMode = $state(false);
@@ -367,6 +368,14 @@
 		}
 	}
 
+	async function toggleLog(name: string, isPaused: boolean) {
+		try {
+			if (isPaused) await api.startLog(name);
+			else await api.stopLog(name);
+			await fetchItems();
+		} catch { /* toast shown */ }
+	}
+
 	function askDelete(name: string) {
 		confirmName = name;
 		confirmOpen = true;
@@ -644,7 +653,7 @@
 	{:else if viewMode === 'grid'}
 		<div class="pipeline-grid" role="list" aria-label="Log pipeline list">
 			{#each filtered as item}
-				{@const running = item.eps > 0 && item.sender.length > 0 && (item.currentEps > 0 || (item.bytesPerSec ?? 0) > 0)}
+				{@const running = !item.paused && item.eps > 0 && item.sender.length > 0 && (item.currentEps > 0 || (item.bytesPerSec ?? 0) > 0)}
 				{@const pct = epsPct(item)}
 				{@const lagging = running && pct < 80}
 				{@const makerNames = extractMakers(item.format)}
@@ -749,6 +758,21 @@
 						role="group"
 						aria-label="Actions"
 					>
+						{#if item.eps > 0 && item.sender.length > 0}
+							<button
+								class="btn btn-sm {item.paused ? 'btn-primary' : 'btn-ghost btn-danger-ghost'}"
+								onclick={(e) => { e.stopPropagation(); toggleLog(item.name, !!item.paused); }}
+								aria-label="{item.paused ? 'Start' : 'Stop'} {item.name}"
+							>
+								{#if item.paused}
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+									Start
+								{:else}
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+									Stop
+								{/if}
+							</button>
+						{/if}
 						<button
 							class="btn btn-ghost btn-sm"
 							onclick={(e) => { e.stopPropagation(); openCopy(item); }}
@@ -786,15 +810,15 @@
 						<th>Name</th>
 						<th>Status</th>
 						<th>Format</th>
-						<th class="right">EPS</th>
-						<th class="right">Count</th>
+						<th class="right">Throughput</th>
+						<th class="right">Total</th>
 						<th>Senders</th>
 						<th class="right">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each filtered as item}
-						{@const running = item.eps > 0 && item.sender.length > 0 && (item.currentEps > 0 || (item.bytesPerSec ?? 0) > 0)}
+						{@const running = !item.paused && item.eps > 0 && item.sender.length > 0 && (item.currentEps > 0 || (item.bytesPerSec ?? 0) > 0)}
 						{@const pct = epsPct(item)}
 						{@const lagging = running && pct < 80}
 						{@const formatSegs = parseFormatSegments(truncateFormat(item.format))}
@@ -819,14 +843,10 @@
 								<span class="tbl-format mono">{#each formatSegs as seg}{#if seg.maker}<span class="tbl-format-maker">{seg.text}</span>{:else}<span class="tbl-format-static">{seg.text}</span>{/if}{/each}</span>
 							</td>
 							<td class="right">
-								<span class="tbl-eps">
-									<span class="tbl-eps-actual" class:live={running}>{item.currentEps.toLocaleString()}</span>
-									<span class="tbl-eps-sep">/</span>
-									<span class="tbl-eps-target">{item.eps.toLocaleString()}</span>
-								</span>
+								<span class="tbl-count mono">{item.currentEps.toLocaleString()} evt/s · {formatBytes(item.bytesPerSec ?? 0)}/s</span>
 							</td>
 							<td class="right">
-								<span class="tbl-count mono">{item.count.toLocaleString()} · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
+								<span class="tbl-count mono">{item.count.toLocaleString()} evt · {formatBytes(item.bytes ?? 0)}</span>
 							</td>
 							<td>
 								<span class="tbl-senders">
@@ -868,6 +888,14 @@
 						</tr>
 					{/each}
 				</tbody>
+					<tfoot>
+						<tr class="tbl-total-row">
+							<td colspan="3"><strong>Total ({filtered.length})</strong></td>
+							<td class="right mono">{filtered.reduce((s, l) => s + l.currentEps, 0).toLocaleString()} evt/s · {formatBytes(filtered.reduce((s, l) => s + (l.bytesPerSec ?? 0), 0))}/s</td>
+							<td class="right mono">{filtered.reduce((s, l) => s + l.count, 0).toLocaleString()} evt · {formatBytes(filtered.reduce((s, l) => s + (l.bytes ?? 0), 0))}</td>
+							<td colspan="2"></td>
+						</tr>
+					</tfoot>
 			</table>
 		</div>
 	{/if}

@@ -466,6 +466,20 @@ input[type='number'] {
 	text-align: right;
 }
 
+.tbl-total-row td {
+	background: var(--bg-raised) !important;
+	border-top: 2px solid var(--border);
+	border-bottom: none !important;
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+	padding: 0.5rem 0.625rem;
+}
+
+.tbl-total-row strong {
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
 /* ============================================================
    BADGES
    ============================================================ */

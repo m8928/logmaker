@@ -38,7 +38,7 @@
 		};
 	});
 
-	const runningLogs = $derived(logs.filter((l) => l.eps > 0 && l.sender.length > 0 && (l.currentEps > 0 || (l.bytesPerSec ?? 0) > 0)));
+	const runningLogs = $derived(logs.filter((l) => !l.paused && l.eps > 0 && l.sender.length > 0 && (l.currentEps > 0 || (l.bytesPerSec ?? 0) > 0)));
 
 	// Onboarding: show guide when system is empty
 	const isEmpty = $derived(data !== null && data.maker === 0 && data.sender === 0 && logs.length === 0);

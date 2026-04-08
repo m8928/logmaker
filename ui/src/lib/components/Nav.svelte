@@ -1,5 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { api } from '$lib/api';
+
+	let version = $state('');
+	let buildTime = $state('');
+
+	async function fetchVersion() {
+		try {
+			const d = await api.getDashboard();
+			version = d.version ?? '';
+			buildTime = d.buildTime ?? '';
+		} catch { /* ignore */ }
+	}
+	fetchVersion();
 
 	let isDark = $state(
 		typeof document !== 'undefined' && !document.documentElement.classList.contains('light')
@@ -76,6 +89,12 @@
 	</ul>
 
 	<div class="nav-footer">
+		{#if version}
+			<div class="nav-version">
+				<span class="version-label">v{version}</span>
+				{#if buildTime}<span class="version-build">{buildTime.slice(0, 10)}</span>{/if}
+			</div>
+		{/if}
 		<button
 			onclick={toggleDark}
 			class="theme-toggle"
@@ -223,6 +242,24 @@
 	.theme-toggle:hover {
 		background: var(--bg-raised);
 		color: var(--text-primary);
+	}
+
+	.nav-version {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.25rem 0.75rem 0.375rem;
+		font-size: 0.625rem;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+	}
+
+	.version-label {
+		font-weight: 600;
+	}
+
+	.version-build {
+		opacity: 0.6;
 	}
 
 	@media (max-width: 768px) {

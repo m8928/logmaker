@@ -15,6 +15,9 @@ public abstract class Sender<T> {
     private AtomicInteger ref = new AtomicInteger(0);
     private AtomicLong count = new AtomicLong(0);
     private AtomicLong bytes = new AtomicLong(0);
+    private volatile long lastSecondBytes = 0;
+    private volatile long currentSecondBytes = 0;
+    private volatile long lastTickSec = 0;
     private long limit = 0; // 0 = unlimited
     private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 
@@ -42,13 +45,24 @@ public abstract class Sender<T> {
     }
     public void addBytes(long size) {
         bytes.addAndGet(size);
+        long now = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
+        if (now != lastTickSec) {
+            lastSecondBytes = currentSecondBytes;
+            currentSecondBytes = size;
+            lastTickSec = now;
+        } else {
+            currentSecondBytes += size;
+        }
     }
     public long getBytes() {
         return bytes.get();
     }
     public long getBytesPerSec() {
-        long elapsed = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond() - regTime;
-        return elapsed > 0 ? bytes.get() / elapsed : 0;
+        long now = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
+        if (now != lastTickSec) {
+            return lastSecondBytes;
+        }
+        return currentSecondBytes;
     }
     public void decreaseCount() { count.decrementAndGet(); }
 

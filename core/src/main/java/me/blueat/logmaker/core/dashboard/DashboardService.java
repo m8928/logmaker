@@ -8,6 +8,8 @@ import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.plugin.PluginService;
 import me.blueat.logmaker.core.scenario.ScenarioService;
 import me.blueat.logmaker.core.sender.SenderService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.stereotype.Service;
 
 import javax.management.*;
@@ -23,6 +25,9 @@ public class DashboardService {
     private final SenderService senderService;
     private final PluginService pluginService;
     private final ScenarioService scenarioService;
+
+    @Autowired(required = false)
+    private BuildProperties buildProperties;
 
     public DashboardDto getDashboard() {
         List<LogDto> logs = logService.getLog();
@@ -46,6 +51,8 @@ public class DashboardService {
                 .maxMemory(Runtime.getRuntime().maxMemory() / (1024 * 1024))
                 .thread(Thread.activeCount())
                 .scenario(scenarioService.getScenarios().size())
+                .version(buildProperties != null ? buildProperties.getVersion() : "dev")
+                .buildTime(buildProperties != null && buildProperties.getTime() != null ? buildProperties.getTime().toString() : null)
                 .build();
     }
 

@@ -71,6 +71,8 @@ export const api = {
 	updateLog: (name: string, data: Partial<Log>) =>
 		request<ApiResult>(`/log/${name}`, { method: 'PUT', body: JSON.stringify(data) }),
 	deleteLog: (name: string) => request<ApiResult>(`/log/${name}`, { method: 'DELETE' }),
+	startLog: (name: string) => request<ApiResult>(`/log/${name}:start`, { method: 'POST' }),
+	stopLog: (name: string) => request<ApiResult>(`/log/${name}:stop`, { method: 'POST' }),
 	previewLog: (data: Partial<Log>) =>
 		request<ApiResult>('/log:preview', { method: 'POST', body: JSON.stringify(data) }),
 

@@ -19,4 +19,6 @@ public class DashboardDto {
     private long maxMemory;
     private int thread;
     private int scenario;
+    private String version;
+    private String buildTime;
 }

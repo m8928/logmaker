@@ -24,6 +24,7 @@ public class LogDto {
     @Schema(example = "sec", allowableValues = {"sec", "min", "hour", "day"})
     private String epsTimeUnit = "sec";
     private List<String> sender = new ArrayList<>();
+    private boolean paused = false;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String sample;

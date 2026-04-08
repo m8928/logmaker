@@ -39,6 +39,7 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 public class SenderService {
     private Table<String, String, Sender<?>> senderTable;
     private Table<String, String, SenderPlugin> senderPluginTable;
+    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> senderNameRegistry = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final ObjectMapper mapper;
     private final SpringPluginManager springPluginManager;
@@ -85,18 +86,18 @@ public class SenderService {
     }
 
     public ResponseEntity<Result> deleteSender(String name) {
+        if (senderNameRegistry.remove(name) == null) {
+            return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
+        }
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
-
         if (existsSender.isPresent()) {
             if (existsSender.get().getValue().isThread()) {
                 existsSender.get().getValue().getThread().interrupt();
             }
             senderTable.remove(existsSender.get().getKey(), name);
-            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
-            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
         }
-
-        return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
+        saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
+        return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
     }
 
     public List<ResponseEntity<Result>> importSender(MultipartFile json) {
@@ -152,15 +153,18 @@ public class SenderService {
     }
 
     public boolean addSender(SenderDto senderDto, String pluginId, Sender sender) {
-        if (getSender(senderDto.getName()).isEmpty()) {
+        if (senderNameRegistry.putIfAbsent(senderDto.getName(), Boolean.TRUE) != null) {
+            return false;
+        }
+        try {
             senderTable.put(pluginId, senderDto.getName(), sender);
             if (sender.isThread()) {
                 sender.getThread().start();
             }
             return true;
-        }
-        else {
-            return false;
+        } catch (Exception e) {
+            senderNameRegistry.remove(senderDto.getName());
+            throw e;
         }
     }
 

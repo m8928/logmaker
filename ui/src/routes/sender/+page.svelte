@@ -17,7 +17,8 @@
 	}
 	let loading = $state(false);
 	let search = $state('');
-	let viewMode = $state<'grid' | 'table'>('grid');
+	let viewMode = $state<'grid' | 'table'>((typeof localStorage !== 'undefined' && localStorage.getItem('logmaker-viewMode-sender') as 'grid' | 'table') || 'grid');
+	$effect(() => { localStorage.setItem('logmaker-viewMode-sender', viewMode); });
 
 	let dialogOpen = $state(false);
 	let maximized = $state(false);
@@ -405,7 +406,8 @@
 					<tr>
 						<th>Name</th>
 						<th>Type</th>
-						<th class="right">Output</th>
+						<th class="right">Throughput</th>
+						<th class="right">Total</th>
 						<th>Args</th>
 						<th>Used</th>
 						<th class="right">Actions</th>
@@ -428,11 +430,11 @@
 								<span class="tbl-type-badge">{item.type}</span>
 							</td>
 							<td class="right">
-								{#if (item.output ?? item.count ?? 0) > 0}
-									<span class="tbl-output mono">{((item.output ?? item.count) ?? 0).toLocaleString()} · {formatBytes(item.bytes ?? 0)}{(item.bytesPerSec ?? 0) > 0 ? ` · ${formatBytes(item.bytesPerSec ?? 0)}/s` : ''}</span>
-								{:else}
-									<span class="tbl-empty">—</span>
-								{/if}
+								<span class="tbl-output mono">{formatBytes(item.bytesPerSec ?? 0)}/s</span>
+							</td>
+
+							<td class="right">
+								<span class="tbl-output mono">{(item.count ?? 0).toLocaleString()} evt · {formatBytes(item.bytes ?? 0)}</span>
 							</td>
 							<td>
 								<span class="tbl-args-inline mono">{getArgInline(item.args)}</span>
@@ -479,6 +481,14 @@
 						</tr>
 					{/each}
 				</tbody>
+					<tfoot>
+						<tr class="tbl-total-row">
+							<td colspan="2"><strong>Total ({filtered.length})</strong></td>
+							<td class="right mono">{formatBytes(filtered.reduce((s, i) => s + (i.bytesPerSec ?? 0), 0))}/s</td>
+							<td class="right mono">{filtered.reduce((s, i) => s + (i.count ?? 0), 0).toLocaleString()} evt · {formatBytes(filtered.reduce((s, i) => s + (i.bytes ?? 0), 0))}</td>
+							<td colspan="3"></td>
+						</tr>
+					</tfoot>
 			</table>
 		</div>
 	{/if}

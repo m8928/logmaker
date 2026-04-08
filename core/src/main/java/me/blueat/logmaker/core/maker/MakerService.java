@@ -42,6 +42,7 @@ public class MakerService {
     private final ObjectMapper mapper;
     private Table<String, String, Maker<?>> makerTable;
     private Table<String, String, MakerPlugin> makerPluginTable;
+    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> makerNameRegistry = new java.util.concurrent.ConcurrentHashMap<>();
 
     @PostConstruct
     protected void init() {
@@ -82,18 +83,18 @@ public class MakerService {
     }
 
     public ResponseEntity<Result> deleteMaker(String name) {
+        if (makerNameRegistry.remove(name) == null) {
+            return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
+        }
         Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(name);
-
         if (existsMaker.isPresent()) {
             if (existsMaker.get().getValue().isThread()) {
                 existsMaker.get().getValue().getThread().interrupt();
             }
             makerTable.remove(existsMaker.get().getKey(), name);
-            saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
-            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
         }
-
-        return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
+        saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
+        return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
     }
 
     public List<ResponseEntity<Result>> importMaker(MultipartFile json) {
@@ -146,17 +147,18 @@ public class MakerService {
     }
 
     public boolean addMaker(MakerDto makerDto, String pluginId, Maker maker) {
-        Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(makerDto.getName());
-
-        if (!existsMaker.isPresent()) {
+        if (makerNameRegistry.putIfAbsent(makerDto.getName(), Boolean.TRUE) != null) {
+            return false;
+        }
+        try {
             makerTable.put(pluginId, makerDto.getName(), maker);
             if (maker.isThread()) {
                 maker.getThread().start();
             }
             return true;
-        }
-        else {
-            return false;
+        } catch (Exception e) {
+            makerNameRegistry.remove(makerDto.getName());
+            throw e;
         }
     }
 

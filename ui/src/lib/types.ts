@@ -27,6 +27,7 @@ export interface Log {
 	epsUnit?: 'events' | 'bytes';
 	epsTimeUnit?: 'sec' | 'min' | 'hour' | 'day';
 	sender: string[];
+	paused?: boolean;
 	description?: string;
 	bytes?: number;
 	bytesPerSec?: number;
@@ -72,6 +73,8 @@ export interface DashboardData {
 	cpu: number;
 	memory: number;
 	thread?: number;
+	version?: string;
+	buildTime?: string;
 }
 
 export interface ScenarioStep {

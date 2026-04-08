@@ -12,7 +12,8 @@
 	let senders = $state<Sender[]>([]);
 	let loading = $state(false);
 	let search = $state('');
-	let viewMode = $state<'grid' | 'table'>('grid');
+	let viewMode = $state<'grid' | 'table'>((typeof localStorage !== 'undefined' && localStorage.getItem('logmaker-viewMode-scenario') as 'grid' | 'table') || 'grid');
+	$effect(() => { localStorage.setItem('logmaker-viewMode-scenario', viewMode); });
 
 	// ── Dialog state ─────────────────────────────────────────────────────────────
 	let dialogOpen = $state(false);

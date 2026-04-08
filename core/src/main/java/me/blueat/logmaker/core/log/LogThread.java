@@ -146,7 +146,7 @@ public class LogThread implements Runnable {
             createCount.set(0);
             Instant currentStart = Instant.now();
 
-            if (!senders.isEmpty()) {
+            if (!senders.isEmpty() && !logDto.isPaused()) {
                 boolean isBytesMode = "bytes".equals(logDto.getEpsUnit());
                 long secBytes = 0;
                 long secEvents = 0;
@@ -257,6 +257,7 @@ public class LogThread implements Runnable {
             }));
 
             LogDto backup = this.logDto;
+            logDto.setPaused(backup.isPaused());
             this.logDto = logDto;
 
             try {

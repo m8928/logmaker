@@ -11,7 +11,8 @@
 	let types = $state<PluginType[]>([]);
 	let loading = $state(false);
 	let search = $state('');
-	let viewMode = $state<'grid' | 'table'>('grid');
+	let viewMode = $state<'grid' | 'table'>((typeof localStorage !== 'undefined' && localStorage.getItem('logmaker-viewMode-maker') as 'grid' | 'table') || 'grid');
+	$effect(() => { localStorage.setItem('logmaker-viewMode-maker', viewMode); });
 
 	// Dialog state
 	let dialogOpen = $state(false);

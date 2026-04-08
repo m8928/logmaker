@@ -88,29 +88,25 @@ public class LogService implements DisposableBean {
     }
 
     public ResponseEntity<Result> createLog(LogDto logDto, boolean isImport) {
-        ResponseEntity<Result> result;
-
-        if (!logThreadMap.containsKey(logDto.getName())) {
-            try {
-                LogThread logThread =
-                        new LogThread(makerService, senderService, logDto);
-                executorService.submit(logThread);
-                logThreadMap.put(logDto.getName(), logThread);
-                result = Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
-
-                if (!isImport) {
-                    saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
-                }
-            }
-            catch (IllegalStateException e) {
-                result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid log argument (%s)", logDto.getFormat()));
-            }
+        if (logThreadMap.containsKey(logDto.getName())) {
+            return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
         }
-        else {
-            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the sender name already in use", logDto.getName()));
-        }
+        try {
+            LogThread logThread = new LogThread(makerService, senderService, logDto);
+            if (logThreadMap.putIfAbsent(logDto.getName(), logThread) != null) {
+                logThread.interrupt();
+                return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
+            }
+            executorService.submit(logThread);
 
-        return result;
+            if (!isImport) {
+                saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+            }
+            return Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
+        }
+        catch (IllegalStateException e) {
+            return Result.createResultSet(Result.Type.ERROR, String.format("Invalid log argument (%s)", logDto.getFormat()));
+        }
     }
 
     public List<ResponseEntity<Result>> importLog(MultipartFile json) {
@@ -145,10 +141,17 @@ public class LogService implements DisposableBean {
     }
 
     public LogThread getLog(String name) {
-        if (logThreadMap.containsKey(name)) {
-            return logThreadMap.get(name);
+        return logThreadMap.get(name);
+    }
+
+    public ResponseEntity<Result> setPaused(String name, boolean paused) {
+        LogThread logThread = logThreadMap.get(name);
+        if (logThread != null) {
+            logThread.getLogDto().setPaused(paused);
+            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+            return Result.createResultSet(Result.Type.SUCCESS, paused ? "Log stopped" : "Log started");
         }
-        return null;
+        return Result.createResultSet(Result.Type.ERROR, "Log does not exist");
     }
 
     public ResponseEntity<Result> deleteLog(String name) {
