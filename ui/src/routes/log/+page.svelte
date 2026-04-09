@@ -1622,33 +1622,6 @@
 		color: var(--text-secondary);
 	}
 
-	.tbl-eps {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 0.2rem;
-		font-family: var(--font-mono);
-	}
-
-	.tbl-eps-actual {
-		font-size: 0.875rem;
-		font-weight: 700;
-		color: var(--text-primary);
-	}
-
-	.tbl-eps-actual.live {
-		color: var(--accent);
-	}
-
-	.tbl-eps-sep {
-		font-size: 0.75rem;
-		color: var(--text-muted);
-	}
-
-	.tbl-eps-target {
-		font-size: 0.75rem;
-		color: var(--text-muted);
-		font-weight: 500;
-	}
 
 	.tbl-count {
 		font-size: 0.875rem;

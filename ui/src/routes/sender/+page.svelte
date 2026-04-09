@@ -930,10 +930,6 @@
 		text-overflow: ellipsis;
 	}
 
-	.tbl-empty {
-		color: var(--text-muted);
-		font-size: 0.75rem;
-	}
 
 	@media (max-width: 600px) {
 		.search-input { width: 150px; }
