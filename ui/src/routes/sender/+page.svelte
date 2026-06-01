@@ -34,12 +34,36 @@
 	let formLimit = $state(0);
 	let errors = $state<Record<string, string>>({});
 
+	function formatArgName(name: string): string {
+		return name
+			.replace(/([A-Z])/g, ' $1')
+			.replace(/^./, (s) => s.toUpperCase())
+			.trim();
+	}
+
+	function hasArgValue(value: string | number | boolean | string[] | undefined): boolean {
+		if (Array.isArray(value)) return value.length > 0;
+		if (typeof value === 'string') return value.trim().length > 0;
+		if (typeof value === 'number') return Number.isFinite(value);
+		if (typeof value === 'boolean') return true;
+		return false;
+	}
+
+	function validateRequiredArgs() {
+		for (const [key, arg] of Object.entries(getCurrentArgs())) {
+			if (arg.required && !hasArgValue(formArgs[key])) {
+				errors[`arg.${key}`] = `${formatArgName(key)} is required`;
+			}
+		}
+	}
+
 	function validate(): boolean {
 		errors = {};
 		if (!formName.trim()) errors.name = 'Name is required';
 		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName))
 			errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
 		if (!formType) errors.type = 'Type is required';
+		if (formType) validateRequiredArgs();
 		return Object.keys(errors).length === 0;
 	}
 
@@ -78,6 +102,7 @@
 		formType = '';
 		formArgs = {};
 		formLimit = 0;
+		errors = {};
 		dialogOpen = true;
 		fetchTypes();
 	}
@@ -88,6 +113,7 @@
 		formType = item.type;
 		formArgs = { ...item.args };
 		formLimit = item.limit ?? 0;
+		errors = {};
 		dialogOpen = true;
 		fetchTypes();
 	}
@@ -97,6 +123,7 @@
 		formName = 'copy-of-' + item.name;
 		formType = item.type;
 		formArgs = { ...item.args };
+		errors = {};
 		dialogOpen = true;
 		fetchTypes();
 	}
@@ -113,6 +140,11 @@
 
 	function handleArgChange(name: string, value: string | number | boolean | string[]) {
 		formArgs = { ...formArgs, [name]: value };
+		if (errors[`arg.${name}`]) {
+			const next = { ...errors };
+			delete next[`arg.${name}`];
+			errors = next;
+		}
 	}
 
 	async function submit() {
@@ -540,7 +572,7 @@
 							disabled={editMode}
 							aria-labelledby="sender-type-label"
 							class={errors.type ? 'input-error' : ''}
-							onchange={(v) => { formType = v; formArgs = {}; }}
+							onchange={(v) => { formType = v; formArgs = {}; errors = {}; }}
 						/>
 					</div>
 				</div>
@@ -557,11 +589,10 @@
 										? false
 										: arg.type === 'java.util.ArrayList'
 											? []
-											: arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long'
-												? 0
-												: '')}
+											: '')}
 								required={arg.required}
 								description={arg.description}
+								error={errors[`arg.${key}`]}
 								onchange={handleArgChange}
 							/>
 						{/each}

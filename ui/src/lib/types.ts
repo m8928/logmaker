@@ -82,6 +82,7 @@ export interface ScenarioStep {
 	repeat: number;
 	delayMinMs: number;
 	delayMaxMs: number;
+	senders: string[];
 	overrides: Record<string, string>;
 }
 
@@ -91,7 +92,6 @@ export interface Scenario {
 	status?: boolean;
 	sharedVariables: Record<string, string>;
 	steps: ScenarioStep[];
-	senders: string[];
 	intervalMinMs: number;
 	intervalMaxMs: number;
 	loopCount: number;

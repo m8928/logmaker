@@ -202,7 +202,6 @@ public class ScenarioService {
                     clean.setDescription(dto.getDescription());
                     clean.setSharedVariables(dto.getSharedVariables());
                     clean.setSteps(dto.getSteps());
-                    clean.setSenders(dto.getSenders());
                     clean.setIntervalMinMs(dto.getIntervalMinMs());
                     clean.setIntervalMaxMs(dto.getIntervalMaxMs());
                     clean.setLoopCount(dto.getLoopCount());

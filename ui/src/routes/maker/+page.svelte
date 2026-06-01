@@ -31,6 +31,29 @@
 
 	let triggerElement = $state<HTMLElement | null>(null);
 
+	function formatArgName(name: string): string {
+		return name
+			.replace(/([A-Z])/g, ' $1')
+			.replace(/^./, (s) => s.toUpperCase())
+			.trim();
+	}
+
+	function hasArgValue(value: string | number | boolean | string[] | undefined): boolean {
+		if (Array.isArray(value)) return value.length > 0;
+		if (typeof value === 'string') return value.trim().length > 0;
+		if (typeof value === 'number') return Number.isFinite(value);
+		if (typeof value === 'boolean') return true;
+		return false;
+	}
+
+	function validateRequiredArgs() {
+		for (const [key, arg] of Object.entries(getCurrentArgs())) {
+			if (arg.required && !hasArgValue(formArgs[key])) {
+				errors[`arg.${key}`] = `${formatArgName(key)} is required`;
+			}
+		}
+	}
+
 	const filtered = $derived(
 		search.trim()
 			? items.filter(
@@ -47,6 +70,7 @@
 		if (formName && !/^[a-z0-9][a-z0-9-]*$/.test(formName))
 			errors.name = 'Only lowercase letters, numbers, and hyphens allowed';
 		if (!formType) errors.type = 'Type is required';
+		if (formType) validateRequiredArgs();
 		return Object.keys(errors).length === 0;
 	}
 
@@ -127,10 +151,16 @@
 
 	function handleTypeChange() {
 		formArgs = {};
+		errors = {};
 	}
 
 	function handleArgChange(name: string, value: string | number | boolean | string[]) {
 		formArgs = { ...formArgs, [name]: value };
+		if (errors[`arg.${name}`]) {
+			const next = { ...errors };
+			delete next[`arg.${name}`];
+			errors = next;
+		}
 	}
 
 	async function submit() {
@@ -578,11 +608,10 @@
 										? false
 										: arg.type === 'java.util.ArrayList'
 											? []
-											: arg.type === 'java.lang.Integer' || arg.type === 'java.lang.Long'
-												? 0
-												: '')}
+											: '')}
 								required={arg.required}
 								description={arg.description}
+								error={errors[`arg.${key}`]}
 								onchange={handleArgChange}
 							/>
 						{/each}

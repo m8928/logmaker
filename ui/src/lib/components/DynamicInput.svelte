@@ -5,10 +5,11 @@
 		value: string | number | boolean | string[];
 		required?: boolean;
 		description?: string;
+		error?: string;
 		onchange: (name: string, value: string | number | boolean | string[]) => void;
 	}
 
-	let { name, type, value, required = false, description, onchange }: Props = $props();
+	let { name, type, value, required = false, description, error, onchange }: Props = $props();
 
 	// Convert camelCase to spaced Title Case: connectionTimeout → Connection Timeout
 	const displayName = $derived(
@@ -61,17 +62,26 @@
 		<input
 			id="input-{name}"
 			class="input"
+			class:input-error={error}
 			type="text"
 			value={String(value ?? '')}
+			aria-invalid={error ? 'true' : undefined}
+			aria-describedby={error ? `input-${name}-error` : undefined}
 			oninput={(e) => onchange(name, (e.target as HTMLInputElement).value)}
 		/>
 	{:else if isNumber}
 		<input
 			id="input-{name}"
 			class="input"
+			class:input-error={error}
 			type="number"
-			value={Number(value ?? 0)}
-			oninput={(e) => onchange(name, Number((e.target as HTMLInputElement).value))}
+			value={value === '' || value == null ? '' : Number(value)}
+			aria-invalid={error ? 'true' : undefined}
+			aria-describedby={error ? `input-${name}-error` : undefined}
+			oninput={(e) => {
+				const raw = (e.target as HTMLInputElement).value;
+				onchange(name, raw === '' ? '' : Number(raw));
+			}}
 		/>
 	{:else if isBoolean}
 		<label class="toggle-wrap">
@@ -106,14 +116,21 @@
 			<div class="tag-row">
 				<input
 					class="input"
+					class:input-error={error}
 					type="text"
-					placeholder="Add value, press Enter"
+					placeholder={required ? 'Required value' : 'Add value, press Enter'}
 					bind:value={tagInput}
+					aria-invalid={error ? 'true' : undefined}
+					aria-describedby={error ? `input-${name}-error` : undefined}
 					onkeydown={handleTagKeydown}
 				/>
 				<button type="button" class="btn-add" onclick={addTag}>Add</button>
 			</div>
 		</div>
+	{/if}
+
+	{#if error}
+		<p id="input-{name}-error" class="field-error">{error}</p>
 	{/if}
 
 	{#if description}
@@ -169,6 +186,16 @@
 		outline: none;
 		border-color: var(--border-focus);
 		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+	}
+
+	.input-error {
+		border-color: var(--danger);
+	}
+
+	.field-error {
+		font-size: 0.75rem;
+		color: var(--danger);
+		margin: -0.125rem 0 0;
 	}
 
 	/* Toggle switch */

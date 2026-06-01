@@ -2,6 +2,7 @@
   "name": "logmaker-mcp-server",
   "version": "1.0.0",
   "description": "MCP server for LogMaker — control log generation via Claude or any MCP client",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

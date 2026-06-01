@@ -135,7 +135,7 @@
 			</button>
 			<button class="btn btn-primary" onclick={() => (uploadOpen = true)} disabled={loading}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-				Add Plugin
+				Install Plugin
 			</button>
 		</div>
 	</header>
@@ -154,7 +154,7 @@
 			<p class="empty-state-desc">Install a plugin JAR to extend LogMaker with custom makers and senders</p>
 			<button class="btn btn-primary" onclick={() => (uploadOpen = true)}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-				Add Plugin
+				Install Plugin
 			</button>
 		</div>
 	{:else if filtered.length === 0}
@@ -251,7 +251,7 @@
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
-			aria-label="Add Plugin"
+			aria-label="Install Plugin"
 			onkeydown={(e) => e.key === 'Escape' && (uploadOpen = false)}
 		>
 			<div class="dialog-header">

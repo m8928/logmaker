@@ -304,6 +304,16 @@ h1, h2, h3, h4 {
 	color: var(--danger);
 }
 
+.icon-btn.icon-btn-primary {
+	background: var(--accent);
+	color: #fff;
+}
+
+.icon-btn.icon-btn-primary:hover {
+	background: var(--accent-hover);
+	color: #fff;
+}
+
 .icon-btn:disabled {
 	opacity: 0.3;
 	cursor: not-allowed;

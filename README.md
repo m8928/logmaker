@@ -127,3 +127,7 @@ cd ui && npm run build && npm run check
 ## 플러그인 개발
 
 자세한 내용은 [플러그인 개발 가이드](./plugin.md)를 참고하십시오.
+
+## 라이선스
+
+이 프로젝트는 [Apache License 2.0](./LICENSE)에 따라 배포됩니다.

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -27,6 +29,35 @@ async function api<T = unknown>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
+  return parseResponse<T>(res);
+}
+
+async function apiMultipart<T = unknown>(
+  path: string,
+  filePath: string
+): Promise<{ ok: boolean; status: number; data: T }> {
+  const bytes = await readFile(filePath);
+  const arrayBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+  const file = new Blob([arrayBuffer], {
+    type: contentTypeFor(filePath),
+  });
+  const form = new FormData();
+  form.append("file", file, basename(filePath));
+
+  const res = await fetch(`${API}${path}`, {
+    method: "POST",
+    body: form,
+  });
+
+  return parseResponse<T>(res);
+}
+
+async function parseResponse<T>(
+  res: Response
+): Promise<{ ok: boolean; status: number; data: T }> {
   const text = await res.text();
   let data: T;
   try {
@@ -35,6 +66,17 @@ async function api<T = unknown>(
     data = text as unknown as T;
   }
   return { ok: res.ok, status: res.status, data };
+}
+
+function contentTypeFor(filePath: string): string {
+  switch (extname(filePath).toLowerCase()) {
+    case ".json":
+      return "application/json";
+    case ".jar":
+      return "application/java-archive";
+    default:
+      return "application/octet-stream";
+  }
 }
 
 function formatResult(r: { ok: boolean; status: number; data: unknown }): {
@@ -47,6 +89,29 @@ function formatResult(r: { ok: boolean; status: number; data: unknown }): {
     content: [{ type: "text" as const, text }],
     ...(r.ok ? {} : { isError: true }),
   };
+}
+
+function formatError(err: unknown): {
+  content: { type: "text"; text: string }[];
+  isError: true;
+} {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: err instanceof Error ? err.message : String(err),
+      },
+    ],
+    isError: true,
+  };
+}
+
+async function uploadFile(path: string, filePath: string) {
+  try {
+    return formatResult(await apiMultipart(path, filePath));
+  } catch (err) {
+    return formatError(err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +134,13 @@ server.tool(
 server.tool(
   "list_makers",
   "List all registered makers",
+  {},
+  async () => formatResult(await api("/maker"))
+);
+
+server.tool(
+  "export_makers",
+  "Export all maker definitions as JSON (same data as the UI export)",
   {},
   async () => formatResult(await api("/maker"))
 );
@@ -118,10 +190,48 @@ server.tool(
     formatResult(await api(`/maker/${encodeURIComponent(name)}`, { method: "DELETE" }))
 );
 
+server.tool(
+  "import_makers",
+  "Import maker definitions from a JSON array",
+  {
+    makers: z
+      .array(
+        z
+          .object({
+            name: z.string().describe("Maker name"),
+            type: z.string().describe("Maker type"),
+            args: z.record(z.string(), z.unknown()).optional().default({}),
+          })
+          .passthrough()
+      )
+      .describe("Maker definitions to import"),
+  },
+  async ({ makers }) =>
+    formatResult(await api("/maker:import", { method: "POST", body: makers }))
+);
+
+server.tool(
+  "import_makers_file",
+  "Import maker definitions from a local JSON file path visible to the MCP server",
+  {
+    filePath: z
+      .string()
+      .describe("Local .json file path on the machine running this MCP server"),
+  },
+  async ({ filePath }) => uploadFile("/maker:import-file", filePath)
+);
+
 // ── Senders ─────────────────────────────────────────────────────────────────
 server.tool(
   "list_senders",
   "List all registered senders",
+  {},
+  async () => formatResult(await api("/sender"))
+);
+
+server.tool(
+  "export_senders",
+  "Export all sender definitions as JSON (same data as the UI export)",
   {},
   async () => formatResult(await api("/sender"))
 );
@@ -183,10 +293,49 @@ server.tool(
     formatResult(await api(`/sender/${encodeURIComponent(name)}`, { method: "DELETE" }))
 );
 
+server.tool(
+  "import_senders",
+  "Import sender definitions from a JSON array",
+  {
+    senders: z
+      .array(
+        z
+          .object({
+            name: z.string().describe("Sender name"),
+            type: z.string().describe("Sender type"),
+            args: z.record(z.string(), z.unknown()).optional().default({}),
+            limit: z.number().optional().default(0),
+          })
+          .passthrough()
+      )
+      .describe("Sender definitions to import"),
+  },
+  async ({ senders }) =>
+    formatResult(await api("/sender:import", { method: "POST", body: senders }))
+);
+
+server.tool(
+  "import_senders_file",
+  "Import sender definitions from a local JSON file path visible to the MCP server",
+  {
+    filePath: z
+      .string()
+      .describe("Local .json file path on the machine running this MCP server"),
+  },
+  async ({ filePath }) => uploadFile("/sender:import-file", filePath)
+);
+
 // ── Logs ────────────────────────────────────────────────────────────────────
 server.tool(
   "list_logs",
   "List all log definitions",
+  {},
+  async () => formatResult(await api("/log"))
+);
+
+server.tool(
+  "export_logs",
+  "Export all log definitions as JSON (same data as the UI export)",
   {},
   async () => formatResult(await api("/log"))
 );
@@ -199,33 +348,65 @@ server.tool(
     format: z
       .string()
       .describe("Log format string (use <maker_name> to reference makers, e.g. <ip_maker>)"),
-    eps: z.number().describe("Events per second"),
+    eps: z
+      .number()
+      .describe("Rate target — number interpreted with epsUnit+epsTimeUnit. For bytes mode, this is the raw byte count (e.g. 1048576 for 1 MB)."),
+    epsUnit: z
+      .enum(["events", "bytes"])
+      .optional()
+      .default("events")
+      .describe("Rate unit: 'events' (count) or 'bytes' (volume)"),
+    epsTimeUnit: z
+      .enum(["sec", "min", "hour", "day"])
+      .optional()
+      .default("sec")
+      .describe("Time unit for the rate: sec/min/hour/day"),
     sender: z
       .array(z.string())
-      .describe("List of sender names to deliver logs to"),
+      .optional()
+      .default([])
+      .describe("List of sender names. Empty = no delivery (log paused)"),
+    paused: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("If true, log is created in paused state (no generation)"),
   },
-  async ({ name, format, eps, sender }) =>
+  async ({ name, format, eps, epsUnit, epsTimeUnit, sender, paused }) =>
     formatResult(
-      await api("/log", { method: "POST", body: { name, format, eps, sender } })
+      await api("/log", {
+        method: "POST",
+        body: { name, format, eps, epsUnit, epsTimeUnit, sender, paused },
+      })
     )
 );
 
 server.tool(
   "update_log",
-  "Update an existing log definition",
+  "Update an existing log definition (paused state is preserved)",
   {
     name: z.string().describe("Log name to update"),
     format: z.string().describe("Updated log format string"),
-    eps: z.number().describe("Updated events per second"),
+    eps: z.number().describe("Updated rate target"),
+    epsUnit: z
+      .enum(["events", "bytes"])
+      .optional()
+      .default("events")
+      .describe("Rate unit: events or bytes"),
+    epsTimeUnit: z
+      .enum(["sec", "min", "hour", "day"])
+      .optional()
+      .default("sec")
+      .describe("Time unit: sec/min/hour/day"),
     sender: z
       .array(z.string())
       .describe("Updated list of sender names"),
   },
-  async ({ name, format, eps, sender }) =>
+  async ({ name, format, eps, epsUnit, epsTimeUnit, sender }) =>
     formatResult(
       await api(`/log/${encodeURIComponent(name)}`, {
         method: "PUT",
-        body: { name, format, eps, sender },
+        body: { name, format, eps, epsUnit, epsTimeUnit, sender },
       })
     )
 );
@@ -236,6 +417,26 @@ server.tool(
   { name: z.string().describe("Log name to delete") },
   async ({ name }) =>
     formatResult(await api(`/log/${encodeURIComponent(name)}`, { method: "DELETE" }))
+);
+
+server.tool(
+  "start_log",
+  "Resume a paused log (no effect if already running)",
+  { name: z.string().describe("Log name to start") },
+  async ({ name }) =>
+    formatResult(
+      await api(`/log/${encodeURIComponent(name)}:start`, { method: "POST" })
+    )
+);
+
+server.tool(
+  "stop_log",
+  "Pause a running log without removing it (senders/makers kept intact)",
+  { name: z.string().describe("Log name to stop") },
+  async ({ name }) =>
+    formatResult(
+      await api(`/log/${encodeURIComponent(name)}:stop`, { method: "POST" })
+    )
 );
 
 server.tool(
@@ -256,6 +457,41 @@ server.tool(
         body: { name, format, eps, sender },
       })
     )
+);
+
+server.tool(
+  "import_logs",
+  "Import log definitions from a JSON array",
+  {
+    logs: z
+      .array(
+        z
+          .object({
+            name: z.string().describe("Log name"),
+            format: z.string().describe("Log format string"),
+            eps: z.number().optional().default(0),
+            epsUnit: z.enum(["events", "bytes"]).optional().default("events"),
+            epsTimeUnit: z.enum(["sec", "min", "hour", "day"]).optional().default("sec"),
+            sender: z.array(z.string()).optional().default([]),
+            paused: z.boolean().optional().default(false),
+          })
+          .passthrough()
+      )
+      .describe("Log definitions to import"),
+  },
+  async ({ logs }) =>
+    formatResult(await api("/log:import", { method: "POST", body: logs }))
+);
+
+server.tool(
+  "import_logs_file",
+  "Import log definitions from a local JSON file path visible to the MCP server",
+  {
+    filePath: z
+      .string()
+      .describe("Local .json file path on the machine running this MCP server"),
+  },
+  async ({ filePath }) => uploadFile("/log:import-file", filePath)
 );
 
 // ── Plugins ─────────────────────────────────────────────────────────────────
@@ -280,10 +516,36 @@ server.tool(
   async () => formatResult(await api("/plugin/sender"))
 );
 
+server.tool(
+  "install_plugin",
+  "Install a plugin from a local JAR file path visible to the MCP server",
+  {
+    filePath: z
+      .string()
+      .describe("Local .jar file path on the machine running this MCP server"),
+  },
+  async ({ filePath }) => uploadFile("/plugin", filePath)
+);
+
+server.tool(
+  "delete_plugin",
+  "Delete an installed plugin by name",
+  { name: z.string().describe("Plugin name to delete") },
+  async ({ name }) =>
+    formatResult(await api(`/plugin/${encodeURIComponent(name)}`, { method: "DELETE" }))
+);
+
 // ── Scenarios ───────────────────────────────────────────────────────────────
 server.tool(
   "list_scenarios",
   "List all scenarios",
+  {},
+  async () => formatResult(await api("/scenario"))
+);
+
+server.tool(
+  "export_scenarios",
+  "Export all scenarios as JSON (same data as the UI export)",
   {},
   async () => formatResult(await api("/scenario"))
 );
@@ -293,11 +555,16 @@ const scenarioStepSchema = z.object({
   repeat: z.number().optional().default(1).describe("Repeat count for this step"),
   delayMinMs: z.number().optional().default(0).describe("Minimum delay before step (ms)"),
   delayMaxMs: z.number().optional().default(0).describe("Maximum delay before step (ms)"),
+  senders: z
+    .array(z.string())
+    .optional()
+    .default([])
+    .describe("Sender names for this step"),
   overrides: z
     .record(z.string(), z.string())
     .optional()
     .default({})
-    .describe("Variable overrides for this step"),
+    .describe("Per-step field overrides. Keys are log maker field names; values can be literal text or a shared-variable token like ${src_ip}"),
 });
 
 server.tool(
@@ -310,9 +577,8 @@ server.tool(
       .record(z.string(), z.string())
       .optional()
       .default({})
-      .describe("Shared variables across all steps (e.g. {\"src_ip\": \"$ip_maker\"})"),
+      .describe("Shared variables across all steps: variable name -> maker name (e.g. {\"src_ip\": \"ip_maker\"})"),
     steps: z.array(scenarioStepSchema).describe("Ordered list of scenario steps"),
-    senders: z.array(z.string()).describe("List of sender names"),
     intervalMinMs: z
       .number()
       .optional()
@@ -339,9 +605,12 @@ server.tool(
   {
     name: z.string().describe("Scenario name to update"),
     description: z.string().optional(),
-    sharedVariables: z.record(z.string(), z.string()).optional().default({}),
+    sharedVariables: z
+      .record(z.string(), z.string())
+      .optional()
+      .default({})
+      .describe("Variable name -> maker name"),
     steps: z.array(scenarioStepSchema),
-    senders: z.array(z.string()),
     intervalMinMs: z.number().optional().default(1000),
     intervalMaxMs: z.number().optional().default(5000),
     loopCount: z.number().optional().default(0),
@@ -461,6 +730,60 @@ server.resource(
 );
 
 server.resource(
+  "plugins",
+  "logmaker://plugins",
+  { description: "All installed plugins", mimeType: "application/json" },
+  async () => {
+    const r = await api("/plugin");
+    return {
+      contents: [
+        {
+          uri: "logmaker://plugins",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
+  "plugin_maker_types",
+  "logmaker://plugin-maker-types",
+  { description: "Available maker types and argument schemas", mimeType: "application/json" },
+  async () => {
+    const r = await api("/plugin/maker");
+    return {
+      contents: [
+        {
+          uri: "logmaker://plugin-maker-types",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
+  "plugin_sender_types",
+  "logmaker://plugin-sender-types",
+  { description: "Available sender types and argument schemas", mimeType: "application/json" },
+  async () => {
+    const r = await api("/plugin/sender");
+    return {
+      contents: [
+        {
+          uri: "logmaker://plugin-sender-types",
+          mimeType: "application/json",
+          text: JSON.stringify(r.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.resource(
   "scenarios",
   "logmaker://scenarios",
   { description: "All scenarios and their execution status", mimeType: "application/json" },
@@ -528,7 +851,7 @@ server.prompt(
 2. Create necessary makers for IP addresses, usernames, etc.
 3. Create appropriate senders
 4. Create log definitions for each step in the scenario
-5. Create the scenario with shared variables, steps, and appropriate delays
+5. Create the scenario with sharedVariables as variable-name → maker-name, steps with their own senders, overrides that map log fields to \${variableName} tokens or literal values, and appropriate delays
 6. Start the scenario
 
 Use the LogMaker MCP tools to execute each step.`,

@@ -30,12 +30,12 @@
 	let formIntervalMin = $state(1000);
 	let formIntervalMax = $state(5000);
 	let formLoop = $state(0);
-	let formSenders = $state<string[]>([]);
-	let formVars = $state<Array<{ name: string; makerRef: string }>>([]);
+	let formVars = $state<Array<{ _id: number; name: string; makerRef: string; lastRefName: string }>>([]);
 	let formSteps = $state<Array<ScenarioStep & { _id: number }>>([]);
 	let errors = $state<Record<string, string>>({});
 
 	let stepIdCounter = 0;
+	let varIdCounter = 0;
 
 	// ── Derived ──────────────────────────────────────────────────────────────────
 	const filtered = $derived(
@@ -46,7 +46,16 @@
 
 	const logOptions = $derived(logs.map((l) => ({ value: l.name, label: l.name, sublabel: l.format.slice(0, 40) })));
 	const makerOptions = $derived(makers.map((m) => ({ value: m.name, label: m.name, sublabel: m.type })));
-
+	const sharedVariableOptions = $derived(
+		formVars
+			.map((v) => v.name.trim())
+			.filter((name, idx, arr) => name && arr.indexOf(name) === idx)
+			.map((name) => ({
+				value: name,
+				label: name,
+				sublabel: formVars.find((v) => v.name.trim() === name)?.makerRef || 'Shared variable'
+			}))
+	);
 	// ── Fetch ────────────────────────────────────────────────────────────────────
 	async function fetchItems() {
 		loading = true;
@@ -78,7 +87,6 @@
 		formIntervalMin = 1000;
 		formIntervalMax = 5000;
 		formLoop = 0;
-		formSenders = [];
 		formVars = [];
 		formSteps = [];
 		errors = {};
@@ -92,9 +100,18 @@
 		formIntervalMin = item.intervalMinMs;
 		formIntervalMax = item.intervalMaxMs;
 		formLoop = item.loopCount;
-		formSenders = [...item.senders];
-		formVars = Object.entries(item.sharedVariables).map(([name, makerRef]) => ({ name, makerRef }));
-		formSteps = item.steps.map((s) => ({ ...s, overrides: { ...s.overrides }, _id: stepIdCounter++ }));
+		formVars = Object.entries(item.sharedVariables).map(([name, makerRef]) => ({
+			_id: varIdCounter++,
+			name,
+			makerRef,
+			lastRefName: name
+		}));
+		formSteps = item.steps.map((s) => ({
+			...s,
+			senders: [...(s.senders ?? [])],
+			overrides: { ...s.overrides },
+			_id: stepIdCounter++
+		}));
 		errors = {};
 		dialogOpen = true;
 		fetchSupport();
@@ -108,18 +125,49 @@
 
 	// ── Variable management ────────────────────────────────────────────────────
 	function addVar() {
-		formVars = [...formVars, { name: '', makerRef: '' }];
+		formVars = [...formVars, { _id: varIdCounter++, name: '', makerRef: '', lastRefName: '' }];
 	}
 
 	function removeVar(i: number) {
 		formVars = formVars.filter((_, idx) => idx !== i);
 	}
 
+	function updateVarName(i: number, name: string) {
+		const current = formVars[i];
+		if (!current) return;
+
+		const oldRefName = current.name.trim() || current.lastRefName;
+		const newRefName = name.trim();
+		formVars = formVars.map((v, idx) =>
+			idx === i
+				? { ...v, name, lastRefName: newRefName || v.lastRefName }
+				: v
+		);
+
+		if (oldRefName && newRefName && oldRefName !== newRefName) {
+			replaceOverrideVariable(oldRefName, newRefName);
+		}
+	}
+
+	function replaceOverrideVariable(oldName: string, newName: string) {
+		const oldToken = sharedVarToken(oldName);
+		const newToken = sharedVarToken(newName);
+		formSteps = formSteps.map((step) => ({
+			...step,
+			overrides: Object.fromEntries(
+				Object.entries(step.overrides).map(([key, val]) => [
+					key,
+					val === oldToken ? newToken : val
+				])
+			)
+		}));
+	}
+
 	// ── Step management ────────────────────────────────────────────────────────
 	function addStep() {
 		formSteps = [
 			...formSteps,
-			{ logName: '', repeat: 1, delayMinMs: 0, delayMaxMs: 0, overrides: {}, _id: stepIdCounter++ }
+			{ logName: '', repeat: 1, delayMinMs: 0, delayMaxMs: 0, senders: [], overrides: {}, _id: stepIdCounter++ }
 		];
 	}
 
@@ -135,14 +183,70 @@
 		formSteps = arr;
 	}
 
+	function updateStepLog(i: number, logName: string) {
+		const arr = [...formSteps];
+		const currentSenders = arr[i].senders ?? [];
+		const logSenders = logs.find((l) => l.name === logName)?.sender ?? [];
+		arr[i] = {
+			...arr[i],
+			logName,
+			senders: currentSenders.length > 0 ? currentSenders : [...logSenders]
+		};
+		formSteps = arr;
+	}
+
 	// Override helpers
 	function getOverrideEntries(step: ScenarioStep & { _id: number }): [string, string][] {
 		return Object.entries(step.overrides);
 	}
 
+	function getStepLog(step: ScenarioStep): Log | undefined {
+		return logs.find((l) => l.name === step.logName);
+	}
+
+	function extractLogFields(format: string): string[] {
+		const fields: string[] = [];
+		const regex = /<([^>]+)>/g;
+		let match: RegExpExecArray | null;
+		while ((match = regex.exec(format)) !== null) {
+			const field = match[1]?.trim();
+			if (field && !fields.includes(field)) fields.push(field);
+		}
+		return fields;
+	}
+
+	function getStepLogFields(step: ScenarioStep): string[] {
+		return extractLogFields(getStepLog(step)?.format ?? '');
+	}
+
+	function getMakerType(name: string): string {
+		return makers.find((m) => m.name === name)?.type ?? 'Log field';
+	}
+
+	function getOverrideKeyOptions(step: ScenarioStep & { _id: number }) {
+		const logFields = getStepLogFields(step);
+		const customKeys = Object.keys(step.overrides).filter((key) => key && !logFields.includes(key));
+		return [...logFields, ...customKeys].map((name) => ({
+			value: name,
+			label: name,
+			sublabel: getMakerType(name)
+		}));
+	}
+
+	function nextOverrideKey(step: ScenarioStep & { _id: number }): string {
+		return getStepLogFields(step).find((field) => !(field in step.overrides)) ?? '';
+	}
+
+	function canAddOverride(step: ScenarioStep & { _id: number }): boolean {
+		return nextOverrideKey(step) !== '' && sharedVariableOptions.length > 0;
+	}
+
 	function addOverride(stepIdx: number) {
 		const arr = [...formSteps];
-		arr[stepIdx] = { ...arr[stepIdx], overrides: { ...arr[stepIdx].overrides, '': '' } };
+		const key = nextOverrideKey(arr[stepIdx]);
+		const variable = sharedVariableOptions[0]?.value;
+		if (!key || !variable) return;
+		arr[stepIdx] = { ...arr[stepIdx], overrides: { ...arr[stepIdx].overrides, [key]: sharedVarToken(variable) } };
 		formSteps = arr;
 	}
 
@@ -162,6 +266,25 @@
 		formSteps = arr;
 	}
 
+	function sharedVarToken(name: string): string {
+		return '${' + name + '}';
+	}
+
+	function sharedVarNameFromToken(value: string): string {
+		return value.match(/^\$\{([^}]+)\}$/)?.[1] ?? '';
+	}
+
+	function useSharedVariable(stepIdx: number, key: string, varName: string) {
+		updateOverrideVal(stepIdx, key, sharedVarToken(varName));
+	}
+
+	function getOverrideHint(step: ScenarioStep & { _id: number }): string {
+		if (!step.logName) return 'Select a log first';
+		if (sharedVariableOptions.length === 0) return 'Add a shared variable first';
+		if (getStepLogFields(step).length === 0) return 'No log fields';
+		return 'No overrides';
+	}
+
 	function removeOverride(stepIdx: number, key: string) {
 		const arr = [...formSteps];
 		const overrides = { ...arr[stepIdx].overrides };
@@ -171,12 +294,18 @@
 	}
 
 	// ── Sender toggle ─────────────────────────────────────────────────────────
-	function toggleSender(name: string) {
-		if (formSenders.includes(name)) {
-			formSenders = formSenders.filter((s) => s !== name);
-		} else {
-			formSenders = [...formSenders, name];
-		}
+	function toggleStepSender(stepIdx: number, name: string) {
+		const arr = [...formSteps];
+		const current = arr[stepIdx].senders ?? [];
+		const next = current.includes(name)
+			? current.filter((s) => s !== name)
+			: [...current, name];
+		arr[stepIdx] = { ...arr[stepIdx], senders: next };
+		formSteps = arr;
+	}
+
+	function senderNamesForStep(step: ScenarioStep): string[] {
+		return step.senders ?? [];
 	}
 
 	// ── Validate ──────────────────────────────────────────────────────────────
@@ -210,20 +339,24 @@
 		if (!validate()) return;
 		saving = true;
 		saveAndRun = runAfter;
-		try {
-			const sharedVariables: Record<string, string> = {};
-			for (const v of formVars) {
-				if (v.name.trim()) sharedVariables[v.name.trim()] = v.makerRef;
-			}
-			const payload: Partial<Scenario> = {
-				name: formName,
-				intervalMinMs: formIntervalMin,
-				intervalMaxMs: formIntervalMax,
-				loopCount: formLoop,
-				senders: formSenders,
-				sharedVariables,
-				steps: formSteps.map(({ _id: _unused, ...s }) => s)
-			};
+			try {
+				const sharedVariables: Record<string, string> = {};
+				for (const v of formVars) {
+					if (v.name.trim()) sharedVariables[v.name.trim()] = v.makerRef;
+				}
+				const payload: Partial<Scenario> = {
+					name: formName,
+					intervalMinMs: formIntervalMin,
+					intervalMaxMs: formIntervalMax,
+					loopCount: formLoop,
+					sharedVariables,
+					steps: formSteps.map(({ _id: _unused, ...s }) => ({
+						...s,
+						overrides: Object.fromEntries(
+							Object.entries(s.overrides).filter(([key]) => key.trim())
+						)
+					}))
+				};
 			if (editMode) {
 				await api.updateScenario(formName, payload);
 			} else {
@@ -372,18 +505,18 @@
 			<p class="empty-state-title">No results for "{search}"</p>
 			<p class="empty-state-desc">Try a different search term</p>
 		</div>
-	{:else if viewMode === 'grid'}
-		<!-- GRID VIEW -->
-		<div class="scenario-grid" role="list" aria-label="Scenario list">
-			{#each filtered as item}
-				{@const running = item.status === true}
-				{@const varNames = Object.keys(item.sharedVariables)}
-				<div
-					class="scenario-card"
-					class:running
-					role="button"
-					tabindex="0"
-					onclick={() => openEdit(item)}
+		{:else if viewMode === 'grid'}
+			<!-- GRID VIEW -->
+			<div class="scenario-grid" role="list" aria-label="Scenario list">
+				{#each filtered as item}
+					{@const running = item.status === true}
+					{@const varNames = Object.keys(item.sharedVariables)}
+					<div
+						class="scenario-card"
+						class:running
+						role="button"
+						tabindex="0"
+						onclick={() => openEdit(item)}
 					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openEdit(item)}
 					aria-label="Edit scenario {item.name}"
 				>
@@ -410,22 +543,23 @@
 						</div>
 					{/if}
 
-					<!-- Steps -->
-					<div class="sc-section-block">
-						<div class="sc-section-label">Steps {#if running}<span class="loop-badge">Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}</span>{/if}</div>
-						<div class="sc-chain">
-							{#each item.steps as step, si}
-								{#if si > 0}
-									<span class="chain-arrow" aria-hidden="true">→</span>
+						<!-- Steps -->
+						<div class="sc-section-block">
+							<div class="sc-section-label">Steps {#if running}<span class="loop-badge">Loop {item.currentLoop ?? 0}{item.loopCount === 0 ? '' : `/${item.loopCount}`}</span>{/if}</div>
+							<div class="sc-chain">
+								{#each item.steps as step, si}
+									{@const stepSenders = senderNamesForStep(step)}
+									{#if si > 0}
+										<span class="chain-arrow" aria-hidden="true">→</span>
+									{/if}
+									<span class="chain-step" class:active-step={running && (item.currentStep ?? 0) === si + 1}>
+										<span class="step-name">{step.logName}</span>{#if stepSenders.length > 0}<span class="step-sender-mini">{stepSenders.join(', ')}</span>{/if}{#if step.repeat > 1}<span class="step-repeat">×{step.repeat}</span>{/if}{#if item.stepCounts?.[si]}<span class="step-cnt">{item.stepCounts[si].toLocaleString()}</span>{/if}
+									</span>
+								{/each}
+								{#if item.steps.length === 0}
+									<span class="chain-empty">No steps</span>
 								{/if}
-								<span class="chain-step" class:active-step={running && (item.currentStep ?? 0) === si + 1}>
-									<span class="step-name">{step.logName}</span>{#if step.repeat > 1}<span class="step-repeat">×{step.repeat}</span>{/if}{#if item.stepCounts?.[si]}<span class="step-cnt">{item.stepCounts[si].toLocaleString()}</span>{/if}
-								</span>
-							{/each}
-							{#if item.steps.length === 0}
-								<span class="chain-empty">No steps</span>
-							{/if}
-						</div>
+							</div>
 					</div>
 
 					<!-- Metrics -->
@@ -665,7 +799,8 @@
 										class="input var-name-input"
 										type="text"
 										placeholder="variable_name"
-										bind:value={v.name}
+										value={v.name}
+										oninput={(e) => updateVarName(i, (e.target as HTMLInputElement).value)}
 										aria-label="Variable name {i + 1}"
 									/>
 									<span class="var-eq" aria-hidden="true">=</span>
@@ -726,7 +861,7 @@
 												value={step.logName}
 												options={logOptions}
 												placeholder="Select log…"
-												onchange={(val) => { formSteps[i] = { ...formSteps[i], logName: val }; }}
+												onchange={(val) => updateStepLog(i, val)}
 											/>
 										</div>
 										<div class="field step-num-field">
@@ -737,56 +872,104 @@
 												type="number"
 												min="1"
 												bind:value={step.repeat}
-											/>
-										</div>
-										<div class="field step-num-field">
-											<span class="field-label">Delay (ms)</span>
-											<div style="display:flex;align-items:center;gap:3px">
-												<input class="input" type="number" min="0" bind:value={step.delayMinMs} placeholder="0" style="flex:1" />
-												<span style="color:var(--text-muted);font-size:0.7rem">~</span>
-												<input class="input" type="number" min="0" bind:value={step.delayMaxMs} placeholder="0" style="flex:1" />
+												/>
+											</div>
+											<div class="field step-num-field">
+												<span class="field-label">Delay (ms)</span>
+												<div style="display:flex;align-items:center;gap:3px">
+													<input class="input" type="number" min="0" bind:value={step.delayMinMs} placeholder="0" style="flex:1" />
+													<span style="color:var(--text-muted);font-size:0.7rem">~</span>
+													<input class="input" type="number" min="0" bind:value={step.delayMaxMs} placeholder="0" style="flex:1" />
+												</div>
 											</div>
 										</div>
-									</div>
 
-									<!-- Overrides sub-section -->
-									<div class="overrides-section">
-										<div class="overrides-header">
-											<span class="overrides-label">Overrides</span>
-											<button class="btn btn-ghost btn-sm" type="button" onclick={() => addOverride(i)}>
-												<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-												Add
-											</button>
+										<div class="step-senders-section">
+											<div class="step-senders-header">
+												<span class="field-label">Senders</span>
+												<span class="step-sender-count">{(step.senders ?? []).length}</span>
+											</div>
+											{#if senders.length === 0}
+												<p class="section-empty">No senders available. <a href="/sender" class="link">Create a sender</a> first.</p>
+											{:else}
+												<div class="sender-chips" role="group" aria-label="Select senders for step {i + 1}">
+													{#each senders as s}
+														<button
+															type="button"
+															class="sender-chip"
+															class:selected={(step.senders ?? []).includes(s.name)}
+															onclick={() => toggleStepSender(i, s.name)}
+															aria-pressed={(step.senders ?? []).includes(s.name)}
+														>
+															{#if (step.senders ?? []).includes(s.name)}
+																<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+															{/if}
+															{s.name}
+														</button>
+													{/each}
+												</div>
+											{/if}
 										</div>
+
+										<!-- Overrides sub-section -->
+										<div class="overrides-section">
+											<div class="overrides-header">
+												<div class="overrides-title">
+													<span class="overrides-label">Overrides</span>
+													<span class="step-sender-count">{getOverrideEntries(step).length}</span>
+												</div>
+												<button class="btn btn-ghost btn-sm" type="button" onclick={() => addOverride(i)} disabled={!canAddOverride(step)}>
+													<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+													Add
+												</button>
+											</div>
 										{#if getOverrideEntries(step).length > 0}
 											<div class="override-list">
 												{#each getOverrideEntries(step) as [key, val], oi}
 													<div class="override-row">
-														<input
-															class="input override-key-input mono"
-															type="text"
-															placeholder="format_var"
+														<div class="override-key-select">
+															<Select
 															value={key}
-															onchange={(e) => updateOverrideKey(i, key, (e.target as HTMLInputElement).value)}
-															aria-label="Override key {oi + 1}"
+															options={getOverrideKeyOptions(step)}
+															placeholder="Log field…"
+															onchange={(val) => updateOverrideKey(i, key, val)}
 														/>
+														</div>
 														<span class="override-arrow" aria-hidden="true">→</span>
-														<input
-															class="input override-val-input mono"
-															type="text"
-															placeholder="${'$'}{'{'}varName{'}'}"
-															value={val}
-															oninput={(e) => updateOverrideVal(i, key, (e.target as HTMLInputElement).value)}
-															aria-label="Override value {oi + 1}"
-														/>
+														<div class="override-value-group">
+															<div class="override-var-select">
+																<Select
+																	value={sharedVarNameFromToken(val)}
+																	options={sharedVariableOptions}
+																	placeholder="Select variable…"
+																	disabled={sharedVariableOptions.length === 0}
+																	onchange={(varName) => useSharedVariable(i, key, varName)}
+																/>
+															</div>
+														</div>
 														<button class="icon-btn danger" type="button" onclick={() => removeOverride(i, key)} aria-label="Remove override {oi + 1}">
 															<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 														</button>
 													</div>
+													{#if sharedVariableOptions.length > 0}
+														<div class="override-var-chips" aria-label="Shared variables for override {oi + 1}">
+															{#each sharedVariableOptions as opt}
+																<button
+																	type="button"
+																	class="override-var-chip"
+																	class:selected={val === sharedVarToken(opt.value)}
+																	onclick={() => useSharedVariable(i, key, opt.value)}
+																	aria-pressed={val === sharedVarToken(opt.value)}
+																>
+																	{opt.label}
+																</button>
+															{/each}
+														</div>
+													{/if}
 												{/each}
 											</div>
 										{:else}
-											<p class="overrides-hint">No overrides — shared variables are used directly in log format.</p>
+											<p class="overrides-hint">{getOverrideHint(step)}</p>
 										{/if}
 									</div>
 								</div>
@@ -795,31 +978,7 @@
 					{/if}
 				</div>
 
-				<!-- Section 4: Senders -->
-				<div class="form-section">
-					<div class="args-divider">Senders</div>
-					{#if senders.length === 0}
-						<p class="section-empty">No senders available. <a href="/sender" class="link">Create a sender</a> first.</p>
-					{:else}
-						<div class="sender-chips" role="group" aria-label="Select senders">
-							{#each senders as s}
-								<button
-									type="button"
-									class="sender-chip"
-									class:selected={formSenders.includes(s.name)}
-									onclick={() => toggleSender(s.name)}
-									aria-pressed={formSenders.includes(s.name)}
-								>
-									{#if formSenders.includes(s.name)}
-										<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-									{/if}
-									{s.name}
-								</button>
-							{/each}
-						</div>
-					{/if}
 				</div>
-			</div>
 
 			<!-- Dialog footer -->
 			<div class="dialog-footer">
@@ -1092,11 +1251,21 @@
 		padding: 0.1875rem 0.375rem;
 	}
 
-	.step-repeat {
-		padding: 0.1875rem 0.25rem 0.1875rem 0;
-		font-size: 0.5625rem;
-		color: var(--text-muted);
-	}
+		.step-repeat {
+			padding: 0.1875rem 0.25rem 0.1875rem 0;
+			font-size: 0.5625rem;
+			color: var(--text-muted);
+		}
+
+		.step-sender-mini {
+			padding: 0.1875rem 0.375rem;
+			font-size: 0.5625rem;
+			color: var(--text-muted);
+			border-left: 1px solid var(--border);
+			max-width: 10rem;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
 
 	.step-cnt {
 		padding: 0.1875rem 0.375rem;
@@ -1331,23 +1500,50 @@
 		gap: 2px;
 	}
 
-	.step-fields-row {
-		display: flex;
-		gap: 0.75rem;
-		align-items: flex-start;
-	}
+		.step-fields-row {
+			display: flex;
+			gap: 0.75rem;
+			align-items: flex-start;
+		}
 
 	.step-log-field {
 		flex: 2;
 		margin-bottom: 0;
 	}
 
-	.step-num-field {
-		flex: 1;
-		margin-bottom: 0;
-	}
+		.step-num-field {
+			flex: 1;
+			margin-bottom: 0;
+		}
 
-	/* ── Overrides ───────────────────────────────────────────── */
+		.step-senders-section {
+			border-top: 1px solid var(--border);
+			padding-top: 0.625rem;
+		}
+
+		.step-senders-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.5rem;
+			margin-bottom: 0.5rem;
+		}
+
+		.step-sender-count {
+			min-width: 1.25rem;
+			height: 1.25rem;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			border-radius: 999px;
+			background: var(--bg-base);
+			border: 1px solid var(--border);
+			color: var(--text-muted);
+			font-size: 0.6875rem;
+			font-family: var(--font-mono);
+		}
+
+		/* ── Overrides ───────────────────────────────────────────── */
 	.overrides-section {
 		border-top: 1px solid var(--border);
 		padding-top: 0.625rem;
@@ -1357,7 +1553,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 0.5rem;
 		margin-bottom: 0.5rem;
+	}
+
+	.overrides-title {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.overrides-label {
@@ -1377,19 +1580,18 @@
 	.override-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.375rem;
+		gap: 0.5rem;
 	}
 
 	.override-row {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
+		gap: 0.5rem;
 	}
 
-	.override-key-input {
-		width: 130px;
+	.override-key-select {
+		width: 12rem;
 		flex-shrink: 0;
-		font-size: 0.8125rem;
 	}
 
 	.override-arrow {
@@ -1398,10 +1600,46 @@
 		font-size: 0.875rem;
 	}
 
-	.override-val-input {
+	.override-value-group {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
 		flex: 1;
 		min-width: 0;
-		font-size: 0.8125rem;
+	}
+
+	.override-var-select {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.override-var-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		padding-left: calc(12rem + 1.625rem);
+	}
+
+	.override-var-chip {
+		display: inline-flex;
+		align-items: center;
+		height: 1.5rem;
+		padding: 0 0.5rem;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--border);
+		background: var(--bg-raised);
+		color: var(--text-muted);
+		font-size: 0.6875rem;
+		font-family: var(--font-mono);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.override-var-chip:hover,
+	.override-var-chip.selected {
+		border-color: var(--accent);
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
 	}
 
 	/* ── Sender chips ────────────────────────────────────────── */
@@ -1451,6 +1689,25 @@
 		.step-log-field,
 		.step-num-field {
 			width: 100%;
+		}
+
+		.override-row,
+		.override-value-group {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.override-key-select,
+		.override-var-select {
+			width: 100%;
+		}
+
+		.override-arrow {
+			display: none;
+		}
+
+		.override-var-chips {
+			padding-left: 0;
 		}
 
 		.search-input {

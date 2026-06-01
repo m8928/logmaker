@@ -131,6 +131,8 @@
 	let previewText = $state('');
 	let previewLoading = $state(false);
 	let hoveredMaker = $state<string | null>(null);
+	let makerSearch = $state('');
+	let makerPaletteOpen = $state(false);
 
 	// Floating tooltip (no wrapper element needed)
 	let ftip = $state({ show: false, x: 0, y: 0, title: '', text: '' });
@@ -170,6 +172,15 @@
 			: items
 	);
 
+	const filteredMakers = $derived(
+		makerSearch.trim()
+			? makers.filter((m) =>
+					m.name.toLowerCase().includes(makerSearch.toLowerCase()) ||
+					m.type.toLowerCase().includes(makerSearch.toLowerCase())
+				)
+			: makers
+	);
+
 	async function fetchItems() {
 		loading = true;
 		try {
@@ -199,6 +210,8 @@
 		formByteScaleIdx = 0;
 		formSenders = [];
 		previewText = '';
+		makerSearch = '';
+		makerPaletteOpen = false;
 		dialogOpen = true;
 		fetchSupport();
 	}
@@ -219,6 +232,8 @@
 		}
 		formSenders = [...item.sender];
 		previewText = '';
+		makerSearch = '';
+		makerPaletteOpen = false;
 		dialogOpen = true;
 		fetchSupport();
 		setTimeout(() => {
@@ -244,6 +259,8 @@
 		}
 		formSenders = [...item.sender];
 		previewText = '';
+		makerSearch = '';
+		makerPaletteOpen = false;
 		dialogOpen = true;
 		fetchSupport();
 	}
@@ -282,6 +299,11 @@
 			formFormat = formatTextarea.textContent ?? '';
 		}
 		runPreview();
+	}
+
+	function toggleMakerPalette() {
+		makerPaletteOpen = !makerPaletteOpen;
+		if (!makerPaletteOpen) makerSearch = '';
 	}
 
 	// Highlight <makerName> in contenteditable
@@ -834,11 +856,11 @@
 								<span class="tbl-name mono">{item.name}</span>
 							</td>
 							<td>
-								<span class="tbl-status" class:tbl-status-running={running && !lagging} class:tbl-status-lagging={lagging}>
-									<span class="tbl-status-dot" class:pulse={running}></span>
-									{lagging ? 'Lag' : running ? 'Run' : 'Stop'}
-								</span>
-							</td>
+									<span class="tbl-status" class:tbl-status-running={running && !lagging} class:tbl-status-lagging={lagging}>
+										<span class="tbl-status-dot" class:pulse={running}></span>
+										{lagging ? 'Lagging' : running ? 'Running' : 'Stopped'}
+									</span>
+								</td>
 							<td class="tbl-format-cell">
 								<span class="tbl-format mono">{#each formatSegs as seg}{#if seg.maker}<span class="tbl-format-maker">{seg.text}</span>{:else}<span class="tbl-format-static">{seg.text}</span>{/if}{/each}</span>
 							</td>
@@ -859,6 +881,20 @@
 							</td>
 							<td class="right">
 								<div class="row-actions">
+									{#if item.eps > 0 && item.sender.length > 0}
+										<button
+											class="icon-btn {item.paused ? 'icon-btn-primary' : ''}"
+											onclick={(e) => { e.stopPropagation(); toggleLog(item.name, !!item.paused); }}
+											title={item.paused ? 'Start' : 'Stop'}
+											aria-label="{item.paused ? 'Start' : 'Stop'} {item.name}"
+										>
+											{#if item.paused}
+												<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+											{:else}
+												<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+											{/if}
+										</button>
+									{/if}
 									<button
 										class="icon-btn"
 										onclick={(e) => { e.stopPropagation(); openCopy(item); }}
@@ -970,41 +1006,10 @@
 					</div>
 				</div>
 
-				<!-- Section 2: Maker Palette (always visible) -->
+				<!-- Section 2: Format Editor -->
 				<div class="pipeline-section">
 					<div class="section-header">
-						<span class="field-label">AVAILABLE MAKERS</span>
-					</div>
-					<div class="maker-palette">
-						{#if makers.length === 0}
-							<span class="palette-empty">No makers available — create one first</span>
-						{:else}
-							{#each makers as maker}
-								<Tooltip
-									title={maker.name}
-									text={"TYPE: " + maker.type + (maker.sample != null ? "\nSAMPLE: " + maker.sample : "")}
-									position="bottom"
-								>
-									<button
-										class="palette-chip"
-										type="button"
-										onclick={() => insertMaker(maker.name)}
-									>
-										<span class="palette-chip-name">{maker.name}</span>
-										{#if maker.type}
-											<span class="palette-chip-type">{maker.type}</span>
-										{/if}
-									</button>
-								</Tooltip>
-							{/each}
-						{/if}
-					</div>
-				</div>
-
-				<!-- Section 3: Format Editor -->
-				<div class="pipeline-section">
-					<div class="section-header">
-						<label class="field-label" for="log-format">FORMAT TEMPLATE <span class="required">*</span></label>
+						<label id="log-format-label" class="field-label" for="log-format">FORMAT TEMPLATE <span class="required">*</span></label>
 					</div>
 					<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 					<div
@@ -1035,8 +1040,60 @@
 						role="textbox"
 						tabindex="0"
 						aria-multiline="true"
+						aria-labelledby="log-format-label"
 						data-placeholder="<maker1> <maker2> some static text"
 					></div>
+				</div>
+
+				<!-- Section 3: Maker Palette -->
+				<div class="pipeline-section">
+					<div class="section-header maker-section-header">
+						<button
+							type="button"
+							class="section-collapse-btn"
+							onclick={toggleMakerPalette}
+							aria-expanded={makerPaletteOpen}
+							aria-controls="maker-palette"
+						>
+							<svg class="section-chevron" class:rotated={makerPaletteOpen} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+							<span class="field-label">AVAILABLE MAKERS</span>
+							<span class="section-count">{filteredMakers.length}/{makers.length}</span>
+						</button>
+						{#if makerPaletteOpen}
+							<div class="maker-search-wrap">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="maker-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+								<input class="maker-search-input" type="search" placeholder="Filter makers…" bind:value={makerSearch} aria-label="Filter makers" />
+							</div>
+						{/if}
+					</div>
+					{#if makerPaletteOpen}
+						<div id="maker-palette" class="maker-palette">
+							{#if makers.length === 0}
+								<span class="palette-empty">No makers available</span>
+							{:else if filteredMakers.length === 0}
+								<span class="palette-empty">No makers found</span>
+							{:else}
+								{#each filteredMakers as maker}
+									<Tooltip
+										title={maker.name}
+										text={"TYPE: " + maker.type + (maker.sample != null ? "\nSAMPLE: " + maker.sample : "")}
+										position="bottom"
+									>
+										<button
+											class="palette-chip"
+											type="button"
+											onclick={() => insertMaker(maker.name)}
+										>
+											<span class="palette-chip-name">{maker.name}</span>
+											{#if maker.type}
+												<span class="palette-chip-type">{maker.type}</span>
+											{/if}
+										</button>
+									</Tooltip>
+								{/each}
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Section 4: Live Preview -->
@@ -1661,6 +1718,76 @@
 		margin-bottom: 0.5rem;
 	}
 
+	.maker-section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.section-collapse-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		cursor: pointer;
+	}
+
+	.section-collapse-btn:hover .field-label {
+		color: var(--text-secondary);
+	}
+
+	.section-chevron {
+		color: var(--text-muted);
+		transition: transform 0.15s ease;
+	}
+
+	.section-chevron.rotated {
+		transform: rotate(180deg);
+	}
+
+	.section-count {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--text-muted);
+	}
+
+	.maker-search-wrap {
+		position: relative;
+		width: min(15rem, 42%);
+		min-width: 10rem;
+	}
+
+	.maker-search-icon {
+		position: absolute;
+		top: 50%;
+		left: 0.5rem;
+		transform: translateY(-50%);
+		color: var(--text-muted);
+		pointer-events: none;
+	}
+
+	.maker-search-input {
+		width: 100%;
+		height: 1.875rem;
+		padding: 0.25rem 0.625rem 0.25rem 1.625rem;
+		background: var(--bg-base);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-primary);
+		font-size: 0.75rem;
+		font-family: var(--font-ui);
+	}
+
+	.maker-search-input:focus {
+		outline: none;
+		border-color: var(--border-focus);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+	}
+
 	.basic-info-row {
 		display: flex;
 		gap: 0.75rem;
@@ -1794,6 +1921,8 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		min-height: 40px;
+		max-height: 11.5rem;
+		overflow: auto;
 		align-items: center;
 	}
 
@@ -2049,5 +2178,13 @@
 		.search-input { width: 150px; }
 		.search-input:focus { width: 150px; }
 		.tbl-format-cell { max-width: 140px; }
+		.maker-section-header {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.maker-search-wrap {
+			width: 100%;
+			min-width: 0;
+		}
 	}
 </style>

@@ -1,5 +1,6 @@
 package me.blueat.logmaker.core.scenario;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -15,6 +16,8 @@ public class ScenarioDto {
     private String description;
     private Map<String, String> sharedVariables = new HashMap<>();
     private List<ScenarioStepDto> steps = new ArrayList<>();
+    // Scenario-level senders are legacy; each step owns its sender list.
+    @JsonIgnore
     private List<String> senders = new ArrayList<>();
     private long intervalMinMs = 1000;
     private long intervalMaxMs = 5000;

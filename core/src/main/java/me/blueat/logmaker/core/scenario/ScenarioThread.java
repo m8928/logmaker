@@ -52,16 +52,10 @@ public class ScenarioThread implements Runnable {
     public void run() {
         running.set(true);
         runningThread = Thread.currentThread();
-        stepCounts = new long[scenarioDto.getSteps().size()];
+        List<ScenarioStepDto> steps = scenarioDto.getSteps() != null ? scenarioDto.getSteps() : Collections.emptyList();
+        stepCounts = new long[steps.size()];
 
-        // Resolve senders
-        Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
-        scenarioDto.getSenders().forEach(senderName ->
-                senderService.getSender(senderName).ifPresent(entry -> {
-                    entry.getValue().increaseRef();
-                    senders.put(senderName, entry.getValue());
-                })
-        );
+        Map<String, Sender<?>> senders = resolveSenders(steps);
 
         try {
             int loopCount = scenarioDto.getLoopCount();
@@ -76,7 +70,7 @@ public class ScenarioThread implements Runnable {
                 Map<String, String> resolvedVars = resolveSharedVariables();
 
                 int stepIdx = 0;
-                for (ScenarioStepDto step : scenarioDto.getSteps()) {
+                for (ScenarioStepDto step : steps) {
                     currentStep.set(stepIdx + 1);
                     if (Thread.currentThread().isInterrupted()) break;
 
@@ -115,7 +109,7 @@ public class ScenarioThread implements Runnable {
                         String data = generate(vTemplate, templateData);
 
                         final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                        senders.values().forEach(sender -> {
+                        getSendersForStep(senders, step).forEach(sender -> {
                             if (!sender.isLimitReached()) {
                                 sender.sendData(data);
                                 sender.increaseCount();
@@ -148,6 +142,44 @@ public class ScenarioThread implements Runnable {
             senders.values().forEach(Sender::decreaseRef);
             running.set(false);
         }
+    }
+
+    private Map<String, Sender<?>> resolveSenders(List<ScenarioStepDto> steps) {
+        Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
+        Set<String> senderNames = new LinkedHashSet<>();
+
+        steps.forEach(step -> addSenderNames(senderNames, step.getSenders()));
+
+        senderNames.forEach(senderName ->
+                senderService.getSender(senderName).ifPresent(entry -> {
+                    entry.getValue().increaseRef();
+                    senders.put(senderName, entry.getValue());
+                })
+        );
+        return senders;
+    }
+
+    private List<Sender<?>> getSendersForStep(Map<String, Sender<?>> senders, ScenarioStepDto step) {
+        List<String> senderNames = step.getSenders();
+        if (senderNames == null || senderNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return senderNames.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(senders::get)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private void addSenderNames(Set<String> target, List<String> source) {
+        if (source == null) {
+            return;
+        }
+        source.stream()
+                .filter(Objects::nonNull)
+                .forEach(target::add);
     }
 
     private long randomLong(long min, long max) {
