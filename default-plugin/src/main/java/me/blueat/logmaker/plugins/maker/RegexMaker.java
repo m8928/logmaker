@@ -8,6 +8,7 @@ import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -22,6 +23,7 @@ public class RegexMaker extends Maker<String> implements Runnable {
     private Thread thread;
     private Lock updateLock;
     private RgxGen rgxGen;
+    private final AtomicLong configurationVersion = new AtomicLong();
 
     public RegexMaker(String makerName, String type, Map<String, Object> args) {
         thread = new Thread(this);
@@ -42,8 +44,22 @@ public class RegexMaker extends Maker<String> implements Runnable {
     @Override
     public void run() {
         while(!Thread.currentThread().isInterrupted()) {
+            long version;
+            String generated;
+            updateLock.lock();
             try {
-                queue.put(getRegexRandomString(regex));
+                version = configurationVersion.get();
+                generated = getRegexRandomString();
+            } finally {
+                updateLock.unlock();
+            }
+
+            if (generated == null || version != configurationVersion.get()) {
+                continue;
+            }
+
+            try {
+                queue.put(generated);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -60,22 +76,17 @@ public class RegexMaker extends Maker<String> implements Runnable {
         }
     }
 
-    private String getRegexRandomString(String regex) {
-        updateLock.lock();
-        String s;
+    private String getRegexRandomString() {
+        CompletableFuture<String> withTimeout = CompletableFuture.supplyAsync(() -> rgxGen.generate());
         try {
-            CompletableFuture<String> withTimeout = CompletableFuture.supplyAsync(() -> rgxGen.generate());
-            try {
-                s = withTimeout.get(1, TimeUnit.SECONDS);
-            }
-            catch (ExecutionException | InterruptedException | TimeoutException e) {
-                s = "";
-            }
-
-            return s;
-        }
-        finally {
-            updateLock.unlock();
+            return withTimeout.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            withTimeout.cancel(true);
+            return null;
+        } catch (ExecutionException | TimeoutException e) {
+            withTimeout.cancel(true);
+            return null;
         }
     }
 
@@ -110,6 +121,7 @@ public class RegexMaker extends Maker<String> implements Runnable {
         try {
             this.getThread().interrupt();
             this.args = args;
+            configurationVersion.incrementAndGet();
             init();
             this.queue.clear();
             this.thread = new Thread(this);

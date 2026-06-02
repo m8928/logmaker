@@ -8,6 +8,7 @@ import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -21,6 +22,7 @@ public class PickMaker extends Maker<String> implements Runnable {
     private Map<String, Object> args;
     private Thread thread;
     private Lock updateLock;
+    private final AtomicLong configurationVersion = new AtomicLong();
 
     public PickMaker(String makerName, String type, Map<String, Object> args) {
         thread = new Thread(this);
@@ -43,11 +45,17 @@ public class PickMaker extends Maker<String> implements Runnable {
         while(!Thread.currentThread().isInterrupted()) {
             updateLock.lock();
             String pick;
+            long version;
             try {
+                version = configurationVersion.get();
                 pick = picker.get((int) ((Math.random() * ((picker.size()) - 0)) + 0));
             }
             finally {
                 updateLock.unlock();
+            }
+
+            if (version != configurationVersion.get()) {
+                continue;
             }
 
             try {
@@ -98,9 +106,9 @@ public class PickMaker extends Maker<String> implements Runnable {
         updateLock.lock();
         try {
             this.args = args;
+            configurationVersion.incrementAndGet();
             init();
             this.queue.clear();
-            // NOTHING
         } finally {
             updateLock.unlock();
         }
