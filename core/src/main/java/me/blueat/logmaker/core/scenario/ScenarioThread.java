@@ -13,9 +13,9 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 
 import java.io.StringWriter;
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @Getter
 public class ScenarioThread implements Runnable {
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final MakerService makerService;
     private final SenderService senderService;
@@ -208,7 +209,7 @@ public class ScenarioThread implements Runnable {
 
     private long randomLong(long min, long max) {
         if (min >= max) return min;
-        return ThreadLocalRandom.current().nextLong(min, max + 1);
+        return min + RANDOM.nextLong(max - min + 1);
     }
 
     private Map<String, String> resolveSharedVariables() {

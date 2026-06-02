@@ -189,14 +189,14 @@ public class LogThread implements Runnable {
         updateLock.lock();
         try {
             for (int i = 0; i < BATCH_SIZE
-                    && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits); i++) {
+                    && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits);
+                 i++, batchEvents++) {
                 String data = generate(vTemplate, getTemplateData());
                 int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                 senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
                 bytes.addAndGet(dataBytes);
                 count.incrementAndGet();
                 batchBytes += dataBytes;
-                batchEvents++;
             }
         } finally {
             updateLock.unlock();
