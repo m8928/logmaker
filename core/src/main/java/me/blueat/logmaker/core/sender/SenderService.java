@@ -91,10 +91,17 @@ public class SenderService {
         }
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
         if (existsSender.isPresent()) {
-            if (existsSender.get().getValue().isThread()) {
-                existsSender.get().getValue().getThread().interrupt();
+            Sender<?> sender = existsSender.get().getValue();
+            if (sender.isThread() && sender.getThread() != null) {
+                sender.getThread().interrupt();
             }
-            senderTable.remove(existsSender.get().getKey(), name);
+            try {
+                sender.close();
+            } catch (Exception e) {
+                log.warn("Failed to close sender: {}", name, e);
+            } finally {
+                senderTable.remove(existsSender.get().getKey(), name);
+            }
         }
         saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");

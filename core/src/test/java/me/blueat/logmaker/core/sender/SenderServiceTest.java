@@ -207,6 +207,7 @@ class SenderServiceTest {
         // Then: delete succeeds and thread interrupt is called for resource cleanup
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
         verify(mockThread, Mockito.times(1)).interrupt();
+        verify(sender, Mockito.times(1)).close();
     }
 
     @Test
@@ -264,6 +265,7 @@ class SenderServiceTest {
 
         // Then
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        verify(sender, Mockito.times(1)).close();
     }
 
     @Test

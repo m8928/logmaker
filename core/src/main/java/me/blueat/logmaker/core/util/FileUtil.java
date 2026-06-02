@@ -21,10 +21,12 @@ public class FileUtil {
         writeLock.lock();
         try {
             Path targetPath = Paths.get(filePath);
-            if (!Files.exists(targetPath.getParent())) {
-                Files.createDirectories(targetPath.getParent());
+            Path parent = targetPath.getParent();
+            if (parent != null && !Files.exists(parent)) {
+                Files.createDirectories(parent);
             }
-            Path tempFile = Files.createTempFile(targetPath.getParent(), "logmaker-", ".tmp");
+            Path tempDirectory = parent != null ? parent : Paths.get(".");
+            Path tempFile = Files.createTempFile(tempDirectory, "logmaker-", ".tmp");
             mapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), data);
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             log.info("Saved to {}", filePath);

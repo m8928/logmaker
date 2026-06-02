@@ -69,6 +69,44 @@ class ScenarioThreadTest {
         assertEquals(List.of(), scenarioSender.getSentData());
     }
 
+    @Test
+    void recompilesSameLogForDifferentStepOverrides() {
+        LogThread loginLog = logThread("login", "${value}");
+        logService.add(loginLog);
+
+        CapturingSender sender = new CapturingSender("scenario-sender");
+        senderService.add(sender);
+
+        ScenarioStepDto first = step("login", List.of("scenario-sender"));
+        first.setOverrides(Map.of("value", "first"));
+        ScenarioStepDto second = step("login", List.of("scenario-sender"));
+        second.setOverrides(Map.of("value", "second"));
+        ScenarioDto scenario = scenario(List.of(first, second));
+
+        new ScenarioThread(makerService, senderService, logService, scenario).run();
+
+        assertEquals(List.of("first", "second"), sender.getSentData());
+    }
+
+    @Test
+    void continuesScenarioWhenOneSenderFails() {
+        LogThread loginLog = logThread("login", "login-event");
+        logService.add(loginLog);
+
+        ThrowingSender failingSender = new ThrowingSender("failing-sender");
+        CapturingSender healthySender = new CapturingSender("healthy-sender");
+        senderService.add(failingSender);
+        senderService.add(healthySender);
+
+        ScenarioDto scenario = scenario(List.of(
+                step("login", List.of("failing-sender", "healthy-sender"))
+        ));
+
+        new ScenarioThread(makerService, senderService, logService, scenario).run();
+
+        assertEquals(List.of("login-event"), healthySender.getSentData());
+    }
+
     private ScenarioDto scenario(List<ScenarioStepDto> steps) {
         ScenarioDto scenario = new ScenarioDto();
         scenario.setName("test-scenario");
@@ -196,6 +234,17 @@ class ScenarioThreadTest {
 
         private List<String> getSentData() {
             return sentData;
+        }
+    }
+
+    private static class ThrowingSender extends CapturingSender {
+        private ThrowingSender(String name) {
+            super(name);
+        }
+
+        @Override
+        public void sendData(String data) {
+            throw new RuntimeException("send failed");
         }
     }
 }

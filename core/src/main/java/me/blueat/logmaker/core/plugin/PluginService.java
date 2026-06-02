@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -38,8 +39,7 @@ public class PluginService {
     public ResponseEntity<Result> uploadPlugin(MultipartFile file) {
         Path pluginPath = null;
         try {
-            String originalName = file.getOriginalFilename();
-            String safeName = UUID.randomUUID() + "_" + Paths.get(originalName).getFileName().toString().replaceAll("[^a-zA-Z0-9._-]", "_");
+            String safeName = UUID.randomUUID() + "_" + sanitizePluginFileName(file.getOriginalFilename());
             pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(), safeName);
             file.transferTo(pluginPath);
 
@@ -53,7 +53,7 @@ public class PluginService {
         catch (Exception e) {
             if (pluginPath != null) {
                 try {
-                    Files.delete(pluginPath);
+                    Files.deleteIfExists(pluginPath);
                 }
                 catch (IOException ioe) {
                     log.error("Failed to delete plugin file after upload failure", ioe);
@@ -122,5 +122,22 @@ public class PluginService {
                 }));
 
         return result;
+    }
+
+    private String sanitizePluginFileName(String originalName) {
+        String baseName = "plugin.jar";
+        if (originalName != null && !originalName.isBlank()) {
+            try {
+                Path fileName = Paths.get(originalName).getFileName();
+                if (fileName != null && !fileName.toString().isBlank()) {
+                    baseName = fileName.toString();
+                }
+            } catch (InvalidPathException e) {
+                log.warn("Invalid plugin filename supplied, using default name: {}", originalName);
+            }
+        }
+
+        String sanitized = baseName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        return sanitized.isBlank() ? "plugin.jar" : sanitized;
     }
 }

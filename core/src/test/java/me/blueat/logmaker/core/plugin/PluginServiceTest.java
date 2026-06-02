@@ -6,6 +6,7 @@ import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.core.sender.SenderService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -15,6 +16,7 @@ import org.pf4j.PluginWrapper;
 import org.pf4j.spring.SpringPluginManager;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -24,6 +26,7 @@ import java.util.Collections;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,6 +94,26 @@ class PluginServiceTest {
 
         // Then
         assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void uploadPlugin_emptyOriginalFilenameUsesDefaultName() throws IOException {
+        MultipartFile file = Mockito.mock(MultipartFile.class);
+        when(file.getOriginalFilename()).thenReturn("");
+        SpringPluginManager pluginManager = Mockito.mock(SpringPluginManager.class);
+        when(pluginConfig.pluginManager()).thenReturn(pluginManager);
+        when(pluginManager.getPluginsRoot()).thenReturn(Paths.get("."));
+        when(springPluginManager.loadPlugin(any(Path.class))).thenReturn("testPlugin");
+
+        ResponseEntity<Result> response = pluginService.uploadPlugin(file);
+
+        ArgumentCaptor<Path> pathCaptor = ArgumentCaptor.forClass(Path.class);
+        verify(file).transferTo(pathCaptor.capture());
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        assertFalse(pathCaptor.getValue().getFileName().toString().isBlank());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                pathCaptor.getValue().getFileName().toString().endsWith("_plugin.jar")
+        );
     }
 
     @Test

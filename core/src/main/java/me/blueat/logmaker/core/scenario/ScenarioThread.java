@@ -6,16 +6,12 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.log.LogThread;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.RuntimeServices;
-import org.apache.velocity.runtime.RuntimeSingleton;
-import org.apache.velocity.runtime.parser.ParseException;
-import org.apache.velocity.runtime.parser.node.SimpleNode;
 
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,6 +28,7 @@ public class ScenarioThread implements Runnable {
     private final SenderService senderService;
     private final LogService logService;
     private final ScenarioDto scenarioDto;
+    private final VelocityEngine ve;
 
     private final AtomicLong count = new AtomicLong(0);
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -46,6 +43,7 @@ public class ScenarioThread implements Runnable {
         this.senderService = senderService;
         this.logService = logService;
         this.scenarioDto = scenarioDto;
+        this.ve = VelocityTemplateUtil.createSecureEngine(1);
     }
 
     @Override
@@ -109,13 +107,7 @@ public class ScenarioThread implements Runnable {
                         String data = generate(vTemplate, templateData);
 
                         final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                        getSendersForStep(senders, step).forEach(sender -> {
-                            if (!sender.isLimitReached()) {
-                                sender.sendData(data);
-                                sender.increaseCount();
-                                sender.addBytes(dataBytes);
-                            }
-                        });
+                        getSendersForStep(senders, step).forEach(sender -> sendToSender(sender, data, dataBytes));
                         count.incrementAndGet();
                         if (stepIdx < stepCounts.length) stepCounts[stepIdx]++;
                     }
@@ -232,34 +224,24 @@ public class ScenarioThread implements Runnable {
 
     private Template compileTemplate(String name, String vFormat) {
         try {
-            VelocityEngine ve = new VelocityEngine();
-            ve.setProperty("introspector.uberspect.class", "org.apache.velocity.util.introspection.SecureUberspector");
-            ve.setProperty("introspector.restrict.packages", "java.lang.reflect,java.lang.Runtime,java.lang.Process,java.lang.System");
-            ve.setProperty("introspector.restrict.classes", "java.lang.Class,java.lang.ClassLoader,java.lang.Thread,java.lang.Compiler,java.lang.Runtime,java.lang.System");
-            ve.setProperty("parser.pool.size", 1);
-            ve.init();
-
-            RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
-            StringReader sr = new StringReader(vFormat);
-
-            Template vTemplate = new Template();
-            vTemplate.setName(name);
-            vTemplate.setRuntimeServices(rs);
-
-            SimpleNode sn = null;
-            try {
-                sn = rs.parse(sr, vTemplate);
-            } catch (ParseException e) {
-                log.error("Scenario template parsing error for log: {}", name, e);
-                return null;
-            }
-
-            vTemplate.setData(sn);
-            vTemplate.initDocument();
-            return vTemplate;
+            return VelocityTemplateUtil.compile(ve, name, vFormat);
         } catch (Exception e) {
             log.error("Failed to compile scenario template for log: {}", name, e);
             return null;
+        }
+    }
+
+    private void sendToSender(Sender<?> sender, String data, int dataBytes) {
+        if (sender.isLimitReached()) {
+            return;
+        }
+
+        try {
+            sender.sendData(data);
+            sender.increaseCount();
+            sender.addBytes(dataBytes);
+        } catch (Exception e) {
+            log.error("Failed to send data to sender: {}", sender.getSenderName(), e);
         }
     }
 

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.antlr.runtime.Token;
@@ -13,14 +14,9 @@ import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.RuntimeServices;
-import org.apache.velocity.runtime.RuntimeSingleton;
-import org.apache.velocity.runtime.parser.ParseException;
-import org.apache.velocity.runtime.parser.node.SimpleNode;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.compiler.STLexer;
 
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.time.Instant;
@@ -41,7 +37,7 @@ public class LogThread implements Runnable {
     private volatile long lastSecondBytes = 0;
     private Set<String> makerName;
     private List<String> senderName;
-    private VelocityEngine ve;
+    private final VelocityEngine ve;
     private Template vTemplate;
     private String vFormat;
     private final MakerService makerService;
@@ -54,6 +50,8 @@ public class LogThread implements Runnable {
     private LogDto logDto;
 
     private volatile Thread runningThread;
+    private long eventTargetRemainder = 0L;
+    private long byteTargetRemainder = 0L;
 
     public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) {
         this.makerService = makerService;
@@ -61,6 +59,7 @@ public class LogThread implements Runnable {
         this.logDto = logDto;
         this.senders = new ConcurrentHashMap<>();
         this.makers = new ConcurrentHashMap<>();
+        this.ve = VelocityTemplateUtil.createSecureEngine(20);
         init();
     }
 
@@ -82,29 +81,12 @@ public class LogThread implements Runnable {
         }
 
         this.vFormat = template.render();
-
-        ve = new VelocityEngine();
-        ve.setProperty("introspector.uberspect.class", "org.apache.velocity.util.introspection.SecureUberspector");
-        ve.setProperty("introspector.restrict.packages", "java.lang.reflect,java.lang.Runtime,java.lang.Process,java.lang.System");
-        ve.setProperty("introspector.restrict.classes", "java.lang.Class,java.lang.ClassLoader,java.lang.Thread,java.lang.Compiler,java.lang.Runtime,java.lang.System");
-        ve.setProperty("parser.pool.size", 20);
-        ve.init();
-
-        vTemplate = new Template();
-        vTemplate.setName(logDto.getName());
-
-        RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
-        StringReader sr = new StringReader(vFormat);
-        SimpleNode sn = null;
         try {
-            sn = rs.parse(sr, vTemplate);
-        } catch (ParseException e) {
-            log.error("Template parsing failed", e);
+            vTemplate = VelocityTemplateUtil.compile(ve, logDto.getName(), vFormat);
+        } catch (Exception e) {
+            log.error("Template parsing failed: {}", logDto.getName(), e);
+            throw new IllegalStateException("Template parsing failed", e);
         }
-
-        vTemplate.setRuntimeServices(rs);
-        vTemplate.setData(sn);
-        vTemplate.initDocument();
 
         if (!makerService.getMakerNames().containsAll(makerName)) {
             makerName.removeAll(makerService.getMakerNames());
@@ -141,9 +123,7 @@ public class LogThread implements Runnable {
     public void run() {
         runningThread = Thread.currentThread();
         start = Instant.now();
-        AtomicLong createCount = new AtomicLong(0);
         while (!Thread.currentThread().isInterrupted()) {
-            createCount.set(0);
             Instant currentStart = Instant.now();
 
             if (!senders.isEmpty() && !logDto.isPaused()) {
@@ -152,27 +132,20 @@ public class LogThread implements Runnable {
                 long secEvents = 0;
                 long rawTarget = logDto.getEps();
                 long divisor = "min".equals(logDto.getEpsTimeUnit()) ? 60 : "hour".equals(logDto.getEpsTimeUnit()) ? 3600 : "day".equals(logDto.getEpsTimeUnit()) ? 86400 : 1;
-                long targetEps = rawTarget / divisor;
+                long targetUnits = nextTargetUnits(isBytesMode, rawTarget, divisor);
                 final int BATCH = 1000;
 
-                outer:
                 while (!Thread.currentThread().isInterrupted()
-                        && (isBytesMode ? secBytes < targetEps : secEvents < targetEps)
+                        && (isBytesMode ? secBytes < targetUnits : secEvents < targetUnits)
                         && Duration.between(currentStart, Instant.now()).toMillis() < 1000) {
                     updateLock.lock();
                     try {
                         for (int i = 0; i < BATCH; i++) {
-                            if (isBytesMode ? secBytes >= targetEps : secEvents >= targetEps) break;
+                            if (isBytesMode ? secBytes >= targetUnits : secEvents >= targetUnits) break;
                             String data = generate(vTemplate, getTemplateData());
 
                             final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                            senders.values().forEach(sender -> {
-                                if (!sender.isLimitReached()) {
-                                    sender.sendData(data);
-                                    sender.increaseCount();
-                                    sender.addBytes(dataBytes);
-                                }
-                            });
+                            senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
                             bytes.addAndGet(dataBytes);
                             secBytes += dataBytes;
                             secEvents++;
@@ -197,6 +170,38 @@ public class LogThread implements Runnable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    long nextTargetUnits(boolean bytesMode, long rawTarget, long divisor) {
+        if (rawTarget <= 0 || divisor <= 0) {
+            return 0;
+        }
+
+        if (bytesMode) {
+            byteTargetRemainder += rawTarget;
+            long target = byteTargetRemainder / divisor;
+            byteTargetRemainder %= divisor;
+            return target;
+        }
+
+        eventTargetRemainder += rawTarget;
+        long target = eventTargetRemainder / divisor;
+        eventTargetRemainder %= divisor;
+        return target;
+    }
+
+    private void sendToSender(Sender<?> sender, String data, int dataBytes) {
+        if (sender.isLimitReached()) {
+            return;
+        }
+
+        try {
+            sender.sendData(data);
+            sender.increaseCount();
+            sender.addBytes(dataBytes);
+        } catch (Exception e) {
+            log.error("Failed to send data to sender: {}", sender.getSenderName(), e);
         }
     }
 
@@ -245,6 +250,8 @@ public class LogThread implements Runnable {
         updateLock.lock();
         start = Instant.now();
         count.set(0);
+        eventTargetRemainder = 0L;
+        byteTargetRemainder = 0L;
         try {
             makerName.forEach(e -> makerService.getMaker(e).ifPresent(o -> {
                 o.getValue().decreaseRef();

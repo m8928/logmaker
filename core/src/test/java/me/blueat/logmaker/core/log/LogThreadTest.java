@@ -78,6 +78,34 @@ class LogThreadTest {
     }
 
     @Test
+    void testSecureVelocityTemplate_doesNotUseRuntimeSingletonBypass() {
+        LogDto dto = simpleLogDto();
+        dto.setFormat("$class.forName(\"java.lang.Runtime\")");
+        LogThread thread = new LogThread(makerService, senderService, dto);
+
+        String result = thread.generate(thread.getVTemplate(), Map.of("class", Class.class));
+
+        assertNotEquals("class java.lang.Runtime", result.trim());
+    }
+
+    @Test
+    void testNextTargetUnits_accumulatesLowRates() {
+        LogDto dto = simpleLogDto();
+        LogThread thread = new LogThread(makerService, senderService, dto);
+
+        List<Long> targets = List.of(
+                thread.nextTargetUnits(false, 10, 60),
+                thread.nextTargetUnits(false, 10, 60),
+                thread.nextTargetUnits(false, 10, 60),
+                thread.nextTargetUnits(false, 10, 60),
+                thread.nextTargetUnits(false, 10, 60),
+                thread.nextTargetUnits(false, 10, 60)
+        );
+
+        assertEquals(List.of(0L, 0L, 0L, 0L, 0L, 1L), targets);
+    }
+
+    @Test
     void testGetCurrentEps_beforeStart_returnsZero() {
         // Given
         LogDto dto = simpleLogDto();

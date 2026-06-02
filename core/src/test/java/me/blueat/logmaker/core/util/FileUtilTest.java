@@ -7,6 +7,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -83,6 +85,20 @@ class FileUtilTest {
 
         // Then: file was created
         assertTrue(Files.exists(nestedPath));
+    }
+
+    @Test
+    void testSaveToFile_withSimpleFilenameUsesCurrentDirectory() throws IOException {
+        Path simplePath = Paths.get("fileutil-parentless-" + UUID.randomUUID() + ".json");
+        try {
+            TestDto testDto = new TestDto("simple", 7);
+
+            FileUtil.saveToFile(testDto, simplePath.toString());
+
+            assertTrue(Files.exists(simplePath));
+        } finally {
+            Files.deleteIfExists(simplePath);
+        }
     }
 
     @Test

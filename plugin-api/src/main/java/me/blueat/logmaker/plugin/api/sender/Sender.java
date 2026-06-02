@@ -71,6 +71,9 @@ public abstract class Sender<T> {
     public boolean isLimitReached() { return limit > 0 && count.get() >= limit; }
 
     abstract public void update(Map<String, Object> args);
+    public void close() {
+    }
+
     public long getRegTime() {
         return this.regTime;
     }

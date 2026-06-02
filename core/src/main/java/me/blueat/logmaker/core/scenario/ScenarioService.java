@@ -9,6 +9,7 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.core.sender.SenderService;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +30,7 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @RequiredArgsConstructor
 @Slf4j
 @Getter
-public class ScenarioService {
+public class ScenarioService implements DisposableBean {
 
     private final LogMakerConfig logMakerConfig;
     private final MakerService makerService;
@@ -44,9 +45,7 @@ public class ScenarioService {
     protected void init() {
         scenarioMap = new ConcurrentHashMap<>();
         scenarioThreadMap = new ConcurrentHashMap<>();
-        executorService = Executors.newFixedThreadPool(
-                Math.max(4, Runtime.getRuntime().availableProcessors())
-        );
+        executorService = Executors.newCachedThreadPool();
         Arrays.stream(Objects.requireNonNull(loadFromFile(
                 String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "scenarios.json"),
                 ScenarioDto[].class)))
@@ -54,6 +53,7 @@ public class ScenarioService {
         log.info("Initialized Scenario Service");
     }
 
+    @Override
     public void destroy() {
         executorService.shutdownNow();
         try {

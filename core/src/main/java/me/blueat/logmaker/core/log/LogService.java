@@ -11,15 +11,11 @@ import me.blueat.logmaker.core.config.LogMakerConfig;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.model.Result;
+import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
-import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.RuntimeServices;
-import org.apache.velocity.runtime.RuntimeSingleton;
-import org.apache.velocity.runtime.parser.ParseException;
-import org.apache.velocity.runtime.parser.node.SimpleNode;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
@@ -27,7 +23,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,9 +57,7 @@ public class LogService implements DisposableBean {
     @PostConstruct
     protected void init() {
         logThreadMap = new ConcurrentHashMap<>();
-        executorService = Executors.newFixedThreadPool(
-                Math.max(4, Runtime.getRuntime().availableProcessors())
-        );
+        executorService = Executors.newCachedThreadPool();
         Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json")
                         , LogDto[].class)))
                 .forEach(logDto -> createLog(logDto, true));
@@ -172,7 +165,6 @@ public class LogService implements DisposableBean {
         ResponseEntity<Result> result;
 
         try {
-            VelocityEngine ve;
             Template vTemplate;
             String vFormat;
             ST template = new ST(format);
@@ -191,30 +183,7 @@ public class LogService implements DisposableBean {
             }
 
             vFormat = template.render();
-
-            ve = new VelocityEngine();
-            ve.setProperty("introspector.uberspect.class", "org.apache.velocity.util.introspection.SecureUberspector");
-            ve.setProperty("introspector.restrict.packages", "java.lang.reflect,java.lang.Runtime,java.lang.Process,java.lang.System");
-            ve.setProperty("introspector.restrict.classes", "java.lang.Class,java.lang.ClassLoader,java.lang.Thread,java.lang.Compiler,java.lang.Runtime,java.lang.System");
-            ve.setProperty("parser.pool.size", 1);
-            ve.init();
-
-            RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
-            StringReader sr = new StringReader(vFormat);
-
-            vTemplate = new Template();
-            vTemplate.setName("preview");
-            vTemplate.setRuntimeServices(rs);
-
-            SimpleNode sn = null;
-            try {
-                sn = rs.parse(sr, vTemplate);
-            } catch (ParseException e) {
-                log.error("log template parsing error. {}", format);
-            }
-
-            vTemplate.setData(sn);
-            vTemplate.initDocument();
+            vTemplate = VelocityTemplateUtil.compile(VelocityTemplateUtil.createSecureEngine(1), "preview", vFormat);
 
             VelocityContext context = new VelocityContext();
             Map<String, Object> templateData = getTemplateData(expressions);
