@@ -18,8 +18,9 @@ public class MakerArgs {
         return o.toString();
     }
 
-    public static List<?> toList(Object o) {
-        return (List<?>) o;
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> toList(Object o) {
+        return (List<T>) o;
     }
 
     public static int toInt(Object o) {

@@ -17,6 +17,12 @@ public class FileUtil {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final ReentrantLock writeLock = new ReentrantLock();
 
+    public static class FileOperationException extends RuntimeException {
+        public FileOperationException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public static <T> void saveToFile(T data, String filePath) {
         writeLock.lock();
         try {
@@ -31,7 +37,7 @@ public class FileUtil {
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             log.info("Saved to {}", filePath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to save file: " + filePath, e);
+            throw new FileOperationException("Failed to save file: " + filePath, e);
         } finally {
             writeLock.unlock();
         }
@@ -49,7 +55,7 @@ public class FileUtil {
             log.info("Loaded from file {}", filePath);
             return dto;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load file: " + filePath, e);
+            throw new FileOperationException("Failed to load file: " + filePath, e);
         }
     }
 
@@ -64,7 +70,7 @@ public class FileUtil {
             }
         } catch (InstantiationException | IllegalAccessException |
                  NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException("Failed to create new instance: " + e.getMessage(), e);
+            throw new FileOperationException("Failed to create new instance: " + e.getMessage(), e);
         }
     }
 }

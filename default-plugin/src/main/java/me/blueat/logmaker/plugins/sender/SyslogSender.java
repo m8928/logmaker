@@ -47,7 +47,7 @@ public class SyslogSender extends Sender<String> {
         this.facility = SenderArgs.toInt(args.getOrDefault("facility", 1));
         this.severity = SenderArgs.toInt(args.getOrDefault("severity", 6));
         this.messageFormat = SenderArgs.toString(args.getOrDefault("messageFormat", MessageFormat.RFC_3164));
-        this.host = (List<String>) SenderArgs.toList(args.get("host"));
+        this.host = SenderArgs.toList(args.get("host"));
         this.hostPrefix = SenderArgs.toString(args.getOrDefault("hostPrefix", ""));
     }
 

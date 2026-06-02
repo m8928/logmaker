@@ -35,9 +35,8 @@ public class PickMaker extends Maker<String> implements Runnable {
         init();
     }
 
-    @SuppressWarnings("unchecked")
     public void init() {
-        this.picker = (List<String>) MakerArgs.toList(args.get("picker"));
+        this.picker = MakerArgs.toList(args.get("picker"));
     }
 
     @Override

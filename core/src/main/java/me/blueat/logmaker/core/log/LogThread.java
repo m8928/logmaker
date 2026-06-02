@@ -29,6 +29,8 @@ import java.util.concurrent.locks.ReentrantLock;
 @Slf4j
 @Getter
 public class LogThread implements Runnable {
+    private static final int BATCH_SIZE = 1000;
+
     private Instant start = null;
 
     private final AtomicLong count = new AtomicLong(0);
@@ -52,6 +54,9 @@ public class LogThread implements Runnable {
     private volatile Thread runningThread;
     private long eventTargetRemainder = 0L;
     private long byteTargetRemainder = 0L;
+
+    private record GenerationStats(long events, long bytes) {
+    }
 
     public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) {
         this.makerService = makerService;
@@ -125,51 +130,94 @@ public class LogThread implements Runnable {
         start = Instant.now();
         while (!Thread.currentThread().isInterrupted()) {
             Instant currentStart = Instant.now();
+            updateSecondMetrics(currentStart);
+            sleepUntilNextSecond(currentStart);
+        }
+    }
 
-            if (!senders.isEmpty() && !logDto.isPaused()) {
-                boolean isBytesMode = "bytes".equals(logDto.getEpsUnit());
-                long secBytes = 0;
-                long secEvents = 0;
-                long rawTarget = logDto.getEps();
-                long divisor = "min".equals(logDto.getEpsTimeUnit()) ? 60 : "hour".equals(logDto.getEpsTimeUnit()) ? 3600 : "day".equals(logDto.getEpsTimeUnit()) ? 86400 : 1;
-                long targetUnits = nextTargetUnits(isBytesMode, rawTarget, divisor);
-                final int BATCH = 1000;
+    private void updateSecondMetrics(Instant currentStart) {
+        if (senders.isEmpty() || logDto.isPaused()) {
+            recordLastSecond(new GenerationStats(0, 0));
+            return;
+        }
 
-                while (!Thread.currentThread().isInterrupted()
-                        && (isBytesMode ? secBytes < targetUnits : secEvents < targetUnits)
-                        && Duration.between(currentStart, Instant.now()).toMillis() < 1000) {
-                    updateLock.lock();
-                    try {
-                        for (int i = 0; i < BATCH; i++) {
-                            if (isBytesMode ? secBytes >= targetUnits : secEvents >= targetUnits) break;
-                            String data = generate(vTemplate, getTemplateData());
+        boolean bytesMode = "bytes".equals(logDto.getEpsUnit());
+        long targetUnits = nextTargetUnits(bytesMode, logDto.getEps(), targetDivisor(logDto.getEpsTimeUnit()));
+        recordLastSecond(generateForCurrentSecond(currentStart, bytesMode, targetUnits));
+    }
 
-                            final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                            senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
-                            bytes.addAndGet(dataBytes);
-                            secBytes += dataBytes;
-                            secEvents++;
-                            count.incrementAndGet();
-                        }
-                    } finally {
-                        updateLock.unlock();
-                    }
-                }
-                lastSecondEvents = secEvents;
-                lastSecondBytes = secBytes;
-            } else {
-                lastSecondEvents = 0;
-                lastSecondBytes = 0;
+    private long targetDivisor(String timeUnit) {
+        if (timeUnit == null) {
+            return 1;
+        }
+        return switch (timeUnit) {
+            case "min" -> 60;
+            case "hour" -> 3600;
+            case "day" -> 86400;
+            default -> 1;
+        };
+    }
+
+    private GenerationStats generateForCurrentSecond(Instant currentStart, boolean bytesMode, long targetUnits) {
+        long secBytes = 0;
+        long secEvents = 0;
+
+        while (shouldGenerateMore(currentStart, bytesMode, secBytes, secEvents, targetUnits)) {
+            GenerationStats batch = generateBatch(bytesMode, secBytes, secEvents, targetUnits);
+            secBytes += batch.bytes();
+            secEvents += batch.events();
+        }
+
+        return new GenerationStats(secEvents, secBytes);
+    }
+
+    private boolean shouldGenerateMore(Instant currentStart, boolean bytesMode,
+                                       long secBytes, long secEvents, long targetUnits) {
+        return !Thread.currentThread().isInterrupted()
+                && isBelowTarget(bytesMode, secBytes, secEvents, targetUnits)
+                && Duration.between(currentStart, Instant.now()).toMillis() < 1000;
+    }
+
+    private boolean isBelowTarget(boolean bytesMode, long secBytes, long secEvents, long targetUnits) {
+        return bytesMode ? secBytes < targetUnits : secEvents < targetUnits;
+    }
+
+    private GenerationStats generateBatch(boolean bytesMode, long secBytes, long secEvents, long targetUnits) {
+        long batchBytes = 0;
+        long batchEvents = 0;
+
+        updateLock.lock();
+        try {
+            for (int i = 0; i < BATCH_SIZE
+                    && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits); i++) {
+                String data = generate(vTemplate, getTemplateData());
+                int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
+                bytes.addAndGet(dataBytes);
+                count.incrementAndGet();
+                batchBytes += dataBytes;
+                batchEvents++;
             }
+        } finally {
+            updateLock.unlock();
+        }
 
-            try {
-                long processingTime = 1000 - Duration.between(currentStart, Instant.now()).toMillis();
-                if (processingTime > 0) {
-                    Thread.sleep(processingTime);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        return new GenerationStats(batchEvents, batchBytes);
+    }
+
+    private void recordLastSecond(GenerationStats stats) {
+        lastSecondEvents = stats.events();
+        lastSecondBytes = stats.bytes();
+    }
+
+    private void sleepUntilNextSecond(Instant currentStart) {
+        try {
+            long processingTime = 1000 - Duration.between(currentStart, Instant.now()).toMillis();
+            if (processingTime > 0) {
+                Thread.sleep(processingTime);
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -202,22 +250,6 @@ public class LogThread implements Runnable {
             sender.addBytes(dataBytes);
         } catch (Exception e) {
             log.error("Failed to send data to sender: {}", sender.getSenderName(), e);
-        }
-    }
-
-    private long getCurrentEps() {
-        if (start == null) {
-            return 0;
-        }
-
-        Instant end = Instant.now();
-        long timing = Duration.between(start, end).toMillis();
-
-        if (timing > 0) {
-            return Math.round((count.get() / (double) timing) * 1000);
-        }
-        else {
-            return 0;
         }
     }
 

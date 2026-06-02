@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static me.blueat.logmaker.core.util.FileUtil.loadFromFile;
 import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
@@ -31,6 +30,7 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Slf4j
 @Getter
 public class ScenarioService implements DisposableBean {
+    private static final String SCENARIO_NOT_FOUND = "Scenario does not exist";
 
     private final LogMakerConfig logMakerConfig;
     private final MakerService makerService;
@@ -79,7 +79,7 @@ public class ScenarioService implements DisposableBean {
                     dto.setStepCounts(thread != null ? thread.getStepCounts() : null);
                     return dto;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public ScenarioDto getScenario(String name) {
@@ -118,7 +118,7 @@ public class ScenarioService implements DisposableBean {
 
     public ResponseEntity<Result> updateScenario(String name, ScenarioDto scenarioDto) {
         if (!scenarioMap.containsKey(name)) {
-            return Result.createResultSet(Result.Type.ERROR, "Scenario does not exist");
+            return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
         }
 
         // Stop if running, then update
@@ -144,7 +144,7 @@ public class ScenarioService implements DisposableBean {
     public ResponseEntity<Result> deleteScenario(String name) {
         ScenarioDto removed = scenarioMap.remove(name);
         if (removed == null) {
-            return Result.createResultSet(Result.Type.ERROR, "Scenario does not exist");
+            return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
         }
 
         ScenarioThread thread = scenarioThreadMap.remove(name);
@@ -159,7 +159,7 @@ public class ScenarioService implements DisposableBean {
     public ResponseEntity<Result> startScenario(String name) {
         ScenarioDto scenarioDto = scenarioMap.get(name);
         if (scenarioDto == null) {
-            return Result.createResultSet(Result.Type.ERROR, "Scenario does not exist");
+            return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
         }
 
         ScenarioThread existing = scenarioThreadMap.get(name);
@@ -207,7 +207,7 @@ public class ScenarioService implements DisposableBean {
                     clean.setLoopCount(dto.getLoopCount());
                     return clean;
                 })
-                .collect(Collectors.toList());
+                .toList();
         saveToFile(toSave, String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "scenarios.json"));
     }
 }

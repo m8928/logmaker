@@ -92,8 +92,11 @@ public class SenderService {
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
         if (existsSender.isPresent()) {
             Sender<?> sender = existsSender.get().getValue();
-            if (sender.isThread() && sender.getThread() != null) {
-                sender.getThread().interrupt();
+            if (sender.isThread()) {
+                Thread senderThread = sender.getThread();
+                if (senderThread != null) {
+                    senderThread.interrupt();
+                }
             }
             try {
                 sender.close();
@@ -122,44 +125,53 @@ public class SenderService {
     }
 
     public ResponseEntity<Result> createSender(SenderDto senderDto, boolean isImport) {
-        ResponseEntity<Result> result;
         Optional<Map.Entry<String, SenderPlugin>> senderPlugin = getSenderPlugin(senderDto.getType());
 
-        if (senderPlugin.isPresent()) {
-            try {
-                Sender sender = senderPlugin.get().getValue().getSender(senderDto.getName(), senderDto.getArgs());
-
-                if (sender != null) {
-                    if (senderDto.getLimit() != null && senderDto.getLimit() > 0) {
-                        sender.setLimit(senderDto.getLimit());
-                    }
-                    if (addSender(senderDto, senderPlugin.get().getKey(), sender)) {
-                        result = Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
-
-                        if (!isImport) {
-                            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
-                        }
-                    }
-                    else {
-                        result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the sender name already in use", senderDto.getName()));
-                    }
-                }
-                else {
-                    result = Result.createResultSet(Result.Type.ERROR, String.format("%s is an unavailable sender type", senderDto.getType()));
-                }
-            }
-            catch (ArgumentsNotValidException anve) {
-                result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid sender argument (%s)", senderDto.getArgs()));
-            }
-        }
-        else {
-            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is an unavailable sender type", senderDto.getType()));
+        if (senderPlugin.isEmpty()) {
+            return unavailableSenderType(senderDto);
         }
 
-        return result;
+        try {
+            return createSender(senderDto, isImport, senderPlugin.get());
+        }
+        catch (ArgumentsNotValidException anve) {
+            return Result.createResultSet(Result.Type.ERROR, String.format("Invalid sender argument (%s)", senderDto.getArgs()));
+        }
     }
 
-    public boolean addSender(SenderDto senderDto, String pluginId, Sender sender) {
+    private ResponseEntity<Result> createSender(SenderDto senderDto, boolean isImport,
+                                                Map.Entry<String, SenderPlugin> senderPlugin)
+            throws ArgumentsNotValidException {
+        Sender<?> sender = senderPlugin.getValue().getSender(senderDto.getName(), senderDto.getArgs());
+
+        if (sender == null) {
+            return unavailableSenderType(senderDto);
+        }
+
+        applyLimit(senderDto, sender);
+        if (!addSender(senderDto, senderPlugin.getKey(), sender)) {
+            return Result.createResultSet(Result.Type.ERROR,
+                    String.format("%s is the sender name already in use", senderDto.getName()));
+        }
+
+        if (!isImport) {
+            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
+        }
+        return Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
+    }
+
+    private void applyLimit(SenderDto senderDto, Sender<?> sender) {
+        if (senderDto.getLimit() != null && senderDto.getLimit() > 0) {
+            sender.setLimit(senderDto.getLimit());
+        }
+    }
+
+    private ResponseEntity<Result> unavailableSenderType(SenderDto senderDto) {
+        return Result.createResultSet(Result.Type.ERROR,
+                String.format("%s is an unavailable sender type", senderDto.getType()));
+    }
+
+    public boolean addSender(SenderDto senderDto, String pluginId, Sender<?> sender) {
         if (senderNameRegistry.putIfAbsent(senderDto.getName(), Boolean.TRUE) != null) {
             return false;
         }

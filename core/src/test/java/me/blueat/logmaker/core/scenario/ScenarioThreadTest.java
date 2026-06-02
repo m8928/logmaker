@@ -230,6 +230,7 @@ class ScenarioThreadTest {
 
         @Override
         public void update(Map<String, Object> args) {
+            // Test sender has no mutable configuration to update.
         }
 
         private List<String> getSentData() {

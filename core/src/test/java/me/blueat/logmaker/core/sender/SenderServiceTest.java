@@ -173,10 +173,6 @@ class SenderServiceTest {
     }
 
     @Test
-    void updateSender_Success() throws Exception {
-    }
-
-    @Test
     void testDeleteSender_verifiesResourceCleanup() {
         // Given: a thread-based sender that needs cleanup on delete
         SenderDto senderDto = new SenderDto();

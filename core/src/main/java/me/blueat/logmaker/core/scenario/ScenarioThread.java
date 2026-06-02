@@ -37,6 +37,9 @@ public class ScenarioThread implements Runnable {
     private volatile long[] stepCounts;
     private volatile Thread runningThread;
 
+    private record StepTemplate(LogThread logThread, Template template) {
+    }
+
     public ScenarioThread(MakerService makerService, SenderService senderService,
                           LogService logService, ScenarioDto scenarioDto) {
         this.makerService = makerService;
@@ -56,83 +59,112 @@ public class ScenarioThread implements Runnable {
         Map<String, Sender<?>> senders = resolveSenders(steps);
 
         try {
-            int loopCount = scenarioDto.getLoopCount();
-            long intervalMinMs = scenarioDto.getIntervalMinMs();
-            long intervalMaxMs = scenarioDto.getIntervalMaxMs();
-            boolean infinite = (loopCount == 0);
-            int loop = 0;
-
-            while (!Thread.currentThread().isInterrupted() && (infinite || loop < loopCount)) {
-                currentLoop.set(loop + 1);
-                // Re-resolve shared variables each loop
-                Map<String, String> resolvedVars = resolveSharedVariables();
-
-                int stepIdx = 0;
-                for (ScenarioStepDto step : steps) {
-                    currentStep.set(stepIdx + 1);
-                    if (Thread.currentThread().isInterrupted()) break;
-
-                    LogThread logThread = logService.getLog(step.getLogName());
-                    if (logThread == null) {
-                        log.warn("Scenario step references unknown log: {}", step.getLogName());
-                        continue;
-                    }
-
-                    // Build format string: start from the log's vFormat, apply overrides and shared vars
-                    String vFormat = buildVFormat(logThread, step, resolvedVars);
-                    Template vTemplate = compileTemplate(step.getLogName(), vFormat);
-
-                    if (vTemplate == null) {
-                        log.warn("Failed to compile template for log: {}", step.getLogName());
-                        continue;
-                    }
-
-                    for (int r = 0; r < step.getRepeat(); r++) {
-                        if (Thread.currentThread().isInterrupted()) break;
-
-                        // Random delay before each repeat execution
-                        long delayMs = randomLong(step.getDelayMinMs(), step.getDelayMaxMs());
-                        if (delayMs > 0) {
-                            try {
-                                Thread.sleep(delayMs);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                break;
-                            }
-                        }
-
-                        if (Thread.currentThread().isInterrupted()) break;
-
-                        Map<String, Object> templateData = buildTemplateData(logThread, resolvedVars);
-                        String data = generate(vTemplate, templateData);
-
-                        final int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                        getSendersForStep(senders, step).forEach(sender -> sendToSender(sender, data, dataBytes));
-                        count.incrementAndGet();
-                        if (stepIdx < stepCounts.length) stepCounts[stepIdx]++;
-                    }
-                    stepIdx++;
-                }
-
-                if (!infinite) {
-                    loop++;
-                }
-
-                // Sleep random interval between loops
-                if (!Thread.currentThread().isInterrupted() && (infinite || loop < loopCount)) {
-                    long sleepMs = randomLong(intervalMinMs, intervalMaxMs);
-                    if (sleepMs > 0) {
-                        try {
-                            Thread.sleep(sleepMs);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-                }
-            }
+            executeLoops(steps, senders);
         } finally {
             senders.values().forEach(Sender::decreaseRef);
             running.set(false);
+        }
+    }
+
+    private void executeLoops(List<ScenarioStepDto> steps, Map<String, Sender<?>> senders) {
+        int loopCount = scenarioDto.getLoopCount();
+        long intervalMinMs = scenarioDto.getIntervalMinMs();
+        long intervalMaxMs = scenarioDto.getIntervalMaxMs();
+        boolean infinite = (loopCount == 0);
+        int loop = 0;
+
+        while (shouldRunLoop(infinite, loop, loopCount)) {
+            currentLoop.set(loop + 1);
+            executeSteps(steps, senders, resolveSharedVariables());
+            loop = nextLoop(infinite, loop);
+            sleepBetweenLoops(infinite, loop, loopCount, intervalMinMs, intervalMaxMs);
+        }
+    }
+
+    private boolean shouldRunLoop(boolean infinite, int loop, int loopCount) {
+        return !Thread.currentThread().isInterrupted() && (infinite || loop < loopCount);
+    }
+
+    private int nextLoop(boolean infinite, int loop) {
+        return infinite ? loop : loop + 1;
+    }
+
+    private void sleepBetweenLoops(boolean infinite, int loop, int loopCount,
+                                   long intervalMinMs, long intervalMaxMs) {
+        if (shouldRunLoop(infinite, loop, loopCount)) {
+            sleepMillis(randomLong(intervalMinMs, intervalMaxMs));
+        }
+    }
+
+    private void executeSteps(List<ScenarioStepDto> steps, Map<String, Sender<?>> senders,
+                              Map<String, String> resolvedVars) {
+        for (int stepIdx = 0; stepIdx < steps.size() && !Thread.currentThread().isInterrupted(); stepIdx++) {
+            executeStep(steps.get(stepIdx), stepIdx, senders, resolvedVars);
+        }
+    }
+
+    private void executeStep(ScenarioStepDto step, int stepIdx, Map<String, Sender<?>> senders,
+                             Map<String, String> resolvedVars) {
+        currentStep.set(stepIdx + 1);
+        Optional<StepTemplate> stepTemplate = prepareStepTemplate(step, resolvedVars);
+        stepTemplate.ifPresent(template -> executeRepeats(step, stepIdx, senders, resolvedVars, template));
+    }
+
+    private Optional<StepTemplate> prepareStepTemplate(ScenarioStepDto step, Map<String, String> resolvedVars) {
+        LogThread logThread = logService.getLog(step.getLogName());
+        if (logThread == null) {
+            log.warn("Scenario step references unknown log: {}", step.getLogName());
+            return Optional.empty();
+        }
+
+        String vFormat = buildVFormat(logThread, step, resolvedVars);
+        Template vTemplate = compileTemplate(step.getLogName(), vFormat);
+        if (vTemplate == null) {
+            log.warn("Failed to compile template for log: {}", step.getLogName());
+            return Optional.empty();
+        }
+
+        return Optional.of(new StepTemplate(logThread, vTemplate));
+    }
+
+    private void executeRepeats(ScenarioStepDto step, int stepIdx, Map<String, Sender<?>> senders,
+                                Map<String, String> resolvedVars, StepTemplate stepTemplate) {
+        for (int repeat = 0; repeat < step.getRepeat() && !Thread.currentThread().isInterrupted(); repeat++) {
+            if (!sleepMillis(randomLong(step.getDelayMinMs(), step.getDelayMaxMs()))) {
+                return;
+            }
+            sendStepData(step, stepIdx, senders, resolvedVars, stepTemplate);
+        }
+    }
+
+    private void sendStepData(ScenarioStepDto step, int stepIdx, Map<String, Sender<?>> senders,
+                              Map<String, String> resolvedVars, StepTemplate stepTemplate) {
+        Map<String, Object> templateData = buildTemplateData(stepTemplate.logThread(), resolvedVars);
+        String data = generate(stepTemplate.template(), templateData);
+        int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+
+        getSendersForStep(senders, step).forEach(sender -> sendToSender(sender, data, dataBytes));
+        count.incrementAndGet();
+        incrementStepCount(stepIdx);
+    }
+
+    private void incrementStepCount(int stepIdx) {
+        if (stepIdx < stepCounts.length) {
+            stepCounts[stepIdx]++;
+        }
+    }
+
+    private boolean sleepMillis(long sleepMs) {
+        if (sleepMs <= 0) {
+            return true;
+        }
+
+        try {
+            Thread.sleep(sleepMs);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -181,7 +213,7 @@ public class ScenarioThread implements Runnable {
 
     private Map<String, String> resolveSharedVariables() {
         Map<String, String> resolved = new HashMap<>();
-        scenarioDto.getSharedVariables().forEach((varName, makerName) ->
+        sharedVariables().forEach((varName, makerName) ->
                 makerService.getMaker(makerName).ifPresent(entry -> {
                     Object data = entry.getValue().getData();
                     resolved.put(varName, data != null ? data.toString() : "");
@@ -194,7 +226,7 @@ public class ScenarioThread implements Runnable {
         String vFormat = logThread.getVFormat();
 
         // Apply overrides: replace ${varName} with override value
-        for (Map.Entry<String, String> override : step.getOverrides().entrySet()) {
+        for (Map.Entry<String, String> override : stepOverrides(step).entrySet()) {
             vFormat = vFormat.replace("${" + override.getKey() + "}", override.getValue());
         }
 
@@ -204,6 +236,16 @@ public class ScenarioThread implements Runnable {
         }
 
         return vFormat;
+    }
+
+    private Map<String, String> sharedVariables() {
+        Map<String, String> variables = scenarioDto.getSharedVariables();
+        return variables != null ? variables : Collections.emptyMap();
+    }
+
+    private Map<String, String> stepOverrides(ScenarioStepDto step) {
+        Map<String, String> overrides = step.getOverrides();
+        return overrides != null ? overrides : Collections.emptyMap();
     }
 
     private Map<String, Object> buildTemplateData(LogThread logThread, Map<String, String> resolvedVars) {
