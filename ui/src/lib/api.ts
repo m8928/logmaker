@@ -3,21 +3,58 @@ import type { ApiResult, DashboardData, Log, Maker, Plugin, PluginType, Scenario
 
 const BASE = '/api/v1';
 
+function statusMessage(res: Response): string {
+	return `Request failed with status ${res.status}`;
+}
+
+function isApiResult(value: unknown): value is ApiResult {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'type' in value &&
+		typeof (value as ApiResult).type === 'string'
+	);
+}
+
+export function unwrapApiResult(value: ApiResult | { body?: ApiResult }): ApiResult {
+	return 'body' in value && value.body ? value.body : (value as ApiResult);
+}
+
+export async function readJsonResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+	const contentType = res.headers.get('content-type') ?? '';
+	if (!contentType.toLowerCase().includes('application/json')) {
+		throw new Error(fallbackMessage);
+	}
+
+	try {
+		return (await res.json()) as T;
+	} catch {
+		throw new Error('Invalid JSON response');
+	}
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	try {
 		const res = await fetch(`${BASE}${path}`, {
 			headers: { 'Content-Type': 'application/json', ...options?.headers },
 			...options
 		});
-		const data = await res.json();
+		let data: ApiResult;
+		try {
+			data = await readJsonResponse<ApiResult>(res, statusMessage(res));
+		} catch (err) {
+			addToast('error', err instanceof Error ? err.message : statusMessage(res));
+			throw err;
+		}
 		if (!res.ok || data.type === 'ERROR') {
-			addToast('error', data.message || 'Request failed');
-			throw new Error(data.message || 'Request failed');
+			const message = data.message || statusMessage(res);
+			addToast('error', message);
+			throw new Error(message);
 		}
 		if (data.notification !== false && data.message) {
 			addToast('success', data.message);
 		}
-		return data;
+		return data as T;
 	} catch (err) {
 		if (err instanceof TypeError) {
 			addToast('error', 'Network error — server may be offline');
@@ -29,11 +66,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 async function fetchJson<T>(path: string): Promise<T> {
 	try {
 		const res = await fetch(`${BASE}${path}`);
-		if (!res.ok) {
-			addToast('error', `Failed to load data (${res.status})`);
-			throw new Error(`HTTP ${res.status}`);
+		let data: T | ApiResult;
+		try {
+			data = await readJsonResponse<T | ApiResult>(res, `Failed to load data (${res.status})`);
+		} catch (err) {
+			addToast('error', err instanceof Error ? err.message : `Failed to load data (${res.status})`);
+			throw err;
 		}
-		return await res.json();
+		if (!res.ok) {
+			const message = isApiResult(data) && data.message ? data.message : `Failed to load data (${res.status})`;
+			addToast('error', message);
+			throw new Error(message);
+		}
+		return data as T;
 	} catch (err) {
 		if (err instanceof TypeError) {
 			addToast('error', 'Network error — server may be offline');

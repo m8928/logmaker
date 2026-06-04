@@ -11,7 +11,7 @@
 	let secondsAgo = $state(0);
 
 	async function fetchData() {
-		loading = true;
+		if (!data) loading = true;
 		error = false;
 		try {
 			[data, logs, scenarios] = await Promise.all([api.getDashboard(), api.getLogs(), api.getScenarios().catch(() => [] as Scenario[])]);

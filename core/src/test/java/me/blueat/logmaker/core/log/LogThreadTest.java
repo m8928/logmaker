@@ -258,6 +258,45 @@ class LogThreadTest {
     }
 
     @Test
+    void getLogDtoUsesCachedSampleWithoutReadingMaker() {
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = mock(Maker.class);
+        when(makerService.getMakerNames()).thenReturn(Set.of("myMaker"));
+        when(senderService.getSenderNames()).thenReturn(Set.of());
+        when(makerService.getMaker("myMaker")).thenReturn(Optional.of(Map.entry("plugin", maker)));
+
+        LogThread thread = new LogThread(makerService, senderService, logDtoWithMaker("myMaker"));
+
+        LogDto snapshot = assertTimeoutPreemptively(Duration.ofMillis(200), thread::getLogDto);
+
+        assertNull(snapshot.getSample());
+        verify(maker, never()).getData();
+    }
+
+    @Test
+    void generateBatchStopsAfterMakerRestoresInterruptStatus() {
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = mock(Maker.class);
+        when(maker.getData()).thenAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            return "";
+        });
+        when(makerService.getMakerNames()).thenReturn(Set.of("myMaker"));
+        when(senderService.getSenderNames()).thenReturn(Set.of());
+        when(makerService.getMaker("myMaker")).thenReturn(Optional.of(Map.entry("plugin", maker)));
+
+        try {
+            LogThread thread = new LogThread(makerService, senderService, logDtoWithMaker("myMaker"));
+
+            ReflectionTestUtils.invokeMethod(thread, "generateBatch", false, 0L, 0L, 10L);
+
+            verify(maker, times(1)).getData();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void testUpdateLogDto_success() {
         // Given: initial log with static format
         LogDto dto = simpleLogDto();
@@ -303,6 +342,7 @@ class LogThreadTest {
 
         LogDto initial = logDtoWithMaker("myMaker");
         LogThread thread = new LogThread(makerService, senderService, initial);
+        ReflectionTestUtils.invokeMethod(thread, "generateBatch", false, 0L, 0L, 1L);
 
         // When: update with format referencing an unknown maker
         // <unknownMaker> is not in getMakerNames() → IllegalStateException → result = false
@@ -326,7 +366,6 @@ class LogThreadTest {
         // Given: set up maker and sender mocks
         @SuppressWarnings("unchecked")
         Maker<Object> maker = mock(Maker.class);
-        // getData() called by LogThread.init() via getSample during construction
         lenient().when(maker.getData()).thenReturn("192.168.1.1");
 
         @SuppressWarnings("unchecked")

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { api } from '$lib/api';
+	import { api, readJsonResponse } from '$lib/api';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
-	import type { Plugin } from '$lib/types';
+	import type { ApiResult, Plugin } from '$lib/types';
 
 	let items = $state<Plugin[]>([]);
 	let loading = $state(false);
@@ -64,16 +64,16 @@
 			const fd = new FormData();
 			fd.append('file', file);
 			const res = await fetch('/api/v1/plugin', { method: 'POST', body: fd });
-			const result = await res.json();
-			if (result.type === 'ERROR') {
-				addToast('error', result.notification || result.message || 'Upload failed');
+			const result = await readJsonResponse<ApiResult>(res, `Upload failed (${res.status})`);
+			if (!res.ok || result.type === 'ERROR') {
+				addToast('error', result.message || `Upload failed (${res.status})`);
 			} else {
-				addToast('success', result.notification || 'Plugin installed successfully');
+				addToast('success', result.message || 'Plugin installed successfully');
 				uploadOpen = false;
 			}
 			await fetchItems();
-		} catch {
-			addToast('error', 'Upload failed');
+		} catch (err) {
+			addToast('error', err instanceof Error ? err.message : 'Upload failed');
 		} finally {
 			uploading = false;
 		}

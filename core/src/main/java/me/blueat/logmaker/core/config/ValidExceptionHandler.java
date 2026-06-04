@@ -15,12 +15,18 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @RestControllerAdvice
 @Slf4j
 public class ValidExceptionHandler {
     private static final String INDEX_HTML = "/index.html";
+    private static final Set<String> STATIC_ASSET_EXTENSIONS = Set.of(
+            ".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
+            ".ico", ".svg", ".woff", ".woff2", ".ttf", ".eot", ".wasm"
+    );
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Result> handleValidationExceptions(MethodArgumentNotValidException ex) {
@@ -38,11 +44,8 @@ public class ValidExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws Exception {
         String uri = request.getRequestURI();
-        // API paths and already-forwarded SPA fallbacks return 404 JSON instead of entering a forward loop.
-        if (uri.startsWith("/api/") || INDEX_HTML.equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
-            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
+        if (shouldReturnJsonNotFound(request, uri)) {
+            writeJsonNotFound(response);
             return;
         }
         forwardToSpa(request, response, HttpServletResponse.SC_NOT_FOUND);
@@ -66,6 +69,24 @@ public class ValidExceptionHandler {
         }
         log.error("API error: {} {}", request.getMethod(), uri, ex);
         return Result.createResultSet(Result.Type.ERROR, "An unexpected internal server error occurred");
+    }
+
+    private boolean shouldReturnJsonNotFound(HttpServletRequest request, String uri) {
+        return uri.startsWith("/api/")
+                || INDEX_HTML.equals(uri)
+                || isStaticAsset(uri)
+                || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null;
+    }
+
+    private boolean isStaticAsset(String uri) {
+        String lowerUri = uri.toLowerCase(Locale.ROOT);
+        return STATIC_ASSET_EXTENSIONS.stream().anyMatch(lowerUri::endsWith);
+    }
+
+    private void writeJsonNotFound(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
     }
 
     private void forwardToSpa(HttpServletRequest request, HttpServletResponse response, int missingDispatcherStatus)

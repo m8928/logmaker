@@ -105,6 +105,22 @@ class ValidExceptionHandlerTest {
     }
 
     @Test
+    void returnsNotFoundForMissingStaticAssets() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        StringWriter body = new StringWriter();
+        when(request.getRequestURI()).thenReturn("/_app/immutable/assets/app.js");
+        when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+        handler.handleNoResourceFound(mock(NoResourceFoundException.class), request, response);
+
+        verify(response).setStatus(HttpServletResponse.SC_NOT_FOUND);
+        verify(response).setContentType("application/json");
+        verify(request, never()).getRequestDispatcher("/index.html");
+        assertTrue(body.toString().contains("Not found"));
+    }
+
+    @Test
     void genericIndexFailuresDoNotForwardToIndexAgain() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { api } from '$lib/api';
+	import { api, readJsonResponse, unwrapApiResult } from '$lib/api';
 	import DynamicInput from '$lib/components/DynamicInput.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
-	import type { Maker, PluginType } from '$lib/types';
+	import type { ApiResult, Maker, PluginType } from '$lib/types';
 
 	let items = $state<Maker[]>([]);
 	let types = $state<PluginType[]>([]);
@@ -221,11 +221,15 @@
 			const formData = new FormData();
 			formData.append('file', file);
 			const res = await fetch('/api/v1/maker:import-file', { method: 'POST', body: formData });
-			const result = await res.json();
-			if (Array.isArray(result) && result.some((r: { type: string }) => r.type === 'ERROR')) {
-				const failed = result
-					.filter((r: { type: string; message?: string }) => r.type === 'ERROR')
-					.map((r: { type: string; message?: string }) => r.message ?? 'unknown')
+			const result = await readJsonResponse<Array<ApiResult | { body?: ApiResult }>>(res, `Import failed (${res.status})`);
+			if (!res.ok) {
+				throw new Error(`Import failed (${res.status})`);
+			}
+			const entries = Array.isArray(result) ? result.map(unwrapApiResult) : [];
+			if (entries.some((r) => r.type === 'ERROR')) {
+				const failed = entries
+					.filter((r) => r.type === 'ERROR')
+					.map((r) => r.message ?? 'unknown')
 					.join(', ');
 				addToast('error', `Import failed for: ${failed}`);
 			} else {
@@ -233,8 +237,8 @@
 				importOpen = false;
 			}
 			await fetchItems();
-		} catch {
-			addToast('error', 'Import failed');
+		} catch (err) {
+			addToast('error', err instanceof Error ? err.message : 'Import failed');
 		} finally {
 			loading = false;
 		}

@@ -270,8 +270,6 @@ class LogServiceTest {
         when(senderService.getSenderNames()).thenReturn(Set.of("mySender"));
         when(makerService.getMaker("myMaker")).thenReturn(Optional.of(makerEntry));
         when(senderService.getSender("mySender")).thenReturn(Optional.of(senderEntry));
-        // getData() is called by getSample (getLogDto) - ST template uses <varName> syntax
-        when(maker.getData()).thenReturn("1.2.3.4");
 
         LogDto logDto = new LogDto();
         logDto.setName("refLog");

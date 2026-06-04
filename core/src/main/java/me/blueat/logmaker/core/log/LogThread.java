@@ -55,6 +55,7 @@ public class LogThread implements Runnable {
 
     private volatile LogDto logDto;
     private volatile boolean paused;
+    private volatile String lastSample;
 
     private volatile Future<?> runningTask;
     private volatile boolean interrupted;
@@ -221,9 +222,12 @@ public class LogThread implements Runnable {
         updateReadLock.lock();
         try {
             for (int i = 0; i < BATCH_SIZE
+                    && !Thread.currentThread().isInterrupted()
+                    && !interrupted
                     && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits);
                  i++, batchEvents++) {
                 String data = generate(vTemplate, getTemplateData());
+                lastSample = data;
                 int dataBytes = TextSizeUtil.utf8Length(data);
                 senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
                 bytes.addAndGet(dataBytes);
@@ -302,7 +306,7 @@ public class LogThread implements Runnable {
             snapshot.setSender(currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList());
             snapshot.setPaused(paused);
             snapshot.setRegTime(currentLogDto.getRegTime());
-            snapshot.setSample(getSample(this.vTemplate, this.getTemplateData()));
+            snapshot.setSample(lastSample);
         } finally {
             updateReadLock.unlock();
         }
@@ -313,28 +317,22 @@ public class LogThread implements Runnable {
         return snapshot;
     }
 
-    private String getSample(Template vTemplate, Map<String, Object> data) {
-        VelocityContext context = new VelocityContext();
-
-        data.keySet().forEach(key -> {
-            if (data.containsKey(key)) {
-                context.put(key, data.get(key).toString());
-            }
-        });
-
-        StringWriter writer = new StringWriter();
-        vTemplate.merge(context, writer);
-
-        return writer.toString();
-    }
-
     public boolean updateLogDto(LogDto logDto) {
         updateWriteLock.lock();
         LogDto backup = this.logDto;
         boolean backupPaused = this.paused;
+        long backupCount = count.get();
+        long backupBytes = bytes.get();
+        long backupLastSecondEvents = lastSecondEvents;
+        long backupLastSecondBytes = lastSecondBytes;
+        String backupLastSample = lastSample;
         try {
             start = Instant.now();
             count.set(0);
+            bytes.set(0);
+            lastSecondEvents = 0;
+            lastSecondBytes = 0;
+            lastSample = null;
             eventTargetRemainder.set(0L);
             byteTargetRemainder.set(0L);
 
@@ -352,6 +350,11 @@ public class LogThread implements Runnable {
                 releaseReferences();
                 this.logDto = backup;
                 this.paused = backupPaused;
+                count.set(backupCount);
+                bytes.set(backupBytes);
+                lastSecondEvents = backupLastSecondEvents;
+                lastSecondBytes = backupLastSecondBytes;
+                lastSample = backupLastSample;
                 try {
                     init();
                 } catch (Exception restoreException) {
