@@ -29,7 +29,22 @@ class ValidExceptionHandlerTest {
     }
 
     @Test
-    void returnsApiErrorsAsJsonResult() {
+    void sendsServerErrorWhenSpaForwardFails() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        RequestDispatcher dispatcher = mock(RequestDispatcher.class);
+        when(request.getRequestURI()).thenReturn("/scenario");
+        when(request.getRequestDispatcher("/index.html")).thenReturn(dispatcher);
+        doThrow(new java.io.IOException("forward failed")).when(dispatcher).forward(request, response);
+
+        ResponseEntity<Result> result = handler.handleAllExceptions(new RuntimeException("boom"), request, response);
+
+        assertNull(result);
+        verify(response).sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    void returnsApiErrorsAsJsonResult() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);
         when(request.getRequestURI()).thenReturn("/api/log");

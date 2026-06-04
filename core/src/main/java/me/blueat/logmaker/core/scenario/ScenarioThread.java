@@ -6,6 +6,7 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.log.LogThread;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.core.util.TextSizeUtil;
 import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.apache.velocity.Template;
@@ -13,9 +14,9 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 
 import java.io.StringWriter;
-import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,8 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @Getter
 public class ScenarioThread implements Runnable {
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final MakerService makerService;
     private final SenderService senderService;
     private final LogService logService;
@@ -128,7 +127,7 @@ public class ScenarioThread implements Runnable {
                               Map<String, String> resolvedVars, LogThread logThread) {
         Map<String, Object> templateData = buildTemplateData(logThread, step, resolvedVars);
         String data = generate(logThread.getVTemplate(), templateData);
-        int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        int dataBytes = TextSizeUtil.utf8Length(data);
 
         getSendersForStep(senders, step).forEach(sender -> sendToSender(sender, data, dataBytes));
         count.incrementAndGet();
@@ -160,12 +159,12 @@ public class ScenarioThread implements Runnable {
 
         steps.forEach(step -> addSenderNames(senderNames, step.getSenders()));
 
-        senderNames.forEach(senderName ->
-                senderService.getSender(senderName).ifPresent(entry -> {
-                    entry.getValue().increaseRef();
-                    senders.put(senderName, entry.getValue());
-                })
-        );
+        senderNames.forEach(senderName -> {
+            Map.Entry<String, Sender<?>> entry = senderService.getSender(senderName)
+                    .orElseThrow(() -> new IllegalStateException("sender not found. " + senderName));
+            entry.getValue().increaseRef();
+            senders.put(senderName, entry.getValue());
+        });
     }
 
     private List<Sender<?>> getSendersForStep(Map<String, Sender<?>> senders, ScenarioStepDto step) {
@@ -193,7 +192,7 @@ public class ScenarioThread implements Runnable {
 
     private long randomLong(long min, long max) {
         if (min >= max) return min;
-        return min + RANDOM.nextLong(max - min + 1);
+        return ThreadLocalRandom.current().nextLong(min, max + 1);
     }
 
     private Map<String, String> resolveSharedVariables() {

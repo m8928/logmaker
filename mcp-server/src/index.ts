@@ -40,11 +40,7 @@ async function apiMultipart<T = unknown>(
 ): Promise<{ ok: boolean; status: number; data: T }> {
   const safePath = await validateUploadFile(filePath, allowedExtensions);
   const bytes = await readFile(safePath);
-  const arrayBuffer = bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength
-  ) as ArrayBuffer;
-  const file = new Blob([arrayBuffer], {
+  const file = new Blob([bytes], {
     type: contentTypeFor(safePath),
   });
   const form = new FormData();

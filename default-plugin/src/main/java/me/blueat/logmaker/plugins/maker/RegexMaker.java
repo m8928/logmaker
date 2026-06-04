@@ -18,15 +18,7 @@ public class RegexMaker extends Maker<String> implements Runnable {
     private static final int REGEX_POOL_SIZE = Math.max(2, Runtime.getRuntime().availableProcessors());
     private static final long GENERATION_FAILURE_BACKOFF_MS = 10L;
     private static final AtomicLong REGEX_THREAD_ID = new AtomicLong();
-    private static final ExecutorService REGEX_EXECUTOR = new ThreadPoolExecutor(
-            REGEX_POOL_SIZE,
-            REGEX_POOL_SIZE,
-            0L,
-            TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<>(REGEX_POOL_SIZE * 2),
-            RegexMaker::newRegexWorker,
-            new ThreadPoolExecutor.AbortPolicy()
-    );
+    private static final ExecutorService REGEX_EXECUTOR = createRegexExecutor();
 
     private String makerName;
     private String type;
@@ -52,6 +44,20 @@ public class RegexMaker extends Maker<String> implements Runnable {
         Thread thread = new Thread(task, "THREAD_regex-generator-" + REGEX_THREAD_ID.incrementAndGet());
         thread.setDaemon(true);
         return thread;
+    }
+
+    private static ThreadPoolExecutor createRegexExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                REGEX_POOL_SIZE,
+                REGEX_POOL_SIZE,
+                30L,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(REGEX_POOL_SIZE * 2),
+                RegexMaker::newRegexWorker,
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
     }
 
     public void init() {

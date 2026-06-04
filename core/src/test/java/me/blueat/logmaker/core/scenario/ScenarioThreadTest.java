@@ -170,6 +170,21 @@ class ScenarioThreadTest {
     }
 
     @Test
+    void rejectsMissingStepSenders() {
+        LogThread loginLog = logThread("login", "login-event");
+        logService.add(loginLog);
+
+        ScenarioDto scenario = scenario(List.of(
+                step("login", List.of("missing-sender"))
+        ));
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario);
+
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, scenarioThread::run);
+        assertTrue(thrown.getMessage().contains("missing-sender"));
+        assertFalse(scenarioThread.getRunning().get());
+    }
+
+    @Test
     void incrementsLoopCounterInInfiniteScenarios() throws InterruptedException {
         LogThread loginLog = logThread("login", "login-event");
         logService.add(loginLog);

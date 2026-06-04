@@ -202,6 +202,9 @@ public class SenderService {
             }
             return true;
         } catch (Exception e) {
+            synchronized (senderTable) {
+                senderTable.remove(pluginId, senderDto.getName());
+            }
             senderNameRegistry.remove(senderDto.getName());
             throw e;
         }

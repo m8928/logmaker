@@ -18,8 +18,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -55,6 +57,7 @@ class ScenarioServiceTest {
 
     @AfterEach
     void tearDown() {
+        scenarioService.destroy();
         fileUtilMockedStatic.close();
     }
 
@@ -98,5 +101,52 @@ class ScenarioServiceTest {
 
         // Then
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void updateScenario_waitsForRunningThreadBeforeRestart() throws InterruptedException {
+        ScenarioDto scenarioDto = scenario("testScenario", 0, 1);
+        scenarioService.createScenario(scenarioDto);
+        scenarioService.startScenario("testScenario");
+
+        ScenarioThread oldThread = awaitScenarioThread("testScenario");
+        assertTrue(oldThread.getRunning().get());
+
+        ResponseEntity<Result> response = scenarioService.updateScenario(
+                "testScenario",
+                scenario("testScenario", 1, 0)
+        );
+
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        assertFalse(oldThread.getRunning().get());
+
+        ScenarioThread restarted = scenarioService.getScenarioThreadMap().get("testScenario");
+        if (restarted != null) {
+            restarted.interrupt();
+        }
+    }
+
+    private ScenarioDto scenario(String name, int loopCount, long intervalMs) {
+        ScenarioDto scenarioDto = new ScenarioDto();
+        scenarioDto.setName(name);
+        scenarioDto.setLoopCount(loopCount);
+        scenarioDto.setIntervalMinMs(intervalMs);
+        scenarioDto.setIntervalMaxMs(intervalMs);
+        scenarioDto.setSteps(List.of());
+        return scenarioDto;
+    }
+
+    private ScenarioThread awaitScenarioThread(String name) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        ScenarioThread thread;
+        do {
+            thread = scenarioService.getScenarioThreadMap().get(name);
+            if (thread != null && thread.getRunning().get()) {
+                return thread;
+            }
+            Thread.yield();
+        } while (System.nanoTime() < deadline);
+        fail("Scenario thread did not start");
+        return null;
     }
 }

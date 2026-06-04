@@ -288,6 +288,24 @@ class MakerServiceTest {
     }
 
     @Test
+    void addMaker_removesTableEntryWhenThreadStartFails() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("brokenMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(thread);
+        Mockito.doThrow(new IllegalThreadStateException("already started")).when(thread).start();
+
+        assertThrows(IllegalThreadStateException.class,
+                () -> makerService.addMaker(makerDto, "testPlugin", maker));
+        assertTrue(makerService.getMaker("brokenMaker").isEmpty());
+        assertFalse(makerService.getMakerNames().contains("brokenMaker"));
+    }
+
+    @Test
     void testImportMaker_success() throws Exception {
         // Given
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);

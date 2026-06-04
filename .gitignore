@@ -68,3 +68,10 @@ coverage
 
 static/
 velocity.log*
+
+# Agent/runtime state
+.claire/
+.claude/
+.omc/
+**/.omc/
+.codex/config.toml

@@ -180,6 +180,9 @@ public class MakerService {
             }
             return true;
         } catch (Exception e) {
+            synchronized (makerTable) {
+                makerTable.remove(pluginId, makerDto.getName());
+            }
             makerNameRegistry.remove(makerDto.getName());
             throw e;
         }

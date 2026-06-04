@@ -47,13 +47,14 @@ public class ValidExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String uri = request.getRequestURI();
         if (!uri.startsWith("/api/")) {
             try {
                 request.getRequestDispatcher("/index.html").forward(request, response);
             } catch (ServletException | IOException forwardException) {
                 log.error("Failed to forward non-API error to SPA: {}", uri, forwardException);
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }
             return null;
         }

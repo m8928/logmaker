@@ -30,6 +30,8 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Getter
 public class ScenarioService implements DisposableBean {
     private static final String SCENARIO_NOT_FOUND = "Scenario does not exist";
+    private static final long STOP_TIMEOUT_MS = 5_000L;
+    private static final long STOP_POLL_MS = 25L;
 
     private final LogMakerConfig logMakerConfig;
     private final MakerService makerService;
@@ -120,19 +122,21 @@ public class ScenarioService implements DisposableBean {
             return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
         }
 
-        // Stop if running, then update
         boolean wasRunning = false;
         ScenarioThread existing = scenarioThreadMap.remove(name);
         if (existing != null && existing.getRunning().get()) {
-            existing.interrupt();
             wasRunning = true;
+            if (!stopScenarioThread(name, existing)) {
+                scenarioThreadMap.put(name, existing);
+                return Result.createResultSet(Result.Type.ERROR,
+                        "Scenario did not stop before update");
+            }
         }
 
         scenarioDto.setName(name);
         scenarioMap.put(name, scenarioDto);
         saveScenarios();
 
-        // Restart if was running
         if (wasRunning) {
             startScenario(name);
         }
@@ -148,7 +152,7 @@ public class ScenarioService implements DisposableBean {
 
         ScenarioThread thread = scenarioThreadMap.remove(name);
         if (thread != null) {
-            thread.interrupt();
+            stopScenarioThread(name, thread);
         }
 
         saveScenarios();
@@ -183,13 +187,32 @@ public class ScenarioService implements DisposableBean {
             return Result.createResultSet(Result.Type.ERROR, "Scenario is not running");
         }
 
-        thread.interrupt();
+        stopScenarioThread(name, thread);
         ScenarioDto dto = scenarioMap.get(name);
         if (dto != null) {
             dto.setStatus(false);
         }
 
         return Result.createResultSet(Result.Type.SUCCESS, "Scenario stopped");
+    }
+
+    private boolean stopScenarioThread(String name, ScenarioThread thread) {
+        thread.interrupt();
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(STOP_TIMEOUT_MS);
+        while (thread.getRunning().get() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(STOP_POLL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+
+        boolean stopped = !thread.getRunning().get();
+        if (!stopped) {
+            log.warn("Scenario {} did not stop within {} ms", name, STOP_TIMEOUT_MS);
+        }
+        return stopped;
     }
 
     private void saveScenarios() {

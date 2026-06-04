@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.core.util.TextSizeUtil;
 import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.sender.Sender;
@@ -203,7 +204,7 @@ public class LogThread implements Runnable {
                     && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits);
                  i++, batchEvents++) {
                 String data = generate(vTemplate, getTemplateData());
-                int dataBytes = data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                int dataBytes = TextSizeUtil.utf8Length(data);
                 senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
                 bytes.addAndGet(dataBytes);
                 count.incrementAndGet();

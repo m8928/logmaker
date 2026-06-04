@@ -308,6 +308,24 @@ class SenderServiceTest {
     }
 
     @Test
+    void addSender_removesTableEntryWhenThreadStartFails() {
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("brokenSender");
+
+        @SuppressWarnings("unchecked")
+        Sender<Object> sender = Mockito.mock(Sender.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(sender.isThread()).thenReturn(true);
+        when(sender.getThread()).thenReturn(thread);
+        Mockito.doThrow(new IllegalThreadStateException("already started")).when(thread).start();
+
+        assertThrows(IllegalThreadStateException.class,
+                () -> senderService.addSender(senderDto, "testPlugin", sender));
+        assertTrue(senderService.getSender("brokenSender").isEmpty());
+        assertFalse(senderService.getSenderNames().contains("brokenSender"));
+    }
+
+    @Test
     void testImportSender_success() throws Exception {
         // Given
         setupPlugin("testType", Mockito.mock(Sender.class));
