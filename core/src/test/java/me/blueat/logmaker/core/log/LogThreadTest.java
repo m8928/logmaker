@@ -174,8 +174,12 @@ class LogThreadTest {
     @Test
     void testUpdateLogDto_failure_rollsBack() {
         // Given: initial log with maker reference (ST syntax: <makerName>)
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = mock(Maker.class);
+        when(maker.getData()).thenReturn("maker-value");
         when(makerService.getMakerNames()).thenReturn(Set.of("myMaker"));
         when(senderService.getSenderNames()).thenReturn(Set.of());
+        when(makerService.getMaker("myMaker")).thenReturn(Optional.of(Map.entry("plugin", maker)));
 
         LogDto initial = logDtoWithMaker("myMaker");
         LogThread thread = new LogThread(makerService, senderService, initial);
@@ -192,6 +196,9 @@ class LogThreadTest {
         // Then: returns false (update failed, rolled back to original)
         assertFalse(result);
         assertEquals("<myMaker>", thread.getLogDto().getFormat());
+        assertEquals("maker-value", thread.getLogDto().getSample());
+        verify(maker, times(2)).increaseRef();
+        verify(maker).decreaseRef();
     }
 
     @Test

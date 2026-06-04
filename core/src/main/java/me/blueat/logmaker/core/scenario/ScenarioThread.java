@@ -6,9 +6,11 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.log.LogThread;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
 
 import java.io.StringWriter;
 import java.security.SecureRandom;
@@ -27,6 +29,7 @@ public class ScenarioThread implements Runnable {
     private final SenderService senderService;
     private final LogService logService;
     private final ScenarioDto scenarioDto;
+    private final VelocityEngine overrideEngine = VelocityTemplateUtil.createSecureEngine(4);
 
     private final AtomicLong count = new AtomicLong(0);
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -223,10 +226,28 @@ public class ScenarioThread implements Runnable {
                 )
         );
 
-        data.putAll(stepOverrides(step));
+        data.putAll(resolveStepOverrides(step, resolvedVars));
         data.putAll(resolvedVars);
 
         return data;
+    }
+
+    private Map<String, String> resolveStepOverrides(ScenarioStepDto step, Map<String, String> resolvedVars) {
+        Map<String, String> resolved = new HashMap<>();
+        stepOverrides(step).forEach((key, value) -> resolved.put(key, resolveOverrideValue(value, resolvedVars)));
+        return resolved;
+    }
+
+    private String resolveOverrideValue(String value, Map<String, String> resolvedVars) {
+        if (value == null || resolvedVars.isEmpty()) {
+            return value;
+        }
+
+        VelocityContext context = new VelocityContext();
+        resolvedVars.forEach(context::put);
+        StringWriter writer = new StringWriter();
+        overrideEngine.evaluate(context, writer, "scenario-step-override", value);
+        return writer.toString();
     }
 
     private void sendToSender(Sender<?> sender, String data, int dataBytes) {

@@ -16,6 +16,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Data
 public class RegexMaker extends Maker<String> implements Runnable {
     private static final int REGEX_POOL_SIZE = Math.max(2, Runtime.getRuntime().availableProcessors());
+    private static final long GENERATION_FAILURE_BACKOFF_MS = 10L;
     private static final AtomicLong REGEX_THREAD_ID = new AtomicLong();
     private static final ExecutorService REGEX_EXECUTOR = new ThreadPoolExecutor(
             REGEX_POOL_SIZE,
@@ -71,7 +72,12 @@ public class RegexMaker extends Maker<String> implements Runnable {
                 updateLock.unlock();
             }
 
-            if (generated == null || version != configurationVersion.get()) {
+            if (version != configurationVersion.get()) {
+                continue;
+            }
+
+            if (generated == null) {
+                pauseAfterGenerationFailure();
                 continue;
             }
 
@@ -80,6 +86,14 @@ public class RegexMaker extends Maker<String> implements Runnable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    private void pauseAfterGenerationFailure() {
+        try {
+            Thread.sleep(GENERATION_FAILURE_BACKOFF_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

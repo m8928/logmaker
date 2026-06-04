@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,7 +36,7 @@ public class FileUtil {
             Path tempDirectory = parent != null ? parent : Paths.get(".");
             tempFile = Files.createTempFile(tempDirectory, "logmaker-", ".tmp");
             mapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), data);
-            Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            moveIntoPlace(tempFile, targetPath);
             tempFile = null;
             log.info("Saved to {}", filePath);
         } catch (IOException e) {
@@ -43,6 +44,15 @@ public class FileUtil {
         } finally {
             deleteTempFile(tempFile);
             writeLock.unlock();
+        }
+    }
+
+    private static void moveIntoPlace(Path tempFile, Path targetPath) throws IOException {
+        try {
+            Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            log.warn("Atomic move is not supported for {}, falling back to replace move", targetPath);
+            Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

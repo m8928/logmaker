@@ -44,41 +44,60 @@ public class MakerService {
     private Table<String, String, MakerPlugin> makerPluginTable;
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> makerNameRegistry = new java.util.concurrent.ConcurrentHashMap<>();
 
+    private record MakerSnapshot(String name, Maker<?> maker) {
+    }
+
     @PostConstruct
     protected void init() {
         makerTable = Tables.synchronizedTable(HashBasedTable.create());
         makerPluginTable = Tables.synchronizedTable(HashBasedTable.create());
         loadPlugin();
-        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json")
-                        , MakerDto[].class)))
-                .forEach(makerDto -> createMaker(makerDto, true));
+        MakerDto[] loadedMakers = loadFromFile(makerStoragePath(), MakerDto[].class);
+        if (loadedMakers != null) {
+            Arrays.stream(loadedMakers).forEach(makerDto -> createMaker(makerDto, true));
+        }
         log.info("Initialized Maker Service");
     }
 
     public List<MakerDto> getMaker() {
-        return makerTable.cellSet().stream().map(v ->
+        List<MakerSnapshot> snapshot;
+        synchronized (makerTable) {
+            snapshot = makerTable.cellSet().stream()
+                    .map(v -> new MakerSnapshot(v.getColumnKey(), v.getValue()))
+                    .toList();
+        }
+
+        return snapshot.stream().map(v ->
                 MakerDto.builder()
-                        .name(v.getColumnKey())
-                        .type(v.getValue().getType())
-                        .args(v.getValue().getArgs())
-                        .sample(v.getValue().getData())
-                        .ref(v.getValue().getRef())
-                        .size(v.getValue().getSize())
-                        .regTime(v.getValue().getRegTime()).build())
+                        .name(v.name())
+                        .type(v.maker().getType())
+                        .args(v.maker().getArgs())
+                        .sample(v.maker().getData())
+                        .ref(v.maker().getRef())
+                        .size(v.maker().getSize())
+                        .regTime(v.maker().getRegTime()).build())
                 .sorted(Comparator.comparing(MakerDto::getRegTime).reversed())
                 .collect(Collectors.toList());
     }
 
     public Optional<Map.Entry<String, Maker<?>>> getMaker(String name) {
-        return makerTable.column(name).entrySet().stream().findFirst();
+        synchronized (makerTable) {
+            return makerTable.column(name).entrySet().stream()
+                    .findFirst()
+                    .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+        }
     }
 
     public Optional<Map.Entry<String, MakerPlugin>> getMakerPlugin(String name) {
-        if (makerPluginTable.containsColumn(name)) {
-            return makerPluginTable.column(name).entrySet().stream().findFirst();
-        }
-        else {
-            return Optional.empty();
+        synchronized (makerPluginTable) {
+            if (makerPluginTable.containsColumn(name)) {
+                return makerPluginTable.column(name).entrySet().stream()
+                        .findFirst()
+                        .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+            }
+            else {
+                return Optional.empty();
+            }
         }
     }
 
@@ -91,9 +110,11 @@ public class MakerService {
             if (existsMaker.get().getValue().isThread()) {
                 existsMaker.get().getValue().getThread().interrupt();
             }
-            makerTable.remove(existsMaker.get().getKey(), name);
+            synchronized (makerTable) {
+                makerTable.remove(existsMaker.get().getKey(), name);
+            }
         }
-        saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
+        saveToFile(getMaker(), makerStoragePath());
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
     }
 
@@ -124,7 +145,7 @@ public class MakerService {
                         result = Result.createResultSet(Result.Type.SUCCESS, "Successful maker registration");
 
                         if (!isImport) {
-                            saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
+                            saveToFile(getMaker(), makerStoragePath());
                         }
                     }
                     else {
@@ -151,7 +172,9 @@ public class MakerService {
             return false;
         }
         try {
-            makerTable.put(pluginId, makerDto.getName(), maker);
+            synchronized (makerTable) {
+                makerTable.put(pluginId, makerDto.getName(), maker);
+            }
             if (maker.isThread()) {
                 maker.getThread().start();
             }
@@ -163,7 +186,9 @@ public class MakerService {
     }
 
     public Set<String> getMakerNames() {
-        return new HashSet<>(makerTable.columnKeySet());
+        synchronized (makerTable) {
+            return new HashSet<>(makerTable.columnKeySet());
+        }
     }
 
     public void loadPlugin() {
@@ -174,14 +199,16 @@ public class MakerService {
                 .filter(p -> pluginId == null || p.getPluginId().equals(pluginId))
                 .forEach(pluginWrapper -> springPluginManager.getExtensions(MakerPlugin.class, pluginWrapper.getPluginId())
                         .forEach(makerPlugin -> {
-                            log.info("{}/{}", makerPlugin.getType(), getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType()));
-                            if (!getMakerPluginTable().contains(pluginWrapper.getPluginId(), makerPlugin.getType())) {
-                                getMakerPluginTable().put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
+                            synchronized (makerPluginTable) {
+                                log.info("{}/{}", makerPlugin.getType(), makerPluginTable.contains(pluginWrapper.getPluginId(), makerPlugin.getType()));
+                                if (!makerPluginTable.contains(pluginWrapper.getPluginId(), makerPlugin.getType())) {
+                                    makerPluginTable.put(pluginWrapper.getPluginId(), makerPlugin.getType(), makerPlugin);
+                                }
+                                else {
+                                    log.warn("Plugin is already loaded. id={}, type={}", pluginWrapper.getPluginId(), makerPlugin.getType());
+                                }
                             }
-                            else {
-                                log.warn("Plugin is already loaded. id={}, type={}", pluginWrapper.getPluginId(), makerPlugin.getType());
-                            }
-        }));
+                        }));
     }
 
     public ResponseEntity<Result> updateMaker(MakerDto makerDto) {
@@ -190,7 +217,7 @@ public class MakerService {
 
         if (existsMaker.isPresent()) {
             existsMaker.get().getValue().update(makerDto.getArgs());
-            saveToFile(getMaker(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json"));
+            saveToFile(getMaker(), makerStoragePath());
             result = Result.createResultSet(Result.Type.SUCCESS, "Successfully updated maker");
         }
         else {
@@ -198,5 +225,9 @@ public class MakerService {
         }
 
         return result;
+    }
+
+    private String makerStoragePath() {
+        return String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "makers.json");
     }
 }

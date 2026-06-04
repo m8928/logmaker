@@ -52,8 +52,8 @@ public class LogThread implements Runnable {
     private LogDto logDto;
 
     private volatile Thread runningThread;
-    private long eventTargetRemainder = 0L;
-    private long byteTargetRemainder = 0L;
+    private volatile long eventTargetRemainder = 0L;
+    private volatile long byteTargetRemainder = 0L;
 
     private record GenerationStats(long events, long bytes) {
     }
@@ -65,11 +65,18 @@ public class LogThread implements Runnable {
         this.senders = new ConcurrentHashMap<>();
         this.makers = new ConcurrentHashMap<>();
         this.ve = VelocityTemplateUtil.createSecureEngine(20);
-        init();
+        try {
+            init();
+        } catch (RuntimeException e) {
+            releaseReferences();
+            throw e;
+        }
     }
 
     private void init() {
-        this.senderName = logDto.getSender();
+        makers.clear();
+        senders.clear();
+        this.senderName = logDto.getSender() != null ? new ArrayList<>(logDto.getSender()) : Collections.emptyList();
         ST template = new ST(logDto.getFormat());
         makerName = new HashSet<>();
         TokenStream tokens = template.impl.tokens;
@@ -93,14 +100,18 @@ public class LogThread implements Runnable {
             throw new IllegalStateException("Template parsing failed", e);
         }
 
-        if (!makerService.getMakerNames().containsAll(makerName)) {
-            makerName.removeAll(makerService.getMakerNames());
-            throw new IllegalStateException("maker not found. " + makerName);
+        Set<String> registeredMakers = makerService.getMakerNames();
+        if (!registeredMakers.containsAll(makerName)) {
+            Set<String> missingMakers = new HashSet<>(makerName);
+            missingMakers.removeAll(registeredMakers);
+            throw new IllegalStateException("maker not found. " + missingMakers);
         }
 
-        if (!senderService.getSenderNames().containsAll(senderName)) {
-            senderName.removeAll(senderService.getSenderNames());
-            throw new IllegalStateException("sender not found. " + makerName);
+        Set<String> registeredSenders = senderService.getSenderNames();
+        if (!registeredSenders.containsAll(senderName)) {
+            List<String> missingSenders = new ArrayList<>(senderName);
+            missingSenders.removeAll(registeredSenders);
+            throw new IllegalStateException("sender not found. " + missingSenders);
         }
 
         senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
@@ -278,45 +289,38 @@ public class LogThread implements Runnable {
     }
 
     public boolean updateLogDto(LogDto logDto) {
-        boolean result;
         updateLock.lock();
-        start = Instant.now();
-        count.set(0);
-        eventTargetRemainder = 0L;
-        byteTargetRemainder = 0L;
+        LogDto backup = this.logDto;
         try {
-            makerName.forEach(e -> makerService.getMaker(e).ifPresent(o -> {
-                o.getValue().decreaseRef();
-                makers.remove(e);
-            }));
+            start = Instant.now();
+            count.set(0);
+            eventTargetRemainder = 0L;
+            byteTargetRemainder = 0L;
 
-            senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
-                o.getValue().decreaseRef();
-                senders.remove(s);
-            }));
-
-            LogDto backup = this.logDto;
+            releaseReferences();
             logDto.setPaused(backup.isPaused());
             this.logDto = logDto;
 
             try {
                 init();
-                result = true;
+                return true;
             }
             catch (Exception e) {
                 log.error("Failed to update log configuration, reverting to backup", e);
-                makerName.clear();
-                makers.clear();
-                senderName.clear();
-                senders.clear();
+                releaseReferences();
                 this.logDto = backup;
-                result = false;
+                try {
+                    init();
+                } catch (Exception restoreException) {
+                    log.error("Failed to restore previous log configuration", restoreException);
+                    releaseReferences();
+                }
+                return false;
             }
         }
         finally {
             updateLock.unlock();
         }
-        return result;
     }
 
     public String generate(Template vTemplate, Map<String, Object> data) {
@@ -339,5 +343,12 @@ public class LogThread implements Runnable {
         if (t != null) {
             t.interrupt();
         }
+    }
+
+    void releaseReferences() {
+        makers.values().forEach(Maker::decreaseRef);
+        senders.values().forEach(Sender::decreaseRef);
+        makers.clear();
+        senders.clear();
     }
 }

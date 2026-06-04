@@ -50,37 +50,53 @@ public class SenderService {
         senderTable = Tables.synchronizedTable(HashBasedTable.create());
         senderPluginTable = Tables.synchronizedTable(HashBasedTable.create());
         loadPlugin();
-        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json")
-                        , SenderDto[].class)))
-                .forEach(senderDto -> createSender(senderDto, true));
+        SenderDto[] loadedSenders = loadFromFile(senderStoragePath(), SenderDto[].class);
+        if (loadedSenders != null) {
+            Arrays.stream(loadedSenders).forEach(senderDto -> createSender(senderDto, true));
+        }
         log.info("Initialized Sender Service");
     }
 
     public Optional<Map.Entry<String, Sender<?>>> getSender(String name) {
-        return senderTable.column(name).entrySet().stream().findFirst();
+        synchronized (senderTable) {
+            return senderTable.column(name).entrySet().stream()
+                    .findFirst()
+                    .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+        }
     }
 
     public Optional<Map.Entry<String, SenderPlugin>> getSenderPlugin(String name) {
-        if (senderPluginTable.containsColumn(name)) {
-            return senderPluginTable.column(name).entrySet().stream().findFirst();
-        }
-        else {
-            return Optional.empty();
+        synchronized (senderPluginTable) {
+            if (senderPluginTable.containsColumn(name)) {
+                return senderPluginTable.column(name).entrySet().stream()
+                        .findFirst()
+                        .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+            }
+            else {
+                return Optional.empty();
+            }
         }
     }
 
     public List<SenderDto> getSender() {
-        return senderTable.cellSet().stream().map(v ->
+        List<Sender<?>> snapshot;
+        synchronized (senderTable) {
+            snapshot = senderTable.cellSet().stream()
+                    .map(Table.Cell::getValue)
+                    .toList();
+        }
+
+        return snapshot.stream().map(v ->
                 SenderDto.builder()
-                        .name(v.getValue().getSenderName())
-                        .type(v.getValue().getType())
-                        .args(v.getValue().getArgs())
-                        .ref(v.getValue().getRef())
-                        .count(v.getValue().getCount())
-                        .bytes(v.getValue().getBytes())
-                        .bytesPerSec(v.getValue().getBytesPerSec())
-                        .limit(v.getValue().getLimit())
-                        .regTime(v.getValue().getRegTime())
+                        .name(v.getSenderName())
+                        .type(v.getType())
+                        .args(v.getArgs())
+                        .ref(v.getRef())
+                        .count(v.getCount())
+                        .bytes(v.getBytes())
+                        .bytesPerSec(v.getBytesPerSec())
+                        .limit(v.getLimit())
+                        .regTime(v.getRegTime())
                         .build())
                 .sorted(Comparator.comparing(SenderDto::getRegTime).reversed()).collect(Collectors.toList());
     }
@@ -103,10 +119,12 @@ public class SenderService {
             } catch (Exception e) {
                 log.warn("Failed to close sender: {}", name, e);
             } finally {
-                senderTable.remove(existsSender.get().getKey(), name);
+                synchronized (senderTable) {
+                    senderTable.remove(existsSender.get().getKey(), name);
+                }
             }
         }
-        saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
+        saveToFile(getSender(), senderStoragePath());
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
     }
 
@@ -155,7 +173,7 @@ public class SenderService {
         }
 
         if (!isImport) {
-            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
+            saveToFile(getSender(), senderStoragePath());
         }
         return Result.createResultSet(Result.Type.SUCCESS, "Successful sender registration");
     }
@@ -176,7 +194,9 @@ public class SenderService {
             return false;
         }
         try {
-            senderTable.put(pluginId, senderDto.getName(), sender);
+            synchronized (senderTable) {
+                senderTable.put(pluginId, senderDto.getName(), sender);
+            }
             if (sender.isThread()) {
                 sender.getThread().start();
             }
@@ -188,7 +208,9 @@ public class SenderService {
     }
 
     public Set<String> getSenderNames() {
-        return new HashSet<>(senderTable.columnKeySet());
+        synchronized (senderTable) {
+            return new HashSet<>(senderTable.columnKeySet());
+        }
     }
 
     public void loadPlugin() {
@@ -201,11 +223,13 @@ public class SenderService {
                 .forEach(pluginWrapper -> springPluginManager.getExtensions(SenderPlugin.class, pluginWrapper.getPluginId())
                         .forEach(senderPlugin -> {
                             log.info("{}", senderPlugin.getType());
-                            if (!getSenderPluginTable().contains(pluginWrapper.getPluginId(), senderPlugin.getType())) {
-                                getSenderPluginTable().put(pluginWrapper.getPluginId(), senderPlugin.getType(), senderPlugin);
-                            }
-                            else {
-                                log.warn("Plugin is already loaded. id={}, type={}", pluginWrapper.getPluginId(), senderPlugin.getType());
+                            synchronized (senderPluginTable) {
+                                if (!senderPluginTable.contains(pluginWrapper.getPluginId(), senderPlugin.getType())) {
+                                    senderPluginTable.put(pluginWrapper.getPluginId(), senderPlugin.getType(), senderPlugin);
+                                }
+                                else {
+                                    log.warn("Plugin is already loaded. id={}, type={}", pluginWrapper.getPluginId(), senderPlugin.getType());
+                                }
                             }
                         }));
     }
@@ -216,7 +240,7 @@ public class SenderService {
 
         if (existsSender.isPresent()) {
             existsSender.get().getValue().update(senderDto.getArgs());
-            saveToFile(getSender(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json"));
+            saveToFile(getSender(), senderStoragePath());
             result = Result.createResultSet(Result.Type.SUCCESS, "Successfully updated sender");
         }
         else {
@@ -224,5 +248,9 @@ public class SenderService {
         }
 
         return result;
+    }
+
+    private String senderStoragePath() {
+        return String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "senders.json");
     }
 }

@@ -94,6 +94,14 @@ class LogServiceTest {
     }
 
     @Test
+    void init_skipsNullLoadedLogs() {
+        fileUtilMockedStatic.when(() -> FileUtil.loadFromFile(any(), eq(LogDto[].class))).thenReturn(null);
+
+        assertDoesNotThrow(() -> logService.init());
+        assertTrue(logService.getLog().isEmpty());
+    }
+
+    @Test
     void testUpdateLog_success() {
         // Given: create a log with no makers/senders
         LogDto logDto = new LogDto();

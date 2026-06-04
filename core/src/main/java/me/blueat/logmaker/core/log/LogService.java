@@ -61,9 +61,10 @@ public class LogService implements DisposableBean {
     protected void init() {
         logThreadMap = new ConcurrentHashMap<>();
         executorService = Executors.newCachedThreadPool();
-        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json")
-                        , LogDto[].class)))
-                .forEach(logDto -> createLog(logDto, true));
+        LogDto[] loadedLogs = loadFromFile(logStoragePath(), LogDto[].class);
+        if (loadedLogs != null) {
+            Arrays.stream(loadedLogs).forEach(logDto -> createLog(logDto, true));
+        }
         log.info("Initializing Log Service");
     }
 
@@ -91,12 +92,13 @@ public class LogService implements DisposableBean {
             LogThread logThread = new LogThread(makerService, senderService, logDto);
             if (logThreadMap.putIfAbsent(logDto.getName(), logThread) != null) {
                 logThread.interrupt();
+                logThread.releaseReferences();
                 return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
             }
             executorService.submit(logThread);
 
             if (!isImport) {
-                saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+                saveToFile(getLog(), logStoragePath());
             }
             return Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
         }
@@ -119,7 +121,7 @@ public class LogService implements DisposableBean {
         Optional<LogThread> existsLog = Optional.ofNullable(logThreadMap.get(logDto.getName()));
 
         if (existsLog.isPresent() && existsLog.get().updateLogDto(logDto)) {
-            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+            saveToFile(getLog(), logStoragePath());
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated log");
         }
         else {
@@ -144,7 +146,7 @@ public class LogService implements DisposableBean {
         LogThread logThread = logThreadMap.get(name);
         if (logThread != null) {
             logThread.getLogDto().setPaused(paused);
-            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+            saveToFile(getLog(), logStoragePath());
             return Result.createResultSet(Result.Type.SUCCESS, paused ? "Log stopped" : "Log started");
         }
         return Result.createResultSet(Result.Type.ERROR, "Log does not exist");
@@ -154,9 +156,8 @@ public class LogService implements DisposableBean {
         LogThread removed = logThreadMap.remove(name);
         if (removed != null) {
             removed.interrupt();
-            removed.getMakerName().forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
-            removed.getSenderName().forEach(e -> senderService.getSender(e).ifPresent(s -> s.getValue().decreaseRef()));
-            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+            removed.releaseReferences();
+            saveToFile(getLog(), logStoragePath());
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted log");
         }
         else {
@@ -168,7 +169,6 @@ public class LogService implements DisposableBean {
         ResponseEntity<Result> result;
 
         try {
-            Template vTemplate;
             String vFormat;
             ST template = new ST(format);
             Set<String> expressions = new HashSet<>();
@@ -186,21 +186,9 @@ public class LogService implements DisposableBean {
             }
 
             vFormat = template.render();
-            vTemplate = compilePreviewTemplate(vFormat);
-
-            VelocityContext context = new VelocityContext();
             Map<String, Object> templateData = getTemplateData(expressions);
 
-            templateData.keySet().forEach(key -> {
-                if (templateData.containsKey(key)) {
-                    context.put(key, templateData.get(key));
-                }
-            });
-
-            StringWriter writer = new StringWriter();
-            vTemplate.merge(context, writer);
-
-            result = Result.createResultSet(Result.Type.SUCCESS, writer.toString(), false);
+            result = Result.createResultSet(Result.Type.SUCCESS, renderPreview(vFormat, templateData), false);
         }
         catch (Exception e) {
             result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid log template (%s)", format), false);
@@ -209,9 +197,19 @@ public class LogService implements DisposableBean {
         return result;
     }
 
-    private Template compilePreviewTemplate(String vFormat) {
+    private String renderPreview(String vFormat, Map<String, Object> templateData) {
         synchronized (previewTemplateLock) {
-            return VelocityTemplateUtil.compile(previewEngine, "preview", vFormat);
+            Template vTemplate = VelocityTemplateUtil.compile(previewEngine, "preview", vFormat);
+            VelocityContext context = new VelocityContext();
+            templateData.forEach((key, value) -> {
+                if (value != null) {
+                    context.put(key, value);
+                }
+            });
+
+            StringWriter writer = new StringWriter();
+            vTemplate.merge(context, writer);
+            return writer.toString();
         }
     }
 
@@ -225,5 +223,9 @@ public class LogService implements DisposableBean {
         }
 
         return result;
+    }
+
+    private String logStoragePath() {
+        return String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json");
     }
 }

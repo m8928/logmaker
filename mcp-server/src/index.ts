@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
-import { basename, extname } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { basename, extname, isAbsolute, relative, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 const BASE_URL = process.env.LOGMAKER_URL ?? "http://localhost:19999";
 const API = `${BASE_URL}/api/v1`;
+const FILE_ROOT = resolve(process.env.LOGMAKER_MCP_FILE_ROOT ?? process.cwd());
 
 // ---------------------------------------------------------------------------
 // HTTP helper
@@ -34,18 +35,20 @@ async function api<T = unknown>(
 
 async function apiMultipart<T = unknown>(
   path: string,
-  filePath: string
+  filePath: string,
+  allowedExtensions: string[]
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  const bytes = await readFile(filePath);
+  const safePath = await validateUploadFile(filePath, allowedExtensions);
+  const bytes = await readFile(safePath);
   const arrayBuffer = bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength
   ) as ArrayBuffer;
   const file = new Blob([arrayBuffer], {
-    type: contentTypeFor(filePath),
+    type: contentTypeFor(safePath),
   });
   const form = new FormData();
-  form.append("file", file, basename(filePath));
+  form.append("file", file, basename(safePath));
 
   const res = await fetch(`${API}${path}`, {
     method: "POST",
@@ -53,6 +56,32 @@ async function apiMultipart<T = unknown>(
   });
 
   return parseResponse<T>(res);
+}
+
+async function validateUploadFile(
+  filePath: string,
+  allowedExtensions: string[]
+): Promise<string> {
+  const realRoot = await realpath(FILE_ROOT);
+  const realFile = await realpath(resolve(filePath));
+
+  if (!isInside(realFile, realRoot)) {
+    throw new Error(`File must be inside LOGMAKER_MCP_FILE_ROOT: ${realRoot}`);
+  }
+
+  const extension = extname(realFile).toLowerCase();
+  if (!allowedExtensions.includes(extension)) {
+    throw new Error(
+      `Unsupported file extension '${extension}'. Allowed: ${allowedExtensions.join(", ")}`
+    );
+  }
+
+  return realFile;
+}
+
+function isInside(candidate: string, root: string): boolean {
+  const fromRoot = relative(root, candidate);
+  return fromRoot === "" || (!fromRoot.startsWith("..") && !isAbsolute(fromRoot));
 }
 
 async function parseResponse<T>(
@@ -106,9 +135,9 @@ function formatError(err: unknown): {
   };
 }
 
-async function uploadFile(path: string, filePath: string) {
+async function uploadFile(path: string, filePath: string, allowedExtensions: string[]) {
   try {
-    return formatResult(await apiMultipart(path, filePath));
+    return formatResult(await apiMultipart(path, filePath, allowedExtensions));
   } catch (err) {
     return formatError(err);
   }
@@ -212,13 +241,13 @@ server.tool(
 
 server.tool(
   "import_makers_file",
-  "Import maker definitions from a local JSON file path visible to the MCP server",
+  "Import maker definitions from a local JSON file path under LOGMAKER_MCP_FILE_ROOT/current working directory",
   {
     filePath: z
       .string()
-      .describe("Local .json file path on the machine running this MCP server"),
+      .describe("Local .json file path under LOGMAKER_MCP_FILE_ROOT/current working directory"),
   },
-  async ({ filePath }) => uploadFile("/maker:import-file", filePath)
+  async ({ filePath }) => uploadFile("/maker:import-file", filePath, [".json"])
 );
 
 // ── Senders ─────────────────────────────────────────────────────────────────
@@ -316,13 +345,13 @@ server.tool(
 
 server.tool(
   "import_senders_file",
-  "Import sender definitions from a local JSON file path visible to the MCP server",
+  "Import sender definitions from a local JSON file path under LOGMAKER_MCP_FILE_ROOT/current working directory",
   {
     filePath: z
       .string()
-      .describe("Local .json file path on the machine running this MCP server"),
+      .describe("Local .json file path under LOGMAKER_MCP_FILE_ROOT/current working directory"),
   },
-  async ({ filePath }) => uploadFile("/sender:import-file", filePath)
+  async ({ filePath }) => uploadFile("/sender:import-file", filePath, [".json"])
 );
 
 // ── Logs ────────────────────────────────────────────────────────────────────
@@ -485,13 +514,13 @@ server.tool(
 
 server.tool(
   "import_logs_file",
-  "Import log definitions from a local JSON file path visible to the MCP server",
+  "Import log definitions from a local JSON file path under LOGMAKER_MCP_FILE_ROOT/current working directory",
   {
     filePath: z
       .string()
-      .describe("Local .json file path on the machine running this MCP server"),
+      .describe("Local .json file path under LOGMAKER_MCP_FILE_ROOT/current working directory"),
   },
-  async ({ filePath }) => uploadFile("/log:import-file", filePath)
+  async ({ filePath }) => uploadFile("/log:import-file", filePath, [".json"])
 );
 
 // ── Plugins ─────────────────────────────────────────────────────────────────
@@ -518,13 +547,13 @@ server.tool(
 
 server.tool(
   "install_plugin",
-  "Install a plugin from a local JAR file path visible to the MCP server",
+  "Install a plugin from a local JAR file path under LOGMAKER_MCP_FILE_ROOT/current working directory",
   {
     filePath: z
       .string()
-      .describe("Local .jar file path on the machine running this MCP server"),
+      .describe("Local .jar file path under LOGMAKER_MCP_FILE_ROOT/current working directory"),
   },
-  async ({ filePath }) => uploadFile("/plugin", filePath)
+  async ({ filePath }) => uploadFile("/plugin", filePath, [".jar"])
 );
 
 server.tool(

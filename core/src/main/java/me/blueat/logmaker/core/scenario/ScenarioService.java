@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,10 +45,10 @@ public class ScenarioService implements DisposableBean {
         scenarioMap = new ConcurrentHashMap<>();
         scenarioThreadMap = new ConcurrentHashMap<>();
         executorService = Executors.newCachedThreadPool();
-        Arrays.stream(Objects.requireNonNull(loadFromFile(
-                String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "scenarios.json"),
-                ScenarioDto[].class)))
-                .forEach(dto -> createScenario(dto, true));
+        ScenarioDto[] loadedScenarios = loadFromFile(scenarioStoragePath(), ScenarioDto[].class);
+        if (loadedScenarios != null) {
+            Arrays.stream(loadedScenarios).forEach(dto -> createScenario(dto, true));
+        }
         log.info("Initialized Scenario Service");
     }
 
@@ -208,6 +207,10 @@ public class ScenarioService implements DisposableBean {
                     return clean;
                 })
                 .toList();
-        saveToFile(toSave, String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "scenarios.json"));
+        saveToFile(toSave, scenarioStoragePath());
+    }
+
+    private String scenarioStoragePath() {
+        return String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "scenarios.json");
     }
 }
