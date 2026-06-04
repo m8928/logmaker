@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.Result;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,13 +23,13 @@ public class ScenarioController {
     }
 
     @PostMapping("/scenario")
-    public ResponseEntity<Result> createScenario(@RequestBody ScenarioDto scenarioDto) {
+    public ResponseEntity<Result> createScenario(@RequestBody @Validated ScenarioDto scenarioDto) {
         return scenarioService.createScenario(scenarioDto);
     }
 
     @PutMapping("/scenario/{name}")
     public ResponseEntity<Result> updateScenario(@PathVariable("name") String name,
-                                                  @RequestBody ScenarioDto scenarioDto) {
+                                                  @RequestBody @Validated ScenarioDto scenarioDto) {
         return scenarioService.updateScenario(name, scenarioDto);
     }
 

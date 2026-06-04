@@ -6,6 +6,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import me.blueat.logmaker.core.model.Result;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -41,6 +45,34 @@ class ValidExceptionHandlerTest {
 
         assertNull(result);
         verify(response).sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    void returnsNotFoundWhenIndexResourceIsMissing() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        StringWriter body = new StringWriter();
+        when(request.getRequestURI()).thenReturn("/index.html");
+        when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+        handler.handleNoResourceFound(mock(NoResourceFoundException.class), request, response);
+
+        verify(response).setStatus(HttpServletResponse.SC_NOT_FOUND);
+        verify(request, never()).getRequestDispatcher("/index.html");
+        assertTrue(body.toString().contains("Not found"));
+    }
+
+    @Test
+    void genericIndexFailuresDoNotForwardToIndexAgain() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(request.getRequestURI()).thenReturn("/index.html");
+
+        ResponseEntity<Result> result = handler.handleAllExceptions(new RuntimeException("boom"), request, response);
+
+        assertNull(result);
+        verify(response).sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(request, never()).getRequestDispatcher("/index.html");
     }
 
     @Test

@@ -8,6 +8,7 @@ import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -18,6 +19,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -220,6 +226,31 @@ class ScenarioThreadTest {
         IllegalStateException thrown = assertThrows(IllegalStateException.class, scenarioThread::run);
         assertTrue(thrown.getMessage().contains("missing-sender"));
         assertFalse(scenarioThread.getRunning().get());
+    }
+
+    @Test
+    void logsBackgroundFailureBeforeRethrowing() {
+        LogThread loginLog = logThread("login", "login-event");
+        logService.add("login", loginLog);
+
+        ScenarioDto scenario = scenario(List.of(
+                step("login", List.of("missing-sender"))
+        ));
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario);
+        Logger logger = (Logger) LoggerFactory.getLogger(ScenarioThread.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            assertThrows(IllegalStateException.class, scenarioThread::run);
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertTrue(appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.ERROR)
+                        && event.getFormattedMessage().contains("Scenario thread failed")));
     }
 
     @Test

@@ -185,6 +185,22 @@ class LogThreadTest {
     }
 
     @Test
+    void setPausedIsVisibleOnSnapshotsAndSurvivesUpdates() {
+        LogDto dto = simpleLogDto();
+        LogThread thread = new LogThread(makerService, senderService, dto);
+        thread.setPaused(true);
+
+        LogDto updated = new LogDto();
+        updated.setName("testLog");
+        updated.setFormat("updated line");
+        updated.setEps(2);
+
+        assertTrue(thread.updateLogDto(updated));
+        assertTrue(thread.getLogDto().isPaused());
+        assertEquals("updated line", thread.getLogDto().getFormat());
+    }
+
+    @Test
     void testUpdateLogDto_failure_rollsBack() {
         // Given: initial log with maker reference (ST syntax: <makerName>)
         @SuppressWarnings("unchecked")

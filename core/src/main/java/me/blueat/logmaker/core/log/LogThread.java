@@ -50,7 +50,8 @@ public class LogThread implements Runnable {
 
     private final Lock updateLock = new ReentrantLock(true);
 
-    private LogDto logDto;
+    private volatile LogDto logDto;
+    private volatile boolean paused;
 
     private volatile Thread runningThread;
     private volatile boolean interrupted;
@@ -64,6 +65,7 @@ public class LogThread implements Runnable {
         this.makerService = makerService;
         this.senderService = senderService;
         this.logDto = logDto;
+        this.paused = logDto.isPaused();
         this.senders = new ConcurrentHashMap<>();
         this.makers = new ConcurrentHashMap<>();
         this.ve = VelocityTemplateUtil.createSecureEngine(20);
@@ -76,10 +78,11 @@ public class LogThread implements Runnable {
     }
 
     private void init() {
+        LogDto currentLogDto = logDto;
         makers.clear();
         senders.clear();
-        this.senderName = logDto.getSender() != null ? new ArrayList<>(logDto.getSender()) : Collections.emptyList();
-        ST template = new ST(logDto.getFormat());
+        this.senderName = currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList();
+        ST template = new ST(currentLogDto.getFormat());
         makerName = new HashSet<>();
         TokenStream tokens = template.impl.tokens;
 
@@ -96,9 +99,9 @@ public class LogThread implements Runnable {
 
         this.vFormat = template.render();
         try {
-            vTemplate = VelocityTemplateUtil.compile(ve, logDto.getName(), vFormat);
+            vTemplate = VelocityTemplateUtil.compile(ve, currentLogDto.getName(), vFormat);
         } catch (Exception e) {
-            log.error("Template parsing failed: {}", logDto.getName(), e);
+            log.error("Template parsing failed: {}", currentLogDto.getName(), e);
             throw new IllegalStateException("Template parsing failed", e);
         }
 
@@ -158,13 +161,14 @@ public class LogThread implements Runnable {
     }
 
     private void updateSecondMetrics(Instant currentStart) {
-        if (senders.isEmpty() || logDto.isPaused()) {
+        LogDto currentLogDto = logDto;
+        if (senders.isEmpty() || paused) {
             recordLastSecond(new GenerationStats(0, 0));
             return;
         }
 
-        boolean bytesMode = "bytes".equals(logDto.getEpsUnit());
-        long targetUnits = nextTargetUnits(bytesMode, logDto.getEps(), targetDivisor(logDto.getEpsTimeUnit()));
+        boolean bytesMode = "bytes".equals(currentLogDto.getEpsUnit());
+        long targetUnits = nextTargetUnits(bytesMode, currentLogDto.getEps(), targetDivisor(currentLogDto.getEpsTimeUnit()));
         recordLastSecond(generateForCurrentSecond(currentStart, bytesMode, targetUnits));
     }
 
@@ -281,12 +285,22 @@ public class LogThread implements Runnable {
     }
 
     public LogDto getLogDto() {
-        this.logDto.setCount(count.get());
-        this.logDto.setCurrentEps(lastSecondEvents);
-        this.logDto.setBytes(bytes.get());
-        this.logDto.setBytesPerSec(lastSecondBytes);
-        this.logDto.setSample(getSample(this.vTemplate, this.getTemplateData()));
-        return this.logDto;
+        LogDto currentLogDto = logDto;
+        LogDto snapshot = new LogDto();
+        snapshot.setName(currentLogDto.getName());
+        snapshot.setFormat(currentLogDto.getFormat());
+        snapshot.setEps(currentLogDto.getEps());
+        snapshot.setEpsUnit(currentLogDto.getEpsUnit());
+        snapshot.setEpsTimeUnit(currentLogDto.getEpsTimeUnit());
+        snapshot.setSender(currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList());
+        snapshot.setPaused(paused);
+        snapshot.setRegTime(currentLogDto.getRegTime());
+        snapshot.setCount(count.get());
+        snapshot.setCurrentEps(lastSecondEvents);
+        snapshot.setBytes(bytes.get());
+        snapshot.setBytesPerSec(lastSecondBytes);
+        snapshot.setSample(getSample(this.vTemplate, this.getTemplateData()));
+        return snapshot;
     }
 
     private String getSample(Template vTemplate, Map<String, Object> data) {
@@ -307,6 +321,7 @@ public class LogThread implements Runnable {
     public boolean updateLogDto(LogDto logDto) {
         updateLock.lock();
         LogDto backup = this.logDto;
+        boolean backupPaused = this.paused;
         try {
             start = Instant.now();
             count.set(0);
@@ -314,7 +329,8 @@ public class LogThread implements Runnable {
             byteTargetRemainder.set(0L);
 
             releaseReferences();
-            logDto.setPaused(backup.isPaused());
+            logDto.setPaused(backupPaused);
+            this.paused = backupPaused;
             this.logDto = logDto;
 
             try {
@@ -325,6 +341,7 @@ public class LogThread implements Runnable {
                 log.error("Failed to update log configuration, reverting to backup", e);
                 releaseReferences();
                 this.logDto = backup;
+                this.paused = backupPaused;
                 try {
                     init();
                 } catch (Exception restoreException) {
@@ -360,6 +377,10 @@ public class LogThread implements Runnable {
         if (t != null) {
             t.interrupt();
         }
+    }
+
+    public void setPaused(boolean paused) {
+        this.paused = paused;
     }
 
     void releaseReferences() {

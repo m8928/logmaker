@@ -15,7 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ScenarioController.class)
 class ScenarioControllerTest {
@@ -48,6 +48,17 @@ class ScenarioControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(scenarioDto)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void createScenario_missingNameReturnsBadRequest() throws Exception {
+        ScenarioDto scenarioDto = new ScenarioDto();
+
+        mockMvc.perform(post("/api/v1/scenario")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(scenarioDto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("ERROR"));
     }
 
     @Test

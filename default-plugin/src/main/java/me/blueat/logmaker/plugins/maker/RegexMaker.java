@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class RegexMaker extends Maker<String> implements Runnable {
-    private static final int MAX_REGEX_WORKERS = Math.max(2, Runtime.getRuntime().availableProcessors());
+    private static final int REGEX_WORKERS_PER_MAKER = 1;
     private static final long GENERATION_FAILURE_BACKOFF_MS = 10L;
 
     private String makerName;
@@ -50,16 +50,15 @@ public class RegexMaker extends Maker<String> implements Runnable {
     }
 
     private ThreadPoolExecutor createRegexExecutor() {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+        return new ThreadPoolExecutor(
                 0,
-                MAX_REGEX_WORKERS,
+                REGEX_WORKERS_PER_MAKER,
                 30L,
                 TimeUnit.SECONDS,
                 new SynchronousQueue<>(),
                 this::newRegexWorker,
                 new ThreadPoolExecutor.AbortPolicy()
         );
-        return executor;
     }
 
     public void init() {
@@ -119,7 +118,8 @@ public class RegexMaker extends Maker<String> implements Runnable {
     private String getRegexRandomString() {
         Future<String> generated;
         try {
-            generated = regexExecutor.submit(() -> rgxGen.generate());
+            RgxGen generator = rgxGen;
+            generated = regexExecutor.submit(() -> generator.generate());
         } catch (RejectedExecutionException e) {
             return null;
         }

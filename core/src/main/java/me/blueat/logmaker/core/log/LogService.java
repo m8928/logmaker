@@ -153,7 +153,7 @@ public class LogService implements DisposableBean {
     public ResponseEntity<Result> setPaused(String name, boolean paused) {
         LogThread logThread = logThreadMap.get(name);
         if (logThread != null) {
-            logThread.getLogDto().setPaused(paused);
+            logThread.setPaused(paused);
             saveToFile(getLog(), logStoragePath());
             return Result.createResultSet(Result.Type.SUCCESS, paused ? "Log stopped" : "Log started");
         }

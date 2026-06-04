@@ -35,9 +35,9 @@ public class ValidExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws Exception {
         String uri = request.getRequestURI();
-        // API paths return 404 JSON
-        if (uri.startsWith("/api/")) {
-            response.setStatus(404);
+        // API paths and missing index.html return 404 JSON instead of entering a forward loop.
+        if (uri.startsWith("/api/") || "/index.html".equals(uri)) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.setContentType("application/json");
             response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
             return;
@@ -50,6 +50,10 @@ public class ValidExceptionHandler {
     public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String uri = request.getRequestURI();
         if (!uri.startsWith("/api/")) {
+            if ("/index.html".equals(uri)) {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                return null;
+            }
             try {
                 request.getRequestDispatcher("/index.html").forward(request, response);
             } catch (ServletException | IOException forwardException) {

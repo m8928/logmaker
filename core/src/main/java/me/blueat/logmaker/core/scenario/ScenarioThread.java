@@ -29,6 +29,8 @@ public class ScenarioThread implements Runnable {
     private final LogService logService;
     private final ScenarioDto scenarioDto;
     private final VelocityEngine overrideEngine = VelocityTemplateUtil.createSecureEngine(4);
+    private final Map<String, Template> overrideTemplateCache = new ConcurrentHashMap<>();
+    private final AtomicLong overrideTemplateId = new AtomicLong();
 
     private final AtomicLong count = new AtomicLong(0);
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -62,6 +64,9 @@ public class ScenarioThread implements Runnable {
 
             resolveSenders(steps, senders);
             executeLoops(steps, senders);
+        } catch (RuntimeException | Error e) {
+            log.error("Scenario thread failed: {}", scenarioDto.getName(), e);
+            throw e;
         } finally {
             senders.values().forEach(Sender::decreaseRef);
             running.set(false);
@@ -266,12 +271,21 @@ public class ScenarioThread implements Runnable {
         resolvedVars.forEach(context::put);
         StringWriter writer = new StringWriter();
         try {
-            overrideEngine.evaluate(context, writer, "scenario-step-override", value);
+            Template template = overrideTemplateCache.computeIfAbsent(value, this::compileOverrideTemplate);
+            template.merge(context, writer);
             return writer.toString();
         } catch (Exception e) {
             log.error("Failed to evaluate override template: {}", value, e);
             return value;
         }
+    }
+
+    private Template compileOverrideTemplate(String value) {
+        return VelocityTemplateUtil.compile(
+                overrideEngine,
+                "scenario-step-override-" + overrideTemplateId.incrementAndGet(),
+                value
+        );
     }
 
     private void sendToSender(Sender<?> sender, String data, int dataBytes) {

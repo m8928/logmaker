@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -86,5 +87,19 @@ class RegexMakerTest {
         worker.join(2_000);
 
         assertThat(worker.isAlive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("정규식 생성 executor는 maker 당 worker 1개로 제한한다")
+    void testRegexExecutorUsesSingleWorkerPerMaker() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("regex", "[a-z]{5}");
+        regexMaker = new RegexMaker("test-worker-limit-regex", "regex", args);
+
+        var executorField = RegexMaker.class.getDeclaredField("regexExecutor");
+        executorField.setAccessible(true);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) executorField.get(regexMaker);
+
+        assertThat(executor.getMaximumPoolSize()).isEqualTo(1);
     }
 }

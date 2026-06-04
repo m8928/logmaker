@@ -1,6 +1,7 @@
 package me.blueat.logmaker.core.scenario;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,6 +13,7 @@ import java.util.Map;
 @Data
 @NoArgsConstructor
 public class ScenarioDto {
+    @NotBlank(message = "Name field value is required")
     private String name;
     private String description;
     private Map<String, String> sharedVariables = new HashMap<>();

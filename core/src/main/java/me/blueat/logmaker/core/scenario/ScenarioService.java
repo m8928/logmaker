@@ -103,6 +103,10 @@ public class ScenarioService implements DisposableBean {
     }
 
     public ResponseEntity<Result> createScenario(ScenarioDto scenarioDto, boolean isImport) {
+        if (scenarioDto == null || scenarioDto.getName() == null || scenarioDto.getName().isBlank()) {
+            return Result.createResultSet(Result.Type.ERROR, "Scenario name is required");
+        }
+
         if (scenarioMap.putIfAbsent(scenarioDto.getName(), scenarioDto) != null) {
             return Result.createResultSet(Result.Type.ERROR,
                     String.format("%s is the scenario name already in use", scenarioDto.getName()));
@@ -118,6 +122,9 @@ public class ScenarioService implements DisposableBean {
     public ResponseEntity<Result> updateScenario(String name, ScenarioDto scenarioDto) {
         if (!scenarioMap.containsKey(name)) {
             return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
+        }
+        if (scenarioDto == null) {
+            return Result.createResultSet(Result.Type.ERROR, "Scenario payload is required");
         }
 
         boolean wasRunning = false;
