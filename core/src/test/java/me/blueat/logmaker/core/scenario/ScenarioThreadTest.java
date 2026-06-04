@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -26,6 +27,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class ScenarioThreadTest {
 
@@ -152,6 +155,28 @@ class ScenarioThreadTest {
         new ScenarioThread(makerService, senderService, logService, scenario).run();
 
         assertEquals(List.of("override-value"), sender.getSentData());
+    }
+
+    @Test
+    void doesNotCacheLiteralOverridesWhenSharedVariablesExist() {
+        makerService.add(new FixedMaker("value", "maker-value"));
+        makerService.add(new FixedMaker("shared-maker", "shared-value"));
+        LogThread loginLog = logThread("login", "<value>");
+        logService.add("login", loginLog);
+
+        CapturingSender sender = new CapturingSender("scenario-sender");
+        senderService.add(sender);
+
+        ScenarioStepDto step = step("login", List.of("scenario-sender"));
+        step.setOverrides(Map.of("value", "literal-value"));
+        ScenarioDto scenario = scenario(List.of(step));
+        scenario.setSharedVariables(Map.of("src_ip", "shared-maker"));
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario);
+
+        scenarioThread.run();
+
+        assertEquals(List.of("literal-value"), sender.getSentData());
+        assertTrue(scenarioThread.getOverrideTemplateCache().isEmpty());
     }
 
     @Test
@@ -288,6 +313,30 @@ class ScenarioThreadTest {
 
         assertFalse(worker.isAlive());
         assertFalse(scenarioThread.getRunning().get());
+    }
+
+    @Test
+    void interruptCancelsAttachedFuture() {
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario(List.of()));
+        @SuppressWarnings("unchecked")
+        Future<Object> future = mock(Future.class);
+
+        scenarioThread.attachRunningTask(future);
+        scenarioThread.interrupt();
+
+        verify(future).cancel(true);
+    }
+
+    @Test
+    void interruptBeforeFutureAttachCancelsFutureWhenAttached() {
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario(List.of()));
+        @SuppressWarnings("unchecked")
+        Future<Object> future = mock(Future.class);
+
+        scenarioThread.interrupt();
+        scenarioThread.attachRunningTask(future);
+
+        verify(future).cancel(true);
     }
 
     private ScenarioDto scenario(List<ScenarioStepDto> steps) {

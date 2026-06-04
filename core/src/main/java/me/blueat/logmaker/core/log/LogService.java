@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -96,7 +97,8 @@ public class LogService implements DisposableBean {
                 return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
             }
             try {
-                executorService.submit(logThread);
+                Future<?> task = executorService.submit(logThread);
+                logThread.attachRunningTask(task);
             } catch (RuntimeException e) {
                 logThreadMap.remove(logDto.getName(), logThread);
                 logThread.interrupt();

@@ -8,6 +8,7 @@ import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -47,7 +48,7 @@ public class PickMaker extends Maker<String> implements Runnable {
             long version;
             try {
                 version = configurationVersion.get();
-                pick = picker.get((int) ((Math.random() * ((picker.size()) - 0)) + 0));
+                pick = picker.get(ThreadLocalRandom.current().nextInt(picker.size()));
             }
             finally {
                 updateLock.unlock();

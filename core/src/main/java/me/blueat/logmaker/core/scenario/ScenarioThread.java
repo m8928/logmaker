@@ -16,6 +16,7 @@ import org.apache.velocity.app.VelocityEngine;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,7 +38,7 @@ public class ScenarioThread implements Runnable {
     private final AtomicInteger currentStep = new AtomicInteger(-1);
     private final AtomicInteger currentLoop = new AtomicInteger(0);
     private volatile long[] stepCounts;
-    private volatile Thread runningThread;
+    private volatile Future<?> runningTask;
     private volatile boolean interrupted;
 
     public ScenarioThread(MakerService makerService, SenderService senderService,
@@ -51,7 +52,6 @@ public class ScenarioThread implements Runnable {
     @Override
     public void run() {
         running.set(true);
-        runningThread = Thread.currentThread();
         Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
         try {
             if (interrupted) {
@@ -70,7 +70,7 @@ public class ScenarioThread implements Runnable {
         } finally {
             senders.values().forEach(Sender::decreaseRef);
             running.set(false);
-            runningThread = null;
+            runningTask = null;
         }
     }
 
@@ -266,6 +266,9 @@ public class ScenarioThread implements Runnable {
         if (value == null || resolvedVars.isEmpty()) {
             return value;
         }
+        if (!value.contains("$") && !value.contains("#")) {
+            return value;
+        }
 
         VelocityContext context = new VelocityContext();
         resolvedVars.forEach(context::put);
@@ -319,11 +322,18 @@ public class ScenarioThread implements Runnable {
         return stepCounts != null ? stepCounts.clone() : new long[0];
     }
 
+    public void attachRunningTask(Future<?> runningTask) {
+        this.runningTask = runningTask;
+        if (interrupted && runningTask != null) {
+            runningTask.cancel(true);
+        }
+    }
+
     public void interrupt() {
         interrupted = true;
-        Thread t = runningThread;
-        if (t != null) {
-            t.interrupt();
+        Future<?> task = runningTask;
+        if (task != null) {
+            task.cancel(true);
         }
     }
 }

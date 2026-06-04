@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static me.blueat.logmaker.core.util.FileUtil.loadFromFile;
@@ -189,7 +190,8 @@ public class ScenarioService implements DisposableBean {
             }
 
             try {
-                executorService.submit(thread);
+                Future<?> task = executorService.submit(thread);
+                thread.attachRunningTask(task);
             } catch (RuntimeException e) {
                 scenarioThreadMap.remove(name, thread);
                 thread.interrupt();

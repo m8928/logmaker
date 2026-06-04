@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -164,6 +165,32 @@ class LogThreadTest {
         thread.join(500);
 
         assertFalse(thread.isAlive());
+    }
+
+    @Test
+    void interruptCancelsAttachedFuture() {
+        LogDto dto = simpleLogDto();
+        LogThread logThread = new LogThread(makerService, senderService, dto);
+        @SuppressWarnings("unchecked")
+        Future<Object> future = mock(Future.class);
+
+        logThread.attachRunningTask(future);
+        logThread.interrupt();
+
+        verify(future).cancel(true);
+    }
+
+    @Test
+    void interruptBeforeFutureAttachCancelsFutureWhenAttached() {
+        LogDto dto = simpleLogDto();
+        LogThread logThread = new LogThread(makerService, senderService, dto);
+        @SuppressWarnings("unchecked")
+        Future<Object> future = mock(Future.class);
+
+        logThread.interrupt();
+        logThread.attachRunningTask(future);
+
+        verify(future).cancel(true);
     }
 
     @Test

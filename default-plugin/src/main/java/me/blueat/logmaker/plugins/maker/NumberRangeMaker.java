@@ -7,6 +7,7 @@ import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -53,7 +54,7 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
             long number;
             try {
                 if (random) {
-                    number = (long) ((Math.random() * (end - start + 1)) + start);
+                    number = nextRandomNumber();
                 }
                 else {
                     long value = atomicLong.getAndIncrement();
@@ -77,6 +78,23 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private long nextRandomNumber() {
+        if (start >= end) {
+            return start;
+        }
+
+        long bound = end - start + 1;
+        if (bound > 0) {
+            return start + ThreadLocalRandom.current().nextLong(bound);
+        }
+
+        long value;
+        do {
+            value = ThreadLocalRandom.current().nextLong();
+        } while (value < start || value > end);
+        return value;
     }
 
     @Override

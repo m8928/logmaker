@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -53,7 +54,7 @@ public class LogThread implements Runnable {
     private volatile LogDto logDto;
     private volatile boolean paused;
 
-    private volatile Thread runningThread;
+    private volatile Future<?> runningTask;
     private volatile boolean interrupted;
     private final AtomicLong eventTargetRemainder = new AtomicLong(0L);
     private final AtomicLong byteTargetRemainder = new AtomicLong(0L);
@@ -142,7 +143,6 @@ public class LogThread implements Runnable {
 
     @Override
     public void run() {
-        runningThread = Thread.currentThread();
         try {
             if (interrupted) {
                 Thread.currentThread().interrupt();
@@ -156,7 +156,7 @@ public class LogThread implements Runnable {
                 sleepUntilNextSecond(currentStart);
             }
         } finally {
-            runningThread = null;
+            runningTask = null;
         }
     }
 
@@ -371,11 +371,18 @@ public class LogThread implements Runnable {
         return writer.toString();
     }
 
+    public void attachRunningTask(Future<?> runningTask) {
+        this.runningTask = runningTask;
+        if (interrupted && runningTask != null) {
+            runningTask.cancel(true);
+        }
+    }
+
     public void interrupt() {
         interrupted = true;
-        Thread t = runningThread;
-        if (t != null) {
-            t.interrupt();
+        Future<?> task = runningTask;
+        if (task != null) {
+            task.cancel(true);
         }
     }
 
