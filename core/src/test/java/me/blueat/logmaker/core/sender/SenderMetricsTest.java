@@ -45,6 +45,7 @@ class SenderMetricsTest {
 
         @Override
         public void sendData(String data) {
+            // Metrics tests do not send payloads.
         }
 
         @Override
@@ -64,6 +65,7 @@ class SenderMetricsTest {
 
         @Override
         public void update(Map<String, Object> args) {
+            // Metrics tests do not mutate sender configuration.
         }
     }
 }

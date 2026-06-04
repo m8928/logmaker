@@ -190,8 +190,10 @@ public class ScenarioThread implements Runnable {
                 .forEach(target::add);
     }
 
+    @SuppressWarnings("java:S2245")
     private long randomLong(long min, long max) {
         if (min >= max) return min;
+        // Simulation delays are not security-sensitive randomness.
         return ThreadLocalRandom.current().nextLong(min, max + 1);
     }
 
