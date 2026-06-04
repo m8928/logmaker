@@ -104,7 +104,7 @@ public class ScenarioService implements DisposableBean {
         return Result.createResultSet(Result.Type.SUCCESS, "Successful scenario registration");
     }
 
-    public ResponseEntity<Result> updateScenario(String name, ScenarioDto scenarioDto) {
+    public synchronized ResponseEntity<Result> updateScenario(String name, ScenarioDto scenarioDto) {
         if (!scenarioMap.containsKey(name)) {
             return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
         }
@@ -114,7 +114,7 @@ public class ScenarioService implements DisposableBean {
 
         boolean wasRunning = false;
         ScenarioThread existing = scenarioThreadMap.remove(name);
-        if (existing != null && existing.getRunning().get()) {
+        if (existing != null && isScenarioThreadActive(existing)) {
             wasRunning = true;
             if (!stopScenarioThread(name, existing)) {
                 scenarioThreadMap.put(name, existing);
@@ -139,7 +139,7 @@ public class ScenarioService implements DisposableBean {
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated scenario");
     }
 
-    public ResponseEntity<Result> deleteScenario(String name) {
+    public synchronized ResponseEntity<Result> deleteScenario(String name) {
         ScenarioDto removed = scenarioMap.remove(name);
         if (removed == null) {
             return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
@@ -154,7 +154,7 @@ public class ScenarioService implements DisposableBean {
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted scenario");
     }
 
-    public ResponseEntity<Result> startScenario(String name) {
+    public synchronized ResponseEntity<Result> startScenario(String name) {
         ScenarioDto scenarioDto = scenarioMap.get(name);
         if (scenarioDto == null) {
             return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
@@ -187,7 +187,7 @@ public class ScenarioService implements DisposableBean {
         }
     }
 
-    public ResponseEntity<Result> stopScenario(String name) {
+    public synchronized ResponseEntity<Result> stopScenario(String name) {
         ScenarioThread thread = scenarioThreadMap.remove(name);
         if (thread == null) {
             return Result.createResultSet(Result.Type.ERROR, "Scenario is not running");
@@ -214,6 +214,11 @@ public class ScenarioService implements DisposableBean {
             log.warn("Scenario {} did not stop within {} ms", name, STOP_TIMEOUT_MS);
         }
         return stopped;
+    }
+
+    private boolean isScenarioThreadActive(ScenarioThread thread) {
+        Future<?> task = thread.getRunningTask();
+        return thread.getRunning().get() || (task != null && !task.isDone());
     }
 
     private void saveScenarios() {

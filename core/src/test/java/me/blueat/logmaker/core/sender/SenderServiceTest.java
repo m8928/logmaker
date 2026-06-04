@@ -391,6 +391,26 @@ class SenderServiceTest {
     }
 
     @Test
+    void destroyStopsAndClosesActiveSenders() {
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("shutdownSender");
+
+        @SuppressWarnings("unchecked")
+        Sender<Object> sender = Mockito.mock(Sender.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(sender.isThread()).thenReturn(true);
+        when(sender.getThread()).thenReturn(thread);
+
+        assertTrue(senderService.addSender(senderDto, "testPlugin", sender));
+
+        senderService.destroy();
+
+        verify(thread).interrupt();
+        verify(sender).close();
+        assertTrue(senderService.getSenderNames().isEmpty());
+    }
+
+    @Test
     void testImportSender_success() throws Exception {
         // Given
         setupPlugin("testType", Mockito.mock(Sender.class));

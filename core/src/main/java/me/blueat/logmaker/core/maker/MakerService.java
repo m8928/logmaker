@@ -18,6 +18,7 @@ import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
 import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Slf4j
 @Getter
 @Order(1)
-public class MakerService {
+public class MakerService implements DisposableBean {
     private final SpringPluginManager springPluginManager;
     private final LogMakerConfig logMakerConfig;
     private final ObjectMapper mapper;
@@ -109,14 +110,8 @@ public class MakerService {
                 return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
             }
             Maker<?> maker = existsMaker.get().getValue();
-            stopMakerThread(name, maker);
-            try {
-                maker.close();
-            } catch (Exception e) {
-                log.warn("Failed to close maker: {}", name, e);
-            } finally {
-                makerTable.remove(existsMaker.get().getKey(), name);
-            }
+            closeMaker(name, maker, "delete");
+            makerTable.remove(existsMaker.get().getKey(), name);
         }
         saveToFile(getMaker(), makerStoragePath());
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
@@ -189,11 +184,7 @@ public class MakerService {
     public boolean addMaker(MakerDto makerDto, String pluginId, Maker maker) {
         synchronized (makerTable) {
             if (makerTable.containsColumn(makerDto.getName())) {
-                try {
-                    maker.close();
-                } catch (Exception e) {
-                    log.warn("Failed to close maker after duplicate name check: {}", makerDto.getName(), e);
-                }
+                closeMaker(makerDto.getName(), maker, "duplicate name check");
                 return false;
             }
             try {
@@ -201,11 +192,7 @@ public class MakerService {
                 startMakerThread(makerDto.getName(), maker);
                 return true;
             } catch (Exception e) {
-                try {
-                    maker.close();
-                } catch (Exception closeException) {
-                    log.warn("Failed to close maker after registration failure: {}", makerDto.getName(), closeException);
-                }
+                closeMaker(makerDto.getName(), maker, "registration failure");
                 makerTable.remove(pluginId, makerDto.getName());
                 throw e;
             }
@@ -279,6 +266,27 @@ public class MakerService {
         }
 
         return result;
+    }
+
+    @Override
+    public void destroy() {
+        List<MakerSnapshot> activeMakers;
+        synchronized (makerTable) {
+            activeMakers = makerTable.cellSet().stream()
+                    .map(cell -> new MakerSnapshot(cell.getColumnKey(), cell.getValue()))
+                    .toList();
+            makerTable.clear();
+        }
+        activeMakers.forEach(snapshot -> closeMaker(snapshot.name(), snapshot.maker(), "shutdown"));
+    }
+
+    private void closeMaker(String makerName, Maker<?> maker, String context) {
+        stopMakerThread(makerName, maker);
+        try {
+            maker.close();
+        } catch (Exception e) {
+            log.warn("Failed to close maker during {}: {}", context, makerName, e);
+        }
     }
 
     private String makerStoragePath() {

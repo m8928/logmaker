@@ -18,6 +18,7 @@ import me.blueat.logmaker.plugin.api.sender.Sender;
 import me.blueat.logmaker.plugin.api.sender.SenderPlugin;
 import org.pf4j.PluginState;
 import org.pf4j.spring.SpringPluginManager;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -36,9 +37,12 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Slf4j
 @Getter
 @Order(2)
-public class SenderService {
+public class SenderService implements DisposableBean {
     private Table<String, String, Sender<?>> senderTable;
     private Table<String, String, SenderPlugin> senderPluginTable;
+
+    private record SenderSnapshot(String name, Sender<?> sender) {
+    }
 
     private final ObjectMapper mapper;
     private final SpringPluginManager springPluginManager;
@@ -109,14 +113,8 @@ public class SenderService {
                 return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
             }
             Sender<?> sender = existsSender.get().getValue();
-            stopSenderThread(name, sender);
-            try {
-                sender.close();
-            } catch (Exception e) {
-                log.warn("Failed to close sender: {}", name, e);
-            } finally {
-                senderTable.remove(existsSender.get().getKey(), name);
-            }
+            closeSender(name, sender, "delete");
+            senderTable.remove(existsSender.get().getKey(), name);
         }
         saveToFile(getSender(), senderStoragePath());
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
@@ -201,11 +199,7 @@ public class SenderService {
     public boolean addSender(SenderDto senderDto, String pluginId, Sender<?> sender) {
         synchronized (senderTable) {
             if (senderTable.containsColumn(senderDto.getName())) {
-                try {
-                    sender.close();
-                } catch (Exception e) {
-                    log.warn("Failed to close sender after duplicate name check: {}", senderDto.getName(), e);
-                }
+                closeSender(senderDto.getName(), sender, "duplicate name check");
                 return false;
             }
             try {
@@ -213,11 +207,7 @@ public class SenderService {
                 startSenderThread(senderDto.getName(), sender);
                 return true;
             } catch (Exception e) {
-                try {
-                    sender.close();
-                } catch (Exception closeException) {
-                    log.warn("Failed to close sender after registration failure: {}", senderDto.getName(), closeException);
-                }
+                closeSender(senderDto.getName(), sender, "registration failure");
                 senderTable.remove(pluginId, senderDto.getName());
                 throw e;
             }
@@ -292,6 +282,27 @@ public class SenderService {
         }
 
         return result;
+    }
+
+    @Override
+    public void destroy() {
+        List<SenderSnapshot> activeSenders;
+        synchronized (senderTable) {
+            activeSenders = senderTable.cellSet().stream()
+                    .map(cell -> new SenderSnapshot(cell.getColumnKey(), cell.getValue()))
+                    .toList();
+            senderTable.clear();
+        }
+        activeSenders.forEach(snapshot -> closeSender(snapshot.name(), snapshot.sender(), "shutdown"));
+    }
+
+    private void closeSender(String senderName, Sender<?> sender, String context) {
+        stopSenderThread(senderName, sender);
+        try {
+            sender.close();
+        } catch (Exception e) {
+            log.warn("Failed to close sender during {}: {}", context, senderName, e);
+        }
     }
 
     private String senderStoragePath() {

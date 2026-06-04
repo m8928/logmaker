@@ -87,4 +87,18 @@ class PickMakerTest {
 
         assertThat(pickMaker.getData()).isEmpty();
     }
+
+    @Test
+    @DisplayName("빈 리스트는 drain 중에도 빠르게 큐를 채우며 busy-spin하지 않는다")
+    void testEmptyListBacksOff() throws InterruptedException {
+        Map<String, Object> args = new HashMap<>();
+        args.put("picker", List.of());
+
+        pickMaker = new PickMaker("test-empty-list-backoff", "pick", args);
+        pickMaker.getThread().start();
+
+        Thread.sleep(250);
+
+        assertThat(pickMaker.getSize()).isLessThan(10);
+    }
 }

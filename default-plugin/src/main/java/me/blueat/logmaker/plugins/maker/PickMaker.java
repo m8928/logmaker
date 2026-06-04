@@ -16,6 +16,8 @@ import java.util.concurrent.locks.ReentrantLock;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class PickMaker extends Maker<String> implements Runnable {
+    private static final long EMPTY_PICKER_BACKOFF_MS = 100L;
+
     private String makerName;
     private String type;
     private List<String> picker;
@@ -47,12 +49,15 @@ public class PickMaker extends Maker<String> implements Runnable {
             updateLock.lock();
             String pick;
             long version;
+            boolean emptyPicker;
             try {
                 version = configurationVersion.get();
                 if (picker != null && !picker.isEmpty()) {
                     pick = picker.get(ThreadLocalRandom.current().nextInt(picker.size()));
+                    emptyPicker = false;
                 } else {
                     pick = "";
+                    emptyPicker = true;
                 }
             }
             finally {
@@ -68,6 +73,17 @@ public class PickMaker extends Maker<String> implements Runnable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+            if (emptyPicker) {
+                backOffEmptyPicker();
+            }
+        }
+    }
+
+    private void backOffEmptyPicker() {
+        try {
+            Thread.sleep(EMPTY_PICKER_BACKOFF_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

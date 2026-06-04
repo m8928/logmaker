@@ -391,6 +391,26 @@ class MakerServiceTest {
     }
 
     @Test
+    void destroyStopsAndClosesActiveMakers() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("shutdownMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(thread);
+
+        assertTrue(makerService.addMaker(makerDto, "testPlugin", maker));
+
+        makerService.destroy();
+
+        Mockito.verify(thread).interrupt();
+        Mockito.verify(maker).close();
+        assertTrue(makerService.getMakerNames().isEmpty());
+    }
+
+    @Test
     void testImportMaker_success() throws Exception {
         // Given
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);

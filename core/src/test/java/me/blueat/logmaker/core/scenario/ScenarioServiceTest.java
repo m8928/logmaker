@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -121,6 +122,34 @@ class ScenarioServiceTest {
 
         assertEquals(Result.Type.ERROR, response.getBody().getType());
         assertFalse(scenarioService.getScenarioThreadMap().containsKey("submitFailure"));
+    }
+
+    @Test
+    void updateScenarioStopsQueuedScenarioBeforeReplacingIt() {
+        ScenarioDto scenarioDto = scenario("queuedScenario", 0, 1000);
+        scenarioService.createScenario(scenarioDto);
+
+        ExecutorService executor = Mockito.mock(ExecutorService.class);
+        @SuppressWarnings("unchecked")
+        Future<Object> queuedFuture = Mockito.mock(Future.class);
+        @SuppressWarnings("unchecked")
+        Future<Object> restartedFuture = Mockito.mock(Future.class);
+        when(queuedFuture.isDone()).thenReturn(false);
+        Mockito.doReturn(queuedFuture, restartedFuture).when(executor).submit(any(Runnable.class));
+        ReflectionTestUtils.setField(scenarioService, "executorService", executor);
+
+        ResponseEntity<Result> startResponse = scenarioService.startScenario("queuedScenario");
+        ScenarioThread queuedThread = scenarioService.getScenarioThreadMap().get("queuedScenario");
+
+        ResponseEntity<Result> updateResponse = scenarioService.updateScenario(
+                "queuedScenario",
+                scenario("queuedScenario", 1, 0)
+        );
+
+        assertEquals(Result.Type.SUCCESS, startResponse.getBody().getType());
+        assertEquals(Result.Type.SUCCESS, updateResponse.getBody().getType());
+        Mockito.verify(queuedFuture).cancel(true);
+        assertNotSame(queuedThread, scenarioService.getScenarioThreadMap().get("queuedScenario"));
     }
 
     @Test
