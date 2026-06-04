@@ -41,6 +41,7 @@ public class PickMaker extends Maker<String> implements Runnable {
     }
 
     @Override
+    @SuppressWarnings("java:S2245")
     public void run() {
         while(!Thread.currentThread().isInterrupted()) {
             updateLock.lock();

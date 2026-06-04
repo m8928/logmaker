@@ -80,6 +80,7 @@ public class NumberRangeMaker extends Maker<Long> implements Runnable {
         }
     }
 
+    @SuppressWarnings("java:S2245")
     private long nextRandomNumber() {
         if (start >= end) {
             return start;
