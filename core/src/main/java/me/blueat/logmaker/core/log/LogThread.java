@@ -52,8 +52,8 @@ public class LogThread implements Runnable {
     private LogDto logDto;
 
     private volatile Thread runningThread;
-    private volatile long eventTargetRemainder = 0L;
-    private volatile long byteTargetRemainder = 0L;
+    private final AtomicLong eventTargetRemainder = new AtomicLong(0L);
+    private final AtomicLong byteTargetRemainder = new AtomicLong(0L);
 
     private record GenerationStats(long events, long bytes) {
     }
@@ -237,16 +237,20 @@ public class LogThread implements Runnable {
             return 0;
         }
 
-        if (bytesMode) {
-            byteTargetRemainder += rawTarget;
-            long target = byteTargetRemainder / divisor;
-            byteTargetRemainder %= divisor;
-            return target;
-        }
+        return consumeTargetUnits(bytesMode ? byteTargetRemainder : eventTargetRemainder, rawTarget, divisor);
+    }
 
-        eventTargetRemainder += rawTarget;
-        long target = eventTargetRemainder / divisor;
-        eventTargetRemainder %= divisor;
+    private long consumeTargetUnits(AtomicLong remainder, long rawTarget, long divisor) {
+        long current;
+        long updated;
+        long target;
+        long nextRemainder;
+        do {
+            current = remainder.get();
+            updated = current + rawTarget;
+            target = updated / divisor;
+            nextRemainder = updated % divisor;
+        } while (!remainder.compareAndSet(current, nextRemainder));
         return target;
     }
 
@@ -294,8 +298,8 @@ public class LogThread implements Runnable {
         try {
             start = Instant.now();
             count.set(0);
-            eventTargetRemainder = 0L;
-            byteTargetRemainder = 0L;
+            eventTargetRemainder.set(0L);
+            byteTargetRemainder.set(0L);
 
             releaseReferences();
             logDto.setPaused(backup.isPaused());

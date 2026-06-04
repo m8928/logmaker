@@ -61,7 +61,7 @@ class MakerServiceTest {
         fileUtilMockedStatic.close();
     }
 
-    private void loadPluginWithType(String type, MakerPlugin plugin) {
+    private void loadPlugin(MakerPlugin plugin) {
         PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
         when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
@@ -80,7 +80,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
 
         // When
         ResponseEntity<Result> response = makerService.createMaker(makerDto);
@@ -100,7 +100,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
         makerService.createMaker(makerDto);
 
         // When: create again with same name
@@ -121,7 +121,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
         makerService.createMaker(makerDto);
 
         // When: create again with same name
@@ -201,7 +201,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(maker).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
         makerService.createMaker(makerDto);
 
         // When
@@ -229,7 +229,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(maker).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
         makerService.createMaker(makerDto);
 
         // When
@@ -263,7 +263,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(maker).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
         makerService.createMaker(makerDto);
 
         // When
@@ -294,7 +294,7 @@ class MakerServiceTest {
         when(makerPlugin.getType()).thenReturn("testType");
         Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
 
-        loadPluginWithType("testType", makerPlugin);
+        loadPlugin(makerPlugin);
 
         MakerDto importedDto = MakerDto.builder().name("importedMaker").type("testType").build();
         when(mapper.readValue(any(byte[].class), eq(MakerDto[].class)))

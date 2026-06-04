@@ -72,20 +72,21 @@ public class RegexMaker extends Maker<String> implements Runnable {
                 updateLock.unlock();
             }
 
-            if (version != configurationVersion.get()) {
-                continue;
+            if (version == configurationVersion.get()) {
+                if (generated == null) {
+                    pauseAfterGenerationFailure();
+                } else {
+                    enqueueGenerated(generated);
+                }
             }
+        }
+    }
 
-            if (generated == null) {
-                pauseAfterGenerationFailure();
-                continue;
-            }
-
-            try {
-                queue.put(generated);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+    private void enqueueGenerated(String generated) {
+        try {
+            queue.put(generated);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
