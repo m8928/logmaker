@@ -1,5 +1,6 @@
 package me.blueat.logmaker.core.config;
 
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,8 +36,8 @@ public class ValidExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws Exception {
         String uri = request.getRequestURI();
-        // API paths and missing index.html return 404 JSON instead of entering a forward loop.
-        if (uri.startsWith("/api/") || "/index.html".equals(uri)) {
+        // API paths and already-forwarded SPA fallbacks return 404 JSON instead of entering a forward loop.
+        if (uri.startsWith("/api/") || "/index.html".equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.setContentType("application/json");
             response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");

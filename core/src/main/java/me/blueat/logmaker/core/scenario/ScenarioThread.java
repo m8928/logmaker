@@ -29,7 +29,7 @@ public class ScenarioThread implements Runnable {
     private final SenderService senderService;
     private final LogService logService;
     private final ScenarioDto scenarioDto;
-    private final VelocityEngine overrideEngine = VelocityTemplateUtil.createSecureEngine(4);
+    private final VelocityEngine overrideEngine = VelocityTemplateUtil.createSecureEngine(1);
     private final Map<String, Template> overrideTemplateCache = new ConcurrentHashMap<>();
     private final AtomicLong overrideTemplateId = new AtomicLong();
 

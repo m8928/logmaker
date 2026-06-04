@@ -69,7 +69,7 @@ public class LogThread implements Runnable {
         this.paused = logDto.isPaused();
         this.senders = new ConcurrentHashMap<>();
         this.makers = new ConcurrentHashMap<>();
-        this.ve = VelocityTemplateUtil.createSecureEngine(20);
+        this.ve = VelocityTemplateUtil.createSecureEngine(1);
         try {
             init();
         } catch (RuntimeException e) {
