@@ -25,6 +25,7 @@ public class FileUtil {
 
     public static <T> void saveToFile(T data, String filePath) {
         writeLock.lock();
+        Path tempFile = null;
         try {
             Path targetPath = Paths.get(filePath);
             Path parent = targetPath.getParent();
@@ -32,14 +33,28 @@ public class FileUtil {
                 Files.createDirectories(parent);
             }
             Path tempDirectory = parent != null ? parent : Paths.get(".");
-            Path tempFile = Files.createTempFile(tempDirectory, "logmaker-", ".tmp");
+            tempFile = Files.createTempFile(tempDirectory, "logmaker-", ".tmp");
             mapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), data);
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            tempFile = null;
             log.info("Saved to {}", filePath);
         } catch (IOException e) {
             throw new FileOperationException("Failed to save file: " + filePath, e);
         } finally {
+            deleteTempFile(tempFile);
             writeLock.unlock();
+        }
+    }
+
+    private static void deleteTempFile(Path tempFile) {
+        if (tempFile == null) {
+            return;
+        }
+
+        try {
+            Files.deleteIfExists(tempFile);
+        } catch (IOException e) {
+            log.error("Failed to delete temp file: {}", tempFile, e);
         }
     }
 

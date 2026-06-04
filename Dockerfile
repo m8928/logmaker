@@ -61,4 +61,4 @@ ENV JAVA_OPTS="-Xms256m -Xmx512m"
 
 EXPOSE 19999
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar --data.root=/app/data --plugin.root=/app/plugins"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar --data.root=/app/data --plugin.root=/app/plugins"]

@@ -1,5 +1,6 @@
 package me.blueat.logmaker.core.config;
 
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -46,10 +47,14 @@ public class ValidExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) {
         String uri = request.getRequestURI();
         if (!uri.startsWith("/api/")) {
-            // Non-API errors — silently forward to SPA
+            try {
+                request.getRequestDispatcher("/index.html").forward(request, response);
+            } catch (ServletException | IOException forwardException) {
+                log.error("Failed to forward non-API error to SPA: {}", uri, forwardException);
+            }
             return null;
         }
         log.error("API error: {} {}", request.getMethod(), uri, ex);

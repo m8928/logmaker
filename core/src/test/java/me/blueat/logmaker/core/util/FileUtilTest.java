@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -102,6 +103,21 @@ class FileUtilTest {
     }
 
     @Test
+    void testSaveToFile_deletesTempFileWhenSerializationFails() throws IOException {
+        Path target = tempDir.resolve("failed.json");
+
+        assertThrows(FileUtil.FileOperationException.class, () ->
+                FileUtil.saveToFile(new FailingDto(), target.toString()));
+
+        assertFalse(Files.exists(target));
+        try (Stream<Path> files = Files.list(tempDir)) {
+            assertTrue(files.noneMatch(path ->
+                    path.getFileName().toString().startsWith("logmaker-")
+                            && path.getFileName().toString().endsWith(".tmp")));
+        }
+    }
+
+    @Test
     void testSaveAndLoad_roundTrip() {
         // Given
         TestDto original = new TestDto("roundTrip", 999);
@@ -142,6 +158,12 @@ class FileUtilTest {
 
         public void setValue(int value) {
             this.value = value;
+        }
+    }
+
+    private static class FailingDto {
+        public String getValue() {
+            throw new IllegalStateException("serialization failed");
         }
     }
 }

@@ -16,6 +16,7 @@ import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
@@ -51,6 +52,8 @@ public class LogService implements DisposableBean {
     private final LogMakerConfig logMakerConfig;
     private final MakerService makerService;
     private final SenderService senderService;
+    private final VelocityEngine previewEngine = VelocityTemplateUtil.createSecureEngine(1);
+    private final Object previewTemplateLock = new Object();
 
     private ExecutorService executorService;
 
@@ -183,7 +186,7 @@ public class LogService implements DisposableBean {
             }
 
             vFormat = template.render();
-            vTemplate = VelocityTemplateUtil.compile(VelocityTemplateUtil.createSecureEngine(1), "preview", vFormat);
+            vTemplate = compilePreviewTemplate(vFormat);
 
             VelocityContext context = new VelocityContext();
             Map<String, Object> templateData = getTemplateData(expressions);
@@ -204,6 +207,12 @@ public class LogService implements DisposableBean {
         }
 
         return result;
+    }
+
+    private Template compilePreviewTemplate(String vFormat) {
+        synchronized (previewTemplateLock) {
+            return VelocityTemplateUtil.compile(previewEngine, "preview", vFormat);
+        }
     }
 
     private Map<String, Object> getTemplateData(Set<String> expressions) {

@@ -17,8 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ScenarioThreadTest {
 
@@ -70,7 +71,7 @@ class ScenarioThreadTest {
     }
 
     @Test
-    void recompilesSameLogForDifferentStepOverrides() {
+    void rendersSameLogForDifferentStepOverrides() {
         LogThread loginLog = logThread("login", "${value}");
         logService.add(loginLog);
 
@@ -86,6 +87,27 @@ class ScenarioThreadTest {
         new ScenarioThread(makerService, senderService, logService, scenario).run();
 
         assertEquals(List.of("first", "second"), sender.getSentData());
+    }
+
+    @Test
+    void rendersOverridesAndSharedVariablesThroughTemplateContext() {
+        makerService.add(new FixedMaker("value", "maker-value"));
+        makerService.add(new FixedMaker("sharedValue", "base-shared"));
+        makerService.add(new FixedMaker("shared-maker", "shared-value"));
+        LogThread loginLog = logThread("login", "<value>-<sharedValue>");
+        logService.add(loginLog);
+
+        CapturingSender sender = new CapturingSender("scenario-sender");
+        senderService.add(sender);
+
+        ScenarioStepDto step = step("login", List.of("scenario-sender"));
+        step.setOverrides(Map.of("value", "step-value", "sharedValue", "step-shared"));
+        ScenarioDto scenario = scenario(List.of(step));
+        scenario.setSharedVariables(Map.of("sharedValue", "shared-maker"));
+
+        new ScenarioThread(makerService, senderService, logService, scenario).run();
+
+        assertEquals(List.of("step-value-shared-value"), sender.getSentData());
     }
 
     @Test
@@ -105,6 +127,48 @@ class ScenarioThreadTest {
         new ScenarioThread(makerService, senderService, logService, scenario).run();
 
         assertEquals(List.of("login-event"), healthySender.getSentData());
+    }
+
+    @Test
+    void releasesSenderRefsWhenResolvingSendersFails() {
+        LogThread loginLog = logThread("login", "login-event");
+        logService.add(loginLog);
+
+        CapturingSender retainedSender = new CapturingSender("retained-sender");
+        senderService.add(retainedSender);
+        senderService.failLookup("missing-sender");
+
+        ScenarioDto scenario = scenario(List.of(
+                step("login", List.of("retained-sender", "missing-sender"))
+        ));
+
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario);
+
+        assertThrows(IllegalStateException.class, scenarioThread::run);
+        assertEquals(0, retainedSender.getRef());
+        assertFalse(scenarioThread.getRunning().get());
+    }
+
+    @Test
+    void incrementsLoopCounterInInfiniteScenarios() throws InterruptedException {
+        LogThread loginLog = logThread("login", "login-event");
+        logService.add(loginLog);
+
+        ScenarioDto scenario = scenario(List.of(step("login", List.of())));
+        scenario.setLoopCount(0);
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario);
+        Thread worker = new Thread(scenarioThread);
+
+        worker.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (scenarioThread.getCurrentLoop().get() < 2 && System.nanoTime() < deadline) {
+            Thread.yield();
+        }
+        scenarioThread.interrupt();
+        worker.join(2_000);
+
+        assertTrue(scenarioThread.getCurrentLoop().get() > 1);
+        assertFalse(worker.isAlive());
     }
 
     private ScenarioDto scenario(List<ScenarioStepDto> steps) {
@@ -140,23 +204,31 @@ class ScenarioThreadTest {
     }
 
     private static class TestMakerService extends MakerService {
+        private final Map<String, Maker<?>> makers = new HashMap<>();
+
         private TestMakerService() {
             super(null, null, null);
         }
 
+        private void add(Maker<?> maker) {
+            makers.put(maker.getMakerName(), maker);
+        }
+
         @Override
         public Set<String> getMakerNames() {
-            return Set.of();
+            return new HashSet<>(makers.keySet());
         }
 
         @Override
         public Optional<Map.Entry<String, Maker<?>>> getMaker(String name) {
-            return Optional.empty();
+            Maker<?> maker = makers.get(name);
+            return maker != null ? Optional.of(new AbstractMap.SimpleEntry<>("test-plugin", maker)) : Optional.empty();
         }
     }
 
     private class TestSenderService extends SenderService {
         private final Map<String, Sender<?>> senders = new HashMap<>();
+        private final Set<String> failingLookups = new HashSet<>();
 
         private TestSenderService() {
             super(null, null, null);
@@ -166,6 +238,10 @@ class ScenarioThreadTest {
             senders.put(sender.getSenderName(), sender);
         }
 
+        private void failLookup(String name) {
+            failingLookups.add(name);
+        }
+
         @Override
         public Set<String> getSenderNames() {
             return new HashSet<>(senders.keySet());
@@ -173,8 +249,56 @@ class ScenarioThreadTest {
 
         @Override
         public Optional<Map.Entry<String, Sender<?>>> getSender(String name) {
+            if (failingLookups.contains(name)) {
+                throw new IllegalStateException("sender lookup failed");
+            }
             Sender<?> sender = senders.get(name);
             return sender != null ? senderEntry(sender) : Optional.empty();
+        }
+    }
+
+    private static class FixedMaker extends Maker<String> {
+        private final String name;
+        private final String value;
+
+        private FixedMaker(String name, String value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public String getData() {
+            return value;
+        }
+
+        @Override
+        public String getMakerName() {
+            return name;
+        }
+
+        @Override
+        public String getType() {
+            return "fixed";
+        }
+
+        @Override
+        public long getSize() {
+            return 0;
+        }
+
+        @Override
+        public Thread getThread() {
+            return null;
+        }
+
+        @Override
+        public boolean isThread() {
+            return false;
+        }
+
+        @Override
+        public void update(Map<String, Object> args) {
+            // Fixed maker has no mutable configuration in tests.
         }
     }
 

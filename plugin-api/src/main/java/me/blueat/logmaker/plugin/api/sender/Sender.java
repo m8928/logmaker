@@ -43,7 +43,7 @@ public abstract class Sender<T> {
     public void increaseCount() {
         count.incrementAndGet();
     }
-    public void addBytes(long size) {
+    public synchronized void addBytes(long size) {
         bytes.addAndGet(size);
         long now = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
         if (now != lastTickSec) {
@@ -57,7 +57,7 @@ public abstract class Sender<T> {
     public long getBytes() {
         return bytes.get();
     }
-    public long getBytesPerSec() {
+    public synchronized long getBytesPerSec() {
         long now = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
         if (now != lastTickSec) {
             return lastSecondBytes;
