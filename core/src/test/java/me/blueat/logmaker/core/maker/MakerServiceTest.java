@@ -307,6 +307,21 @@ class MakerServiceTest {
     }
 
     @Test
+    void addMaker_allowsThreadModeMakerWithoutThread() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("threadlessMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(null);
+
+        assertTrue(makerService.addMaker(makerDto, "testPlugin", maker));
+        assertTrue(makerService.getMaker("threadlessMaker").isPresent());
+        Mockito.verify(maker, Mockito.never()).close();
+    }
+
+    @Test
     void testImportMaker_success() throws Exception {
         // Given
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);

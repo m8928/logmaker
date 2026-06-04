@@ -70,15 +70,18 @@ public class RegexMaker extends Maker<String> implements Runnable {
     public void run() {
         while(!closed && !Thread.currentThread().isInterrupted()) {
             long version;
-            String generated;
+            RgxGen generator;
+            ExecutorService executor;
             updateLock.lock();
             try {
                 version = configurationVersion.get();
-                generated = getRegexRandomString();
+                generator = rgxGen;
+                executor = regexExecutor;
             } finally {
                 updateLock.unlock();
             }
 
+            String generated = getRegexRandomString(generator, executor);
             if (version == configurationVersion.get()) {
                 if (generated == null) {
                     pauseAfterGenerationFailure();
@@ -115,11 +118,10 @@ public class RegexMaker extends Maker<String> implements Runnable {
         }
     }
 
-    private String getRegexRandomString() {
+    private String getRegexRandomString(RgxGen generator, ExecutorService executor) {
         Future<String> generated;
         try {
-            RgxGen generator = rgxGen;
-            generated = regexExecutor.submit(() -> generator.generate());
+            generated = executor.submit(() -> generator.generate());
         } catch (RejectedExecutionException e) {
             return null;
         }

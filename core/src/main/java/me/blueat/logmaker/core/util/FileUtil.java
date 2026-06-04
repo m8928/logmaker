@@ -76,6 +76,11 @@ public class FileUtil {
                 return createNewInstance(valueType);
             }
 
+            if (Files.size(path) == 0) {
+                log.warn("Storage file is empty, using default value: {}", filePath);
+                return createNewInstance(valueType);
+            }
+
             T dto = mapper.readValue(path.toFile(), valueType);
             log.info("Loaded from file {}", filePath);
             return dto;

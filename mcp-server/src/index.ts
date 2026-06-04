@@ -13,31 +13,37 @@ const BASE_URL = process.env.LOGMAKER_URL ?? "http://localhost:19999";
 const API = `${BASE_URL}/api/v1`;
 const FILE_ROOT = resolve(process.env.LOGMAKER_MCP_FILE_ROOT ?? process.cwd());
 
+type ApiResult<T = unknown> = { ok: boolean; status: number; data: T };
+
 // ---------------------------------------------------------------------------
 // HTTP helper
 // ---------------------------------------------------------------------------
 async function api<T = unknown>(
   path: string,
   opts: { method?: string; body?: unknown } = {}
-): Promise<{ ok: boolean; status: number; data: T }> {
+): Promise<ApiResult<T>> {
   const { method = "GET", body } = opts;
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  try {
+    const res = await fetch(`${API}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
 
-  return parseResponse<T>(res);
+    return parseResponse<T>(res);
+  } catch (err) {
+    return connectionError<T>(err);
+  }
 }
 
 async function apiMultipart<T = unknown>(
   path: string,
   filePath: string,
   allowedExtensions: string[]
-): Promise<{ ok: boolean; status: number; data: T }> {
+): Promise<ApiResult<T>> {
   const safePath = await validateUploadFile(filePath, allowedExtensions);
   const bytes = await readFile(safePath);
   const file = new Blob([bytes], {
@@ -46,12 +52,16 @@ async function apiMultipart<T = unknown>(
   const form = new FormData();
   form.append("file", file, basename(safePath));
 
-  const res = await fetch(`${API}${path}`, {
-    method: "POST",
-    body: form,
-  });
+  try {
+    const res = await fetch(`${API}${path}`, {
+      method: "POST",
+      body: form,
+    });
 
-  return parseResponse<T>(res);
+    return parseResponse<T>(res);
+  } catch (err) {
+    return connectionError<T>(err);
+  }
 }
 
 async function validateUploadFile(
@@ -82,7 +92,7 @@ function isInside(candidate: string, root: string): boolean {
 
 async function parseResponse<T>(
   res: Response
-): Promise<{ ok: boolean; status: number; data: T }> {
+): Promise<ApiResult<T>> {
   const text = await res.text();
   let data: T;
   try {
@@ -91,6 +101,18 @@ async function parseResponse<T>(
     data = text as unknown as T;
   }
   return { ok: res.ok, status: res.status, data };
+}
+
+function connectionError<T>(err: unknown): ApiResult<T> {
+  const detail = err instanceof Error && err.message ? ` ${err.message}` : "";
+  return {
+    ok: false,
+    status: 503,
+    data: {
+      type: "ERROR",
+      message: `Failed to connect to LogMaker API at ${BASE_URL}. Is the server running?${detail}`,
+    } as T,
+  };
 }
 
 function contentTypeFor(filePath: string): string {

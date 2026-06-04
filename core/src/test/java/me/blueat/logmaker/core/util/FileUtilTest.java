@@ -65,6 +65,27 @@ class FileUtilTest {
     }
 
     @Test
+    void testLoadFromFile_emptyFile_returnsDefault() throws IOException {
+        Path emptyFile = tempDir.resolve("empty.json");
+        Files.writeString(emptyFile, "");
+
+        TestDto result = FileUtil.loadFromFile(emptyFile.toString(), TestDto.class);
+
+        assertNotNull(result);
+    }
+
+    @Test
+    void testLoadFromFile_emptyFile_returnsEmptyArray() throws IOException {
+        Path emptyFile = tempDir.resolve("empty_array.json");
+        Files.writeString(emptyFile, "");
+
+        TestDto[] result = FileUtil.loadFromFile(emptyFile.toString(), TestDto[].class);
+
+        assertNotNull(result);
+        assertEquals(0, result.length);
+    }
+
+    @Test
     void testLoadFromFile_invalidJson_throwsException() throws IOException {
         // Given: file with invalid JSON content
         Path badJson = tempDir.resolve("bad.json");

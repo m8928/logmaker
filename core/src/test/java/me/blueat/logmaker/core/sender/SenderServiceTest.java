@@ -327,6 +327,21 @@ class SenderServiceTest {
     }
 
     @Test
+    void addSender_allowsThreadModeSenderWithoutThread() {
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("threadlessSender");
+
+        @SuppressWarnings("unchecked")
+        Sender<Object> sender = Mockito.mock(Sender.class);
+        when(sender.isThread()).thenReturn(true);
+        when(sender.getThread()).thenReturn(null);
+
+        assertTrue(senderService.addSender(senderDto, "testPlugin", sender));
+        assertTrue(senderService.getSender("threadlessSender").isPresent());
+        verify(sender, Mockito.never()).close();
+    }
+
+    @Test
     void testImportSender_success() throws Exception {
         // Given
         setupPlugin("testType", Mockito.mock(Sender.class));

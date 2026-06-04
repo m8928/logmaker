@@ -178,9 +178,7 @@ public class MakerService {
             synchronized (makerTable) {
                 makerTable.put(pluginId, makerDto.getName(), maker);
             }
-            if (maker.isThread()) {
-                maker.getThread().start();
-            }
+            startMakerThread(makerDto.getName(), maker);
             return true;
         } catch (Exception e) {
             try {
@@ -194,6 +192,20 @@ public class MakerService {
             makerNameRegistry.remove(makerDto.getName());
             throw e;
         }
+    }
+
+    private void startMakerThread(String makerName, Maker<?> maker) {
+        if (!maker.isThread()) {
+            return;
+        }
+
+        Thread makerThread = maker.getThread();
+        if (makerThread == null) {
+            log.warn("Maker declared thread mode but returned no thread: {}", makerName);
+            return;
+        }
+
+        makerThread.start();
     }
 
     public Set<String> getMakerNames() {

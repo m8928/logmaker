@@ -197,9 +197,7 @@ public class SenderService {
             synchronized (senderTable) {
                 senderTable.put(pluginId, senderDto.getName(), sender);
             }
-            if (sender.isThread()) {
-                sender.getThread().start();
-            }
+            startSenderThread(senderDto.getName(), sender);
             return true;
         } catch (Exception e) {
             try {
@@ -213,6 +211,20 @@ public class SenderService {
             senderNameRegistry.remove(senderDto.getName());
             throw e;
         }
+    }
+
+    private void startSenderThread(String senderName, Sender<?> sender) {
+        if (!sender.isThread()) {
+            return;
+        }
+
+        Thread senderThread = sender.getThread();
+        if (senderThread == null) {
+            log.warn("Sender declared thread mode but returned no thread: {}", senderName);
+            return;
+        }
+
+        senderThread.start();
     }
 
     public Set<String> getSenderNames() {
