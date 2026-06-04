@@ -265,6 +265,38 @@ class SenderServiceTest {
     }
 
     @Test
+    void deleteSendersByPluginRemovesActiveSenders() {
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("pluginSender");
+
+        @SuppressWarnings("unchecked")
+        Sender<Object> sender = Mockito.mock(Sender.class);
+        when(sender.isThread()).thenReturn(false);
+
+        senderService.addSender(senderDto, "testPlugin", sender);
+
+        senderService.deleteSendersByPlugin("testPlugin");
+
+        assertTrue(senderService.getSender("pluginSender").isEmpty());
+        verify(sender).close();
+    }
+
+    @Test
+    void hasReferencedSendersByPluginDetectsActiveRefs() {
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("referencedSender");
+
+        @SuppressWarnings("unchecked")
+        Sender<Object> sender = Mockito.mock(Sender.class);
+        when(sender.isThread()).thenReturn(false);
+        when(sender.getRef()).thenReturn(1);
+
+        senderService.addSender(senderDto, "testPlugin", sender);
+
+        assertTrue(senderService.hasReferencedSendersByPlugin("testPlugin"));
+    }
+
+    @Test
     void testDeleteSender_withRef_returnsError() throws Exception {
         // Note: SenderService.deleteSender does NOT check ref count.
         // Ref management is done by LogService. Verify delete still works.

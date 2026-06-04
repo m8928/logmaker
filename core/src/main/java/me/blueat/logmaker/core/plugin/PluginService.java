@@ -71,6 +71,11 @@ public class PluginService {
     public ResponseEntity<Result> deletePlugin(String pluginId) {
         ResponseEntity<Result> result;
         try {
+            if (makerService.hasReferencedMakersByPlugin(pluginId) || senderService.hasReferencedSendersByPlugin(pluginId)) {
+                return Result.createResultSet(Result.Type.ERROR, "Plugin deletion failed (plugin is in use)");
+            }
+            makerService.deleteMakersByPlugin(pluginId);
+            senderService.deleteSendersByPlugin(pluginId);
             makerService.getMakerPluginTable().row(pluginId).clear();
             senderService.getSenderPluginTable().row(pluginId).clear();
             springPluginManager.stopPlugin(pluginId);

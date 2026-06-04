@@ -128,6 +128,8 @@ class PluginServiceTest {
 
         // Then
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        verify(makerService).deleteMakersByPlugin("testPlugin");
+        verify(senderService).deleteSendersByPlugin("testPlugin");
     }
 
     @Test
@@ -142,6 +144,18 @@ class PluginServiceTest {
 
         // Then
         assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void deletePlugin_rejectsReferencedPlugin() {
+        when(makerService.hasReferencedMakersByPlugin("testPlugin")).thenReturn(true);
+
+        ResponseEntity<Result> response = pluginService.deletePlugin("testPlugin");
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        verify(springPluginManager, Mockito.never()).deletePlugin("testPlugin");
+        verify(makerService, Mockito.never()).deleteMakersByPlugin("testPlugin");
+        verify(senderService, Mockito.never()).deleteSendersByPlugin("testPlugin");
     }
 
     @Test

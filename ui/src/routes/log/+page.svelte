@@ -294,11 +294,42 @@
 		if (!formatTextarea) {
 			formFormat = formFormat + token;
 		} else {
-			formatTextarea.focus();
-			document.execCommand('insertText', false, token);
-			formFormat = formatTextarea.textContent ?? '';
+			insertTextAtCursor(token);
 		}
 		runPreview();
+	}
+
+	function insertTextAtCursor(text: string) {
+		if (!formatTextarea) {
+			formFormat += text;
+			return;
+		}
+
+		formatTextarea.focus();
+		const selection = window.getSelection();
+		const range = getFormatEditorRange(selection);
+		range.deleteContents();
+		const textNode = document.createTextNode(text);
+		range.insertNode(textNode);
+		range.setStartAfter(textNode);
+		range.setEndAfter(textNode);
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+		formFormat = formatTextarea.textContent ?? '';
+	}
+
+	function getFormatEditorRange(selection: Selection | null) {
+		if (formatTextarea && selection && selection.rangeCount > 0) {
+			const range = selection.getRangeAt(0);
+			if (formatTextarea === range.commonAncestorContainer || formatTextarea.contains(range.commonAncestorContainer)) {
+				return range;
+			}
+		}
+
+		const range = document.createRange();
+		range.selectNodeContents(formatTextarea!);
+		range.collapse(false);
+		return range;
 	}
 
 	function toggleMakerPalette() {
@@ -1025,7 +1056,8 @@
 						onpaste={(e) => {
 							e.preventDefault();
 							const text = e.clipboardData?.getData('text/plain') ?? '';
-							document.execCommand('insertText', false, text);
+							insertTextAtCursor(text);
+							runPreview();
 						}}
 						onmouseover={(e) => {
 							const el = (e.target as HTMLElement).closest('[data-maker]');

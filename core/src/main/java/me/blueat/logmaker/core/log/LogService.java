@@ -97,8 +97,9 @@ public class LogService implements DisposableBean {
                 return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
             }
             try {
-                Future<?> task = executorService.submit(logThread);
-                logThread.attachRunningTask(task);
+                if (!logThread.isPaused()) {
+                    startLogThread(logDto.getName(), logThread);
+                }
             } catch (RuntimeException e) {
                 logThreadMap.remove(logDto.getName(), logThread);
                 logThread.interrupt();
@@ -155,11 +156,29 @@ public class LogService implements DisposableBean {
     public ResponseEntity<Result> setPaused(String name, boolean paused) {
         LogThread logThread = logThreadMap.get(name);
         if (logThread != null) {
+            boolean wasPaused = logThread.isPaused();
             logThread.setPaused(paused);
+            if (paused) {
+                logThread.stopRunningTask();
+            } else if (wasPaused) {
+                try {
+                    startLogThread(name, logThread);
+                } catch (RuntimeException e) {
+                    logThread.setPaused(true);
+                    log.error("Failed to resume log thread: {}", name, e);
+                    return Result.createResultSet(Result.Type.ERROR, "Log thread start failed");
+                }
+            }
             saveToFile(getLog(), logStoragePath());
             return Result.createResultSet(Result.Type.SUCCESS, paused ? "Log stopped" : "Log started");
         }
         return Result.createResultSet(Result.Type.ERROR, "Log does not exist");
+    }
+
+    private void startLogThread(String name, LogThread logThread) {
+        Future<?> task = executorService.submit(logThread);
+        logThread.attachRunningTask(task);
+        log.info("Started log thread: {}", name);
     }
 
     public ResponseEntity<Result> deleteLog(String name) {

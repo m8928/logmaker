@@ -194,6 +194,37 @@ class LogThreadTest {
     }
 
     @Test
+    void stopRunningTaskCancelsFutureWithoutPermanentInterrupt() {
+        LogDto dto = simpleLogDto();
+        LogThread logThread = new LogThread(makerService, senderService, dto);
+        @SuppressWarnings("unchecked")
+        Future<Object> future = mock(Future.class);
+
+        logThread.attachRunningTask(future);
+        logThread.stopRunningTask();
+
+        verify(future).cancel(true);
+        @SuppressWarnings("unchecked")
+        Future<Object> resumedFuture = mock(Future.class);
+        logThread.attachRunningTask(resumedFuture);
+        verify(resumedFuture, never()).cancel(true);
+    }
+
+    @Test
+    void getLogDtoToleratesMakerRemovedDuringSnapshot() {
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = mock(Maker.class);
+        when(makerService.getMakerNames()).thenReturn(Set.of("myMaker"));
+        when(senderService.getSenderNames()).thenReturn(Set.of());
+        when(makerService.getMaker("myMaker")).thenReturn(Optional.of(Map.entry("plugin", maker)));
+
+        LogThread thread = new LogThread(makerService, senderService, logDtoWithMaker("myMaker"));
+        thread.releaseReferences();
+
+        assertDoesNotThrow(thread::getLogDto);
+    }
+
+    @Test
     void testUpdateLogDto_success() {
         // Given: initial log with static format
         LogDto dto = simpleLogDto();

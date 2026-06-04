@@ -108,12 +108,7 @@ public class SenderService {
         Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
         if (existsSender.isPresent()) {
             Sender<?> sender = existsSender.get().getValue();
-            if (sender.isThread()) {
-                Thread senderThread = sender.getThread();
-                if (senderThread != null) {
-                    senderThread.interrupt();
-                }
-            }
+            stopSenderThread(name, sender);
             try {
                 sender.close();
             } catch (Exception e) {
@@ -126,6 +121,21 @@ public class SenderService {
         }
         saveToFile(getSender(), senderStoragePath());
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
+    }
+
+    public void deleteSendersByPlugin(String pluginId) {
+        List<String> senderNames;
+        synchronized (senderTable) {
+            senderNames = new ArrayList<>(senderTable.row(pluginId).keySet());
+        }
+        senderNames.forEach(this::deleteSender);
+    }
+
+    public boolean hasReferencedSendersByPlugin(String pluginId) {
+        synchronized (senderTable) {
+            return senderTable.row(pluginId).values().stream()
+                    .anyMatch(sender -> sender.getRef() > 0);
+        }
     }
 
     public List<ResponseEntity<Result>> importSender(MultipartFile json) {
@@ -225,6 +235,19 @@ public class SenderService {
         }
 
         senderThread.start();
+    }
+
+    private void stopSenderThread(String senderName, Sender<?> sender) {
+        if (!sender.isThread()) {
+            return;
+        }
+
+        Thread senderThread = sender.getThread();
+        if (senderThread != null) {
+            senderThread.interrupt();
+        } else {
+            log.warn("Sender declared thread mode but returned no thread: {}", senderName);
+        }
     }
 
     public Set<String> getSenderNames() {

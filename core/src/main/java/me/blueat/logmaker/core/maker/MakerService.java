@@ -107,8 +107,10 @@ public class MakerService {
         }
         Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(name);
         if (existsMaker.isPresent()) {
+            Maker<?> maker = existsMaker.get().getValue();
+            stopMakerThread(name, maker);
             try {
-                existsMaker.get().getValue().close();
+                maker.close();
             } catch (Exception e) {
                 log.warn("Failed to close maker: {}", name, e);
             } finally {
@@ -119,6 +121,21 @@ public class MakerService {
         }
         saveToFile(getMaker(), makerStoragePath());
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted maker");
+    }
+
+    public void deleteMakersByPlugin(String pluginId) {
+        List<String> makerNames;
+        synchronized (makerTable) {
+            makerNames = new ArrayList<>(makerTable.row(pluginId).keySet());
+        }
+        makerNames.forEach(this::deleteMaker);
+    }
+
+    public boolean hasReferencedMakersByPlugin(String pluginId) {
+        synchronized (makerTable) {
+            return makerTable.row(pluginId).values().stream()
+                    .anyMatch(maker -> maker.getRef() > 0);
+        }
     }
 
     public List<ResponseEntity<Result>> importMaker(MultipartFile json) {
@@ -206,6 +223,19 @@ public class MakerService {
         }
 
         makerThread.start();
+    }
+
+    private void stopMakerThread(String makerName, Maker<?> maker) {
+        if (!maker.isThread()) {
+            return;
+        }
+
+        Thread makerThread = maker.getThread();
+        if (makerThread != null) {
+            makerThread.interrupt();
+        } else {
+            log.warn("Maker declared thread mode but returned no thread: {}", makerName);
+        }
     }
 
     public Set<String> getMakerNames() {

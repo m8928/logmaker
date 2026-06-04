@@ -135,7 +135,10 @@ public class LogThread implements Runnable {
         Map<String, Object> result = Maps.newHashMap();
 
         for (String key : makerName) {
-            result.put(key, makers.get(key).getData());
+            Maker<?> maker = makers.get(key);
+            if (maker != null) {
+                result.put(key, maker.getData());
+            }
         }
 
         return result;
@@ -373,17 +376,21 @@ public class LogThread implements Runnable {
 
     public void attachRunningTask(Future<?> runningTask) {
         this.runningTask = runningTask;
-        if (interrupted && runningTask != null) {
+        if ((interrupted || paused) && runningTask != null) {
             runningTask.cancel(true);
+        }
+    }
+
+    public void stopRunningTask() {
+        Future<?> task = runningTask;
+        if (task != null) {
+            task.cancel(true);
         }
     }
 
     public void interrupt() {
         interrupted = true;
-        Future<?> task = runningTask;
-        if (task != null) {
-            task.cancel(true);
-        }
+        stopRunningTask();
     }
 
     public void setPaused(boolean paused) {

@@ -75,4 +75,16 @@ class PickMakerTest {
         String picked = pickMaker.getData();
         assertThat(picked).isNotNull().isEqualTo("single");
     }
+
+    @Test
+    @DisplayName("빈 리스트는 백그라운드 스레드를 중단하지 않고 빈 문자열을 반환한다")
+    void testEmptyListReturnsBlank() {
+        Map<String, Object> args = new HashMap<>();
+        args.put("picker", List.of());
+
+        pickMaker = new PickMaker("test-empty-list", "pick", args);
+        pickMaker.getThread().start();
+
+        assertThat(pickMaker.getData()).isEmpty();
+    }
 }

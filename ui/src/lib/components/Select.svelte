@@ -51,13 +51,15 @@
 
 	const selected = $derived(options.find((o) => o.value === value) ?? null);
 
+	function updateDropdownPosition() {
+		if (!triggerEl) return;
+		const rect = triggerEl.getBoundingClientRect();
+		dropStyle = `position:fixed;top:${rect.bottom + 3}px;left:${rect.left}px;width:${rect.width}px;z-index:9999;`;
+	}
+
 	async function openDropdown() {
 		if (disabled) return;
-		// Calculate fixed position from trigger
-		if (triggerEl) {
-			const rect = triggerEl.getBoundingClientRect();
-			dropStyle = `position:fixed;top:${rect.bottom + 3}px;left:${rect.left}px;width:${rect.width}px;z-index:9999;`;
-		}
+		updateDropdownPosition();
 		open = true;
 		search = '';
 		activeIndex = selected ? filtered.findIndex((o) => o.value === value) : 0;
@@ -135,9 +137,13 @@
 	function handleSearchInput() {
 		activeIndex = 0;
 	}
+
+	function handleViewportChange() {
+		if (open) updateDropdownPosition();
+	}
 </script>
 
-<svelte:window onclick={handleClickOutside} />
+<svelte:window onclick={handleClickOutside} onresize={handleViewportChange} onscroll={handleViewportChange} />
 
 <div class="select-root {extraClass}" class:open class:disabled>
 	<!-- Trigger -->

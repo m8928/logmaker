@@ -49,7 +49,11 @@ public class PickMaker extends Maker<String> implements Runnable {
             long version;
             try {
                 version = configurationVersion.get();
-                pick = picker.get(ThreadLocalRandom.current().nextInt(picker.size()));
+                if (picker != null && !picker.isEmpty()) {
+                    pick = picker.get(ThreadLocalRandom.current().nextInt(picker.size()));
+                } else {
+                    pick = "";
+                }
             }
             finally {
                 updateLock.unlock();

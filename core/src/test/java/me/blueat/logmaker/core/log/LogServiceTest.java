@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -205,6 +206,45 @@ class LogServiceTest {
 
         // Then
         assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void setPausedStopsRunningTask() {
+        LogThread logThread = Mockito.mock(LogThread.class);
+        LogDto snapshot = new LogDto();
+        snapshot.setName("pauseLog");
+        snapshot.setRegTime(1L);
+        when(logThread.getLogDto()).thenReturn(snapshot);
+        when(logThread.isPaused()).thenReturn(false);
+        logService.getLogThreadMap().put("pauseLog", logThread);
+
+        ResponseEntity<Result> response = logService.setPaused("pauseLog", true);
+
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        Mockito.verify(logThread).setPaused(true);
+        Mockito.verify(logThread).stopRunningTask();
+    }
+
+    @Test
+    void setPausedFalseRestartsPreviouslyPausedLog() {
+        LogThread logThread = Mockito.mock(LogThread.class);
+        LogDto snapshot = new LogDto();
+        snapshot.setName("resumeLog");
+        snapshot.setRegTime(1L);
+        when(logThread.getLogDto()).thenReturn(snapshot);
+        when(logThread.isPaused()).thenReturn(true);
+        logService.getLogThreadMap().put("resumeLog", logThread);
+
+        ExecutorService executor = Mockito.mock(ExecutorService.class);
+        Future<?> future = Mockito.mock(Future.class);
+        Mockito.doReturn(future).when(executor).submit(logThread);
+        ReflectionTestUtils.setField(logService, "executorService", executor);
+
+        ResponseEntity<Result> response = logService.setPaused("resumeLog", false);
+
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        Mockito.verify(logThread).setPaused(false);
+        Mockito.verify(logThread).attachRunningTask(future);
     }
 
     @Test

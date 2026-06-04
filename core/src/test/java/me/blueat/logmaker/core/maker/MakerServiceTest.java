@@ -212,6 +212,58 @@ class MakerServiceTest {
     }
 
     @Test
+    void deleteMaker_interruptsThreadModeMaker() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("threadMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(thread);
+
+        makerService.addMaker(makerDto, "testPlugin", maker);
+
+        ResponseEntity<Result> response = makerService.deleteMaker("threadMaker");
+
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        Mockito.verify(thread).interrupt();
+        Mockito.verify(maker).close();
+    }
+
+    @Test
+    void deleteMakersByPluginRemovesActiveMakers() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("pluginMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+
+        makerService.addMaker(makerDto, "testPlugin", maker);
+
+        makerService.deleteMakersByPlugin("testPlugin");
+
+        assertTrue(makerService.getMaker("pluginMaker").isEmpty());
+        Mockito.verify(maker).close();
+    }
+
+    @Test
+    void hasReferencedMakersByPluginDetectsActiveRefs() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("referencedMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+        when(maker.getRef()).thenReturn(1);
+
+        makerService.addMaker(makerDto, "testPlugin", maker);
+
+        assertTrue(makerService.hasReferencedMakersByPlugin("testPlugin"));
+    }
+
+    @Test
     void testDeleteMaker_withRef_returnsError() {
         // Note: MakerService.deleteMaker does NOT check ref count before deleting.
         // The ref check is the responsibility of the caller (LogService).
