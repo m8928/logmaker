@@ -43,8 +43,7 @@ public class ValidExceptionHandler {
             response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
             return;
         }
-        // SPA routes — forward (not redirect) to index.html to preserve URL
-        request.getRequestDispatcher("/index.html").forward(request, response);
+        forwardToSpa(request, response, HttpServletResponse.SC_NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
@@ -56,7 +55,7 @@ public class ValidExceptionHandler {
                 return null;
             }
             try {
-                request.getRequestDispatcher("/index.html").forward(request, response);
+                forwardToSpa(request, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             } catch (ServletException | IOException forwardException) {
                 log.error("Failed to forward non-API error to SPA: {}", uri, forwardException);
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -65,5 +64,15 @@ public class ValidExceptionHandler {
         }
         log.error("API error: {} {}", request.getMethod(), uri, ex);
         return Result.createResultSet(Result.Type.ERROR, "An unexpected internal server error occurred");
+    }
+
+    private void forwardToSpa(HttpServletRequest request, HttpServletResponse response, int missingDispatcherStatus)
+            throws ServletException, IOException {
+        RequestDispatcher dispatcher = request.getRequestDispatcher("/index.html");
+        if (dispatcher == null) {
+            response.sendError(missingDispatcherStatus);
+            return;
+        }
+        dispatcher.forward(request, response);
     }
 }

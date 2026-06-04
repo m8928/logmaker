@@ -201,6 +201,11 @@ public class SenderService {
 
     public boolean addSender(SenderDto senderDto, String pluginId, Sender<?> sender) {
         if (senderNameRegistry.putIfAbsent(senderDto.getName(), Boolean.TRUE) != null) {
+            try {
+                sender.close();
+            } catch (Exception e) {
+                log.warn("Failed to close sender after duplicate name check: {}", senderDto.getName(), e);
+            }
             return false;
         }
         try {

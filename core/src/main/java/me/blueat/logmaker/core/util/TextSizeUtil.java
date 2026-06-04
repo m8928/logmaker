@@ -5,6 +5,9 @@ public final class TextSizeUtil {
     }
 
     public static int utf8Length(String value) {
+        if (value == null) {
+            return 0;
+        }
         int length = 0;
         int i = 0;
         while (i < value.length()) {

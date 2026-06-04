@@ -65,7 +65,7 @@ public abstract class Sender<T> {
     }
 
     protected long currentEpochSecond() {
-        return LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
+        return System.currentTimeMillis() / 1000;
     }
     public void decreaseCount() { count.decrementAndGet(); }
 

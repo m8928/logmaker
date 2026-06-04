@@ -33,6 +33,19 @@ class ValidExceptionHandlerTest {
     }
 
     @Test
+    void sendsServerErrorWhenSpaDispatcherIsMissing() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(request.getRequestURI()).thenReturn("/scenario");
+        when(request.getRequestDispatcher("/index.html")).thenReturn(null);
+
+        ResponseEntity<Result> result = handler.handleAllExceptions(new RuntimeException("boom"), request, response);
+
+        assertNull(result);
+        verify(response).sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
     void sendsServerErrorWhenSpaForwardFails() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);
@@ -60,6 +73,18 @@ class ValidExceptionHandlerTest {
         verify(response).setStatus(HttpServletResponse.SC_NOT_FOUND);
         verify(request, never()).getRequestDispatcher("/index.html");
         assertTrue(body.toString().contains("Not found"));
+    }
+
+    @Test
+    void sendsNotFoundWhenNoResourceDispatcherIsMissing() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(request.getRequestURI()).thenReturn("/scenario");
+        when(request.getRequestDispatcher("/index.html")).thenReturn(null);
+
+        handler.handleNoResourceFound(mock(NoResourceFoundException.class), request, response);
+
+        verify(response).sendError(HttpServletResponse.SC_NOT_FOUND);
     }
 
     @Test

@@ -111,6 +111,23 @@ class MakerServiceTest {
     }
 
     @Test
+    void addMakerClosesDuplicateInstance() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("dupMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> firstMaker = Mockito.mock(Maker.class);
+        when(firstMaker.isThread()).thenReturn(false);
+        @SuppressWarnings("unchecked")
+        Maker<Object> duplicateMaker = Mockito.mock(Maker.class);
+
+        assertTrue(makerService.addMaker(makerDto, "testPlugin", firstMaker));
+        assertFalse(makerService.addMaker(makerDto, "testPlugin", duplicateMaker));
+
+        Mockito.verify(duplicateMaker).close();
+    }
+
+    @Test
     void testCreateMaker_specialCharsInName() {
         // Given: maker name with special characters
         MakerDto makerDto = new MakerDto();

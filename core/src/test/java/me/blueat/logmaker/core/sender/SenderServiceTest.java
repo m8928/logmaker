@@ -151,6 +151,23 @@ class SenderServiceTest {
     }
 
     @Test
+    void addSenderClosesDuplicateInstance() {
+        SenderDto senderDto = new SenderDto();
+        senderDto.setName("dupSender");
+
+        @SuppressWarnings("unchecked")
+        Sender<Object> firstSender = Mockito.mock(Sender.class);
+        when(firstSender.isThread()).thenReturn(false);
+        @SuppressWarnings("unchecked")
+        Sender<Object> duplicateSender = Mockito.mock(Sender.class);
+
+        assertTrue(senderService.addSender(senderDto, "testPlugin", firstSender));
+        assertFalse(senderService.addSender(senderDto, "testPlugin", duplicateSender));
+
+        verify(duplicateSender).close();
+    }
+
+    @Test
     void deleteSender_NotFound() {
         // When
         ResponseEntity<Result> response = senderService.deleteSender("nonExistentSender");

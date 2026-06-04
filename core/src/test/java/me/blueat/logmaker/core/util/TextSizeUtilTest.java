@@ -8,6 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TextSizeUtilTest {
     @Test
+    void utf8LengthReturnsZeroForNull() {
+        assertEquals(0, TextSizeUtil.utf8Length(null));
+    }
+
+    @Test
     void utf8Length_matchesJdkEncodingLengthForValidCodePoints() {
         String value = "ascii-\u00E9-\u20AC-\uD83D\uDE00";
 

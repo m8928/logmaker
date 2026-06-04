@@ -189,6 +189,11 @@ public class MakerService {
 
     public boolean addMaker(MakerDto makerDto, String pluginId, Maker maker) {
         if (makerNameRegistry.putIfAbsent(makerDto.getName(), Boolean.TRUE) != null) {
+            try {
+                maker.close();
+            } catch (Exception e) {
+                log.warn("Failed to close maker after duplicate name check: {}", makerDto.getName(), e);
+            }
             return false;
         }
         try {
