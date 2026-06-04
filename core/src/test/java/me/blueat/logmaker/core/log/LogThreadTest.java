@@ -10,12 +10,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -211,6 +216,27 @@ class LogThreadTest {
     }
 
     @Test
+    void getLogDtoDoesNotWaitForBlockingSenderSend() throws Exception {
+        BlockingSender sender = new BlockingSender("blockingSender");
+        when(senderService.getSenderNames()).thenReturn(Set.of("blockingSender"));
+        when(senderService.getSender("blockingSender")).thenReturn(Optional.of(Map.entry("plugin", sender)));
+
+        LogDto dto = simpleLogDto();
+        dto.setSender(List.of("blockingSender"));
+        LogThread thread = new LogThread(makerService, senderService, dto);
+
+        CompletableFuture<Void> sendTask = CompletableFuture.runAsync(() ->
+                ReflectionTestUtils.invokeMethod(thread, "generateBatch", false, 0L, 0L, 1L)
+        );
+        assertTrue(sender.awaitSendStart(), "sender send did not start");
+
+        assertTimeoutPreemptively(Duration.ofMillis(200), thread::getLogDto);
+
+        sender.release();
+        sendTask.get(1, TimeUnit.SECONDS);
+    }
+
+    @Test
     void getLogDtoToleratesMakerRemovedDuringSnapshot() {
         @SuppressWarnings("unchecked")
         Maker<Object> maker = mock(Maker.class);
@@ -314,5 +340,58 @@ class LogThreadTest {
         // Then: template rendered with maker value
         assertNotNull(line);
         assertEquals("192.168.1.1", line);
+    }
+
+    private static class BlockingSender extends Sender<String> {
+        private final String name;
+        private final CountDownLatch sendStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseSend = new CountDownLatch(1);
+
+        private BlockingSender(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getSenderName() {
+            return name;
+        }
+
+        @Override
+        public void sendData(String data) {
+            sendStarted.countDown();
+            try {
+                releaseSend.await(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Override
+        public String getType() {
+            return "blocking";
+        }
+
+        @Override
+        public Thread getThread() {
+            return null;
+        }
+
+        @Override
+        public boolean isThread() {
+            return false;
+        }
+
+        @Override
+        public void update(Map<String, Object> args) {
+            // Test sender has no mutable configuration.
+        }
+
+        private boolean awaitSendStart() throws InterruptedException {
+            return sendStarted.await(1, TimeUnit.SECONDS);
+        }
+
+        private void release() {
+            releaseSend.countDown();
+        }
     }
 }

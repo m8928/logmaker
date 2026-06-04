@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
 @Getter
@@ -49,7 +49,9 @@ public class LogThread implements Runnable {
     private Map<String, Sender<?>> senders;
     private Map<String, Maker<?>> makers;
 
-    private final Lock updateLock = new ReentrantLock(true);
+    private final ReentrantReadWriteLock updateLock = new ReentrantReadWriteLock(true);
+    private final Lock updateReadLock = updateLock.readLock();
+    private final Lock updateWriteLock = updateLock.writeLock();
 
     private volatile LogDto logDto;
     private volatile boolean paused;
@@ -216,7 +218,7 @@ public class LogThread implements Runnable {
         long batchBytes = 0;
         long batchEvents = 0;
 
-        updateLock.lock();
+        updateReadLock.lock();
         try {
             for (int i = 0; i < BATCH_SIZE
                     && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits);
@@ -229,7 +231,7 @@ public class LogThread implements Runnable {
                 batchBytes += dataBytes;
             }
         } finally {
-            updateLock.unlock();
+            updateReadLock.unlock();
         }
 
         return new GenerationStats(batchEvents, batchBytes);
@@ -289,7 +291,7 @@ public class LogThread implements Runnable {
 
     public LogDto getLogDto() {
         LogDto snapshot = new LogDto();
-        updateLock.lock();
+        updateReadLock.lock();
         try {
             LogDto currentLogDto = logDto;
             snapshot.setName(currentLogDto.getName());
@@ -302,7 +304,7 @@ public class LogThread implements Runnable {
             snapshot.setRegTime(currentLogDto.getRegTime());
             snapshot.setSample(getSample(this.vTemplate, this.getTemplateData()));
         } finally {
-            updateLock.unlock();
+            updateReadLock.unlock();
         }
         snapshot.setCount(count.get());
         snapshot.setCurrentEps(lastSecondEvents);
@@ -327,7 +329,7 @@ public class LogThread implements Runnable {
     }
 
     public boolean updateLogDto(LogDto logDto) {
-        updateLock.lock();
+        updateWriteLock.lock();
         LogDto backup = this.logDto;
         boolean backupPaused = this.paused;
         try {
@@ -360,7 +362,7 @@ public class LogThread implements Runnable {
             }
         }
         finally {
-            updateLock.unlock();
+            updateWriteLock.unlock();
         }
     }
 
@@ -403,14 +405,14 @@ public class LogThread implements Runnable {
     }
 
     void releaseReferences() {
-        updateLock.lock();
+        updateWriteLock.lock();
         try {
             makers.values().forEach(Maker::decreaseRef);
             senders.values().forEach(Sender::decreaseRef);
             makers.clear();
             senders.clear();
         } finally {
-            updateLock.unlock();
+            updateWriteLock.unlock();
         }
     }
 }

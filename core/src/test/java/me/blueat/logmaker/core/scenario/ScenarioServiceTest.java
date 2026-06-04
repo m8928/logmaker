@@ -1,11 +1,14 @@
 package me.blueat.logmaker.core.scenario;
 
 import me.blueat.logmaker.core.config.LogMakerConfig;
+import me.blueat.logmaker.core.log.LogThread;
 import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.util.FileUtil;
+import me.blueat.logmaker.plugin.api.maker.Maker;
+import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,18 +21,23 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -60,6 +68,8 @@ class ScenarioServiceTest {
         fileUtilMockedStatic.when(() -> FileUtil.loadFromFile(any(), eq(ScenarioDto[].class)))
                 .thenReturn(new ScenarioDto[0]);
         scenarioService.init();
+        Mockito.lenient().when(senderService.getSender(anyString())).thenReturn(Optional.empty());
+        Mockito.lenient().when(makerService.getMaker(anyString())).thenReturn(Optional.empty());
     }
 
     @AfterEach
@@ -97,6 +107,27 @@ class ScenarioServiceTest {
     }
 
     @Test
+    void createScenarioRejectsUnknownStepLog() {
+        ScenarioDto scenarioDto = scenarioWithStep("badLogScenario", "missingLog", List.of());
+
+        ResponseEntity<Result> response = scenarioService.createScenario(scenarioDto);
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertFalse(scenarioService.getScenarioMap().containsKey("badLogScenario"));
+    }
+
+    @Test
+    void createScenarioRejectsUnknownSharedVariableMaker() {
+        ScenarioDto scenarioDto = scenario("badMakerScenario", 1, 0);
+        scenarioDto.setSharedVariables(Map.of("customer", "missingMaker"));
+
+        ResponseEntity<Result> response = scenarioService.createScenario(scenarioDto);
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertFalse(scenarioService.getScenarioMap().containsKey("badMakerScenario"));
+    }
+
+    @Test
     void deleteScenario() {
         // Given
         ScenarioDto scenarioDto = new ScenarioDto();
@@ -122,6 +153,58 @@ class ScenarioServiceTest {
 
         assertEquals(Result.Type.ERROR, response.getBody().getType());
         assertFalse(scenarioService.getScenarioThreadMap().containsKey("submitFailure"));
+    }
+
+    @Test
+    void startScenarioRejectsUnknownSenderBeforeSubmitting() {
+        ScenarioDto scenarioDto = scenarioWithStep("badSenderScenario", "knownLog", List.of("missingSender"));
+        scenarioService.getScenarioMap().put("badSenderScenario", scenarioDto);
+        when(logService.getLog("knownLog")).thenReturn(Mockito.mock(LogThread.class));
+        ExecutorService executor = Mockito.mock(ExecutorService.class);
+        ReflectionTestUtils.setField(scenarioService, "executorService", executor);
+
+        ResponseEntity<Result> response = scenarioService.startScenario("badSenderScenario");
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertFalse(scenarioService.getScenarioThreadMap().containsKey("badSenderScenario"));
+        Mockito.verify(executor, Mockito.never()).submit(any(Runnable.class));
+    }
+
+    @Test
+    void stopScenarioDoesNotBlockStartingDifferentScenario() throws Exception {
+        scenarioService.createScenario(scenario("slowScenario", 1, 0));
+        scenarioService.createScenario(scenario("fastScenario", 1, 0));
+        ScenarioThread slowThread = new ScenarioThread(
+                makerService,
+                senderService,
+                logService,
+                scenarioService.getScenarioMap().get("slowScenario")
+        );
+        slowThread.getRunning().set(true);
+        scenarioService.getScenarioThreadMap().put("slowScenario", slowThread);
+        ExecutorService stopExecutor = Executors.newSingleThreadExecutor();
+        CompletableFuture<ResponseEntity<Result>> stopFuture = CompletableFuture.supplyAsync(
+                () -> scenarioService.stopScenario("slowScenario"),
+                stopExecutor
+        );
+
+        try {
+            awaitScenarioThreadRemoved("slowScenario");
+            assertTimeoutPreemptively(Duration.ofMillis(200), () -> {
+                ResponseEntity<Result> response = scenarioService.startScenario("fastScenario");
+                assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+            });
+            slowThread.getRunning().set(false);
+            assertEquals(Result.Type.SUCCESS, stopFuture.get(1, TimeUnit.SECONDS).getBody().getType());
+        } finally {
+            slowThread.getRunning().set(false);
+            stopExecutor.shutdownNow();
+        }
+
+        ScenarioThread fastThread = scenarioService.getScenarioThreadMap().get("fastScenario");
+        if (fastThread != null) {
+            fastThread.interrupt();
+        }
     }
 
     @Test
@@ -186,6 +269,11 @@ class ScenarioServiceTest {
         step.setSenders(new ArrayList<>(List.of("tcpSender")));
         step.setOverrides(new HashMap<>(Map.of("customer", "overrideMaker")));
         scenarioDto.setSteps(new ArrayList<>(List.of(step)));
+        Optional<Map.Entry<String, Sender<?>>> tcpSender = senderEntry("tcpSender");
+        Optional<Map.Entry<String, Maker<?>>> customerMaker = makerEntry("customerMaker");
+        when(logService.getLog("auditLog")).thenReturn(Mockito.mock(LogThread.class));
+        when(senderService.getSender("tcpSender")).thenReturn(tcpSender);
+        when(makerService.getMaker("customerMaker")).thenReturn(customerMaker);
 
         scenarioService.createScenario(scenarioDto);
         scenarioDto.setDescription("mutated input");
@@ -233,6 +321,15 @@ class ScenarioServiceTest {
         return scenarioDto;
     }
 
+    private ScenarioDto scenarioWithStep(String name, String logName, List<String> senders) {
+        ScenarioDto scenarioDto = scenario(name, 1, 0);
+        ScenarioStepDto step = new ScenarioStepDto();
+        step.setLogName(logName);
+        step.setSenders(senders);
+        scenarioDto.setSteps(List.of(step));
+        return scenarioDto;
+    }
+
     private ScenarioThread awaitScenarioThread(String name) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
         ScenarioThread thread;
@@ -245,5 +342,26 @@ class ScenarioServiceTest {
         } while (System.nanoTime() < deadline);
         fail("Scenario thread did not start");
         return null;
+    }
+
+    private void awaitScenarioThreadRemoved(String name) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        do {
+            if (!scenarioService.getScenarioThreadMap().containsKey(name)) {
+                return;
+            }
+            Thread.yield();
+        } while (System.nanoTime() < deadline);
+        fail("Scenario thread was not removed");
+    }
+
+    private Optional<Map.Entry<String, Sender<?>>> senderEntry(String name) {
+        Sender<?> sender = Mockito.mock(Sender.class, Mockito.withSettings().name(name));
+        return Optional.of(Map.entry("plugin", sender));
+    }
+
+    private Optional<Map.Entry<String, Maker<?>>> makerEntry(String name) {
+        Maker<?> maker = Mockito.mock(Maker.class, Mockito.withSettings().name(name));
+        return Optional.of(Map.entry("plugin", maker));
     }
 }
