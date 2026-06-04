@@ -323,6 +323,7 @@ class SenderServiceTest {
                 () -> senderService.addSender(senderDto, "testPlugin", sender));
         assertTrue(senderService.getSender("brokenSender").isEmpty());
         assertFalse(senderService.getSenderNames().contains("brokenSender"));
+        verify(sender, Mockito.times(1)).close();
     }
 
     @Test

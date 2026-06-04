@@ -36,6 +36,7 @@ public class ScenarioThread implements Runnable {
     private final AtomicInteger currentLoop = new AtomicInteger(0);
     private volatile long[] stepCounts;
     private volatile Thread runningThread;
+    private volatile boolean interrupted;
 
     public ScenarioThread(MakerService makerService, SenderService senderService,
                           LogService logService, ScenarioDto scenarioDto) {
@@ -49,17 +50,22 @@ public class ScenarioThread implements Runnable {
     public void run() {
         running.set(true);
         runningThread = Thread.currentThread();
-        List<ScenarioStepDto> steps = scenarioDto.getSteps() != null ? scenarioDto.getSteps() : Collections.emptyList();
-        stepCounts = new long[steps.size()];
-
         Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
-
         try {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+            List<ScenarioStepDto> steps = scenarioDto.getSteps() != null ? scenarioDto.getSteps() : Collections.emptyList();
+            stepCounts = new long[steps.size()];
+
             resolveSenders(steps, senders);
             executeLoops(steps, senders);
         } finally {
             senders.values().forEach(Sender::decreaseRef);
             running.set(false);
+            runningThread = null;
         }
     }
 
@@ -79,7 +85,7 @@ public class ScenarioThread implements Runnable {
     }
 
     private boolean shouldRunLoop(boolean infinite, int loop, int loopCount) {
-        return !Thread.currentThread().isInterrupted() && (infinite || loop < loopCount);
+        return !Thread.currentThread().isInterrupted() && !interrupted && (infinite || loop < loopCount);
     }
 
     private void sleepBetweenLoops(boolean infinite, int loop, int loopCount,
@@ -91,7 +97,9 @@ public class ScenarioThread implements Runnable {
 
     private void executeSteps(List<ScenarioStepDto> steps, Map<String, Sender<?>> senders,
                               Map<String, String> resolvedVars) {
-        for (int stepIdx = 0; stepIdx < steps.size() && !Thread.currentThread().isInterrupted(); stepIdx++) {
+        for (int stepIdx = 0; stepIdx < steps.size()
+                && !Thread.currentThread().isInterrupted()
+                && !interrupted; stepIdx++) {
             executeStep(steps.get(stepIdx), stepIdx, senders, resolvedVars);
         }
     }
@@ -115,7 +123,9 @@ public class ScenarioThread implements Runnable {
 
     private void executeRepeats(ScenarioStepDto step, int stepIdx, Map<String, Sender<?>> senders,
                                 Map<String, String> resolvedVars, LogThread logThread) {
-        for (int repeat = 0; repeat < step.getRepeat() && !Thread.currentThread().isInterrupted(); repeat++) {
+        for (int repeat = 0; repeat < step.getRepeat()
+                && !Thread.currentThread().isInterrupted()
+                && !interrupted; repeat++) {
             if (!sleepMillis(randomLong(step.getDelayMinMs(), step.getDelayMaxMs()))) {
                 return;
             }
@@ -141,6 +151,9 @@ public class ScenarioThread implements Runnable {
     }
 
     private boolean sleepMillis(long sleepMs) {
+        if (interrupted || Thread.currentThread().isInterrupted()) {
+            return false;
+        }
         if (sleepMs <= 0) {
             return true;
         }
@@ -221,11 +234,16 @@ public class ScenarioThread implements Runnable {
     private Map<String, Object> buildTemplateData(LogThread logThread, ScenarioStepDto step, Map<String, String> resolvedVars) {
         Map<String, Object> data = new HashMap<>();
 
-        logThread.getMakerName().forEach(makerName ->
+        Set<String> suppliedKeys = new HashSet<>(stepOverrides(step).keySet());
+        suppliedKeys.addAll(resolvedVars.keySet());
+
+        logThread.getMakerName().forEach(makerName -> {
+            if (!suppliedKeys.contains(makerName)) {
                 makerService.getMaker(makerName).ifPresent(entry ->
                         data.put(makerName, entry.getValue().getData())
-                )
-        );
+                );
+            }
+        });
 
         data.putAll(resolveStepOverrides(step, resolvedVars));
         data.putAll(resolvedVars);
@@ -288,6 +306,7 @@ public class ScenarioThread implements Runnable {
     }
 
     public void interrupt() {
+        interrupted = true;
         Thread t = runningThread;
         if (t != null) {
             t.interrupt();

@@ -136,7 +136,11 @@ public class ScenarioService implements DisposableBean {
         saveScenarios();
 
         if (wasRunning) {
-            startScenario(name);
+            ResponseEntity<Result> startResult = startScenario(name);
+            Result startBody = startResult.getBody();
+            if (startBody == null || !Result.Type.SUCCESS.equals(startBody.getType())) {
+                return startResult;
+            }
         }
 
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated scenario");
@@ -163,20 +167,32 @@ public class ScenarioService implements DisposableBean {
             return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
         }
 
-        ScenarioThread existing = scenarioThreadMap.get(name);
-        if (existing != null && existing.getRunning().get()) {
-            return Result.createResultSet(Result.Type.ERROR, "Scenario is already running");
-        }
-        if (existing != null) {
-            scenarioThreadMap.remove(name);
-        }
+        while (true) {
+            ScenarioThread existing = scenarioThreadMap.get(name);
+            if (existing != null && existing.getRunning().get()) {
+                return Result.createResultSet(Result.Type.ERROR, "Scenario is already running");
+            }
+            if (existing != null && !scenarioThreadMap.remove(name, existing)) {
+                continue;
+            }
 
-        ScenarioThread thread = new ScenarioThread(makerService, senderService, logService, scenarioDto);
-        scenarioThreadMap.put(name, thread);
-        executorService.submit(thread);
-        scenarioDto.setStatus(true);
+            ScenarioThread thread = new ScenarioThread(makerService, senderService, logService, scenarioDto);
+            if (scenarioThreadMap.putIfAbsent(name, thread) != null) {
+                continue;
+            }
 
-        return Result.createResultSet(Result.Type.SUCCESS, "Scenario started");
+            try {
+                executorService.submit(thread);
+            } catch (RuntimeException e) {
+                scenarioThreadMap.remove(name, thread);
+                thread.interrupt();
+                log.error("Failed to start scenario thread: {}", name, e);
+                return Result.createResultSet(Result.Type.ERROR, "Scenario thread start failed");
+            }
+            scenarioDto.setStatus(true);
+
+            return Result.createResultSet(Result.Type.SUCCESS, "Scenario started");
+        }
     }
 
     public ResponseEntity<Result> stopScenario(String name) {

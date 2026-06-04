@@ -53,6 +53,7 @@ public class LogThread implements Runnable {
     private LogDto logDto;
 
     private volatile Thread runningThread;
+    private volatile boolean interrupted;
     private final AtomicLong eventTargetRemainder = new AtomicLong(0L);
     private final AtomicLong byteTargetRemainder = new AtomicLong(0L);
 
@@ -139,11 +140,20 @@ public class LogThread implements Runnable {
     @Override
     public void run() {
         runningThread = Thread.currentThread();
-        start = Instant.now();
-        while (!Thread.currentThread().isInterrupted()) {
-            Instant currentStart = Instant.now();
-            updateSecondMetrics(currentStart);
-            sleepUntilNextSecond(currentStart);
+        try {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+            start = Instant.now();
+            while (!Thread.currentThread().isInterrupted() && !interrupted) {
+                Instant currentStart = Instant.now();
+                updateSecondMetrics(currentStart);
+                sleepUntilNextSecond(currentStart);
+            }
+        } finally {
+            runningThread = null;
         }
     }
 
@@ -186,6 +196,7 @@ public class LogThread implements Runnable {
     private boolean shouldGenerateMore(Instant currentStart, boolean bytesMode,
                                        long secBytes, long secEvents, long targetUnits) {
         return !Thread.currentThread().isInterrupted()
+                && !interrupted
                 && isBelowTarget(bytesMode, secBytes, secEvents, targetUnits)
                 && Duration.between(currentStart, Instant.now()).toMillis() < 1000;
     }
@@ -344,6 +355,7 @@ public class LogThread implements Runnable {
     }
 
     public void interrupt() {
+        interrupted = true;
         Thread t = runningThread;
         if (t != null) {
             t.interrupt();

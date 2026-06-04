@@ -154,6 +154,19 @@ class LogThreadTest {
     }
 
     @Test
+    void testInterruptBeforeRun_stopsThreadImmediately() throws InterruptedException {
+        LogDto dto = simpleLogDto();
+        LogThread logThread = new LogThread(makerService, senderService, dto);
+        logThread.interrupt();
+
+        Thread thread = new Thread(logThread);
+        thread.start();
+        thread.join(500);
+
+        assertFalse(thread.isAlive());
+    }
+
+    @Test
     void testUpdateLogDto_success() {
         // Given: initial log with static format
         LogDto dto = simpleLogDto();

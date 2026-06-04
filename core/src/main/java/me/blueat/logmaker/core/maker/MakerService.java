@@ -107,11 +107,14 @@ public class MakerService {
         }
         Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(name);
         if (existsMaker.isPresent()) {
-            if (existsMaker.get().getValue().isThread()) {
-                existsMaker.get().getValue().getThread().interrupt();
-            }
-            synchronized (makerTable) {
-                makerTable.remove(existsMaker.get().getKey(), name);
+            try {
+                existsMaker.get().getValue().close();
+            } catch (Exception e) {
+                log.warn("Failed to close maker: {}", name, e);
+            } finally {
+                synchronized (makerTable) {
+                    makerTable.remove(existsMaker.get().getKey(), name);
+                }
             }
         }
         saveToFile(getMaker(), makerStoragePath());
@@ -180,6 +183,11 @@ public class MakerService {
             }
             return true;
         } catch (Exception e) {
+            try {
+                maker.close();
+            } catch (Exception closeException) {
+                log.warn("Failed to close maker after registration failure: {}", makerDto.getName(), closeException);
+            }
             synchronized (makerTable) {
                 makerTable.remove(pluginId, makerDto.getName());
             }

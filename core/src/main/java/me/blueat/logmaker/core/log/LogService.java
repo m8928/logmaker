@@ -99,6 +99,7 @@ public class LogService implements DisposableBean {
                 executorService.submit(logThread);
             } catch (RuntimeException e) {
                 logThreadMap.remove(logDto.getName(), logThread);
+                logThread.interrupt();
                 logThread.releaseReferences();
                 log.error("Failed to start log thread: {}", logDto.getName(), e);
                 return Result.createResultSet(Result.Type.ERROR, "Log thread start failed");

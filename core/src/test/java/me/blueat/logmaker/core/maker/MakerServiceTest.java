@@ -303,6 +303,7 @@ class MakerServiceTest {
                 () -> makerService.addMaker(makerDto, "testPlugin", maker));
         assertTrue(makerService.getMaker("brokenMaker").isEmpty());
         assertFalse(makerService.getMakerNames().contains("brokenMaker"));
+        Mockito.verify(maker).close();
     }
 
     @Test

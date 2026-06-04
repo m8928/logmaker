@@ -16,8 +16,8 @@ class RegexMakerTest {
 
     @AfterEach
     void tearDown() {
-        if (regexMaker != null && regexMaker.getThread() != null) {
-            regexMaker.getThread().interrupt();
+        if (regexMaker != null) {
+            regexMaker.close();
         }
     }
 
@@ -71,5 +71,20 @@ class RegexMakerTest {
             String generated = regexMaker.getData();
             assertThat(generated).isNotNull().matches(newRegex);
         }
+    }
+
+    @Test
+    @DisplayName("close 호출 시 maker thread를 종료하는지 테스트")
+    void testCloseStopsMakerThread() throws InterruptedException {
+        Map<String, Object> args = new HashMap<>();
+        args.put("regex", "[a-z]{5}");
+        regexMaker = new RegexMaker("test-close-regex", "regex", args);
+        Thread worker = regexMaker.getThread();
+        worker.start();
+
+        regexMaker.close();
+        worker.join(2_000);
+
+        assertThat(worker.isAlive()).isFalse();
     }
 }

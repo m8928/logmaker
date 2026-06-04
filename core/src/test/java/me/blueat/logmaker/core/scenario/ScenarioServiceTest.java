@@ -16,9 +16,12 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -101,6 +104,20 @@ class ScenarioServiceTest {
 
         // Then
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void startScenario_removesThreadWhenSubmitFails() {
+        ScenarioDto scenarioDto = scenario("submitFailure", 1, 0);
+        scenarioService.createScenario(scenarioDto);
+        ExecutorService executor = Mockito.mock(ExecutorService.class);
+        when(executor.submit(any(Runnable.class))).thenThrow(new RejectedExecutionException("closed"));
+        ReflectionTestUtils.setField(scenarioService, "executorService", executor);
+
+        ResponseEntity<Result> response = scenarioService.startScenario("submitFailure");
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertFalse(scenarioService.getScenarioThreadMap().containsKey("submitFailure"));
     }
 
     @Test

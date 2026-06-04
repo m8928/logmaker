@@ -31,8 +31,8 @@ class ScenarioThreadTest {
     void routesEachStepToItsOwnSenders() {
         LogThread loginLog = logThread("login", "login-event");
         LogThread logoutLog = logThread("logout", "logout-event");
-        logService.add(loginLog);
-        logService.add(logoutLog);
+        logService.add("login", loginLog);
+        logService.add("logout", logoutLog);
 
         CapturingSender scenarioSender = new CapturingSender("scenario-sender");
         CapturingSender loginSender = new CapturingSender("login-sender");
@@ -57,7 +57,7 @@ class ScenarioThreadTest {
     @Test
     void ignoresScenarioSendersWhenStepHasNoSenders() {
         LogThread loginLog = logThread("login", "login-event");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         CapturingSender scenarioSender = new CapturingSender("scenario-sender");
         senderService.add(scenarioSender);
@@ -73,7 +73,7 @@ class ScenarioThreadTest {
     @Test
     void rendersSameLogForDifferentStepOverrides() {
         LogThread loginLog = logThread("login", "${value}");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         CapturingSender sender = new CapturingSender("scenario-sender");
         senderService.add(sender);
@@ -95,7 +95,7 @@ class ScenarioThreadTest {
         makerService.add(new FixedMaker("sharedValue", "base-shared"));
         makerService.add(new FixedMaker("shared-maker", "shared-value"));
         LogThread loginLog = logThread("login", "<value>-<sharedValue>");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         CapturingSender sender = new CapturingSender("scenario-sender");
         senderService.add(sender);
@@ -115,7 +115,7 @@ class ScenarioThreadTest {
         makerService.add(new FixedMaker("value", "maker-value"));
         makerService.add(new FixedMaker("src-maker", "10.10.10.10"));
         LogThread loginLog = logThread("login", "<value>");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         CapturingSender sender = new CapturingSender("scenario-sender");
         senderService.add(sender);
@@ -131,11 +131,29 @@ class ScenarioThreadTest {
     }
 
     @Test
+    void skipsMakerDataLookupWhenStepOverrideSuppliesValue() {
+        makerService.add(new FailingMaker("value"));
+        LogThread loginLog = logThread("login", "<value>");
+        logService.add("login", loginLog);
+
+        CapturingSender sender = new CapturingSender("scenario-sender");
+        senderService.add(sender);
+
+        ScenarioStepDto step = step("login", List.of("scenario-sender"));
+        step.setOverrides(Map.of("value", "override-value"));
+        ScenarioDto scenario = scenario(List.of(step));
+
+        new ScenarioThread(makerService, senderService, logService, scenario).run();
+
+        assertEquals(List.of("override-value"), sender.getSentData());
+    }
+
+    @Test
     void keepsScenarioRunningWhenOverrideTemplateIsInvalid() {
         makerService.add(new FixedMaker("value", "maker-value"));
         makerService.add(new FixedMaker("src-maker", "10.10.10.10"));
         LogThread loginLog = logThread("login", "<value>");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         CapturingSender sender = new CapturingSender("scenario-sender");
         senderService.add(sender);
@@ -153,7 +171,7 @@ class ScenarioThreadTest {
     @Test
     void continuesScenarioWhenOneSenderFails() {
         LogThread loginLog = logThread("login", "login-event");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         ThrowingSender failingSender = new ThrowingSender("failing-sender");
         CapturingSender healthySender = new CapturingSender("healthy-sender");
@@ -172,7 +190,7 @@ class ScenarioThreadTest {
     @Test
     void releasesSenderRefsWhenResolvingSendersFails() {
         LogThread loginLog = logThread("login", "login-event");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         CapturingSender retainedSender = new CapturingSender("retained-sender");
         senderService.add(retainedSender);
@@ -192,7 +210,7 @@ class ScenarioThreadTest {
     @Test
     void rejectsMissingStepSenders() {
         LogThread loginLog = logThread("login", "login-event");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         ScenarioDto scenario = scenario(List.of(
                 step("login", List.of("missing-sender"))
@@ -207,7 +225,7 @@ class ScenarioThreadTest {
     @Test
     void incrementsLoopCounterInInfiniteScenarios() throws InterruptedException {
         LogThread loginLog = logThread("login", "login-event");
-        logService.add(loginLog);
+        logService.add("login", loginLog);
 
         ScenarioDto scenario = scenario(List.of(step("login", List.of())));
         scenario.setLoopCount(0);
@@ -224,6 +242,21 @@ class ScenarioThreadTest {
 
         assertTrue(scenarioThread.getCurrentLoop().get() > 1);
         assertFalse(worker.isAlive());
+    }
+
+    @Test
+    void interruptBeforeRunStopsScenarioImmediately() throws InterruptedException {
+        ScenarioDto scenario = scenario(List.of());
+        scenario.setLoopCount(0);
+        ScenarioThread scenarioThread = new ScenarioThread(makerService, senderService, logService, scenario);
+        scenarioThread.interrupt();
+
+        Thread worker = new Thread(scenarioThread);
+        worker.start();
+        worker.join(500);
+
+        assertFalse(worker.isAlive());
+        assertFalse(scenarioThread.getRunning().get());
     }
 
     private ScenarioDto scenario(List<ScenarioStepDto> steps) {
@@ -357,6 +390,17 @@ class ScenarioThreadTest {
         }
     }
 
+    private static class FailingMaker extends FixedMaker {
+        private FailingMaker(String name) {
+            super(name, "unused");
+        }
+
+        @Override
+        public String getData() {
+            throw new AssertionError("Overridden makers should not be evaluated");
+        }
+    }
+
     private static class TestLogService extends LogService {
         private final Map<String, LogThread> logs = new HashMap<>();
 
@@ -364,8 +408,8 @@ class ScenarioThreadTest {
             super(null, null, null, null);
         }
 
-        private void add(LogThread logThread) {
-            logs.put(logThread.getLogDto().getName(), logThread);
+        private void add(String name, LogThread logThread) {
+            logs.put(name, logThread);
         }
 
         @Override

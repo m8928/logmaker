@@ -202,6 +202,11 @@ public class SenderService {
             }
             return true;
         } catch (Exception e) {
+            try {
+                sender.close();
+            } catch (Exception closeException) {
+                log.warn("Failed to close sender after registration failure: {}", senderDto.getName(), closeException);
+            }
             synchronized (senderTable) {
                 senderTable.remove(pluginId, senderDto.getName());
             }
