@@ -14,7 +14,7 @@ public final class TextSizeUtil {
             } else if (codePoint <= 0x7FF) {
                 length += 2;
             } else if (codePoint <= 0xFFFF) {
-                length += Character.isSurrogate(value.charAt(i)) ? 1 : 3;
+                length += 3;
             } else {
                 length += 4;
             }

@@ -95,7 +95,14 @@ public class LogService implements DisposableBean {
                 logThread.releaseReferences();
                 return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
             }
-            executorService.submit(logThread);
+            try {
+                executorService.submit(logThread);
+            } catch (RuntimeException e) {
+                logThreadMap.remove(logDto.getName(), logThread);
+                logThread.releaseReferences();
+                log.error("Failed to start log thread: {}", logDto.getName(), e);
+                return Result.createResultSet(Result.Type.ERROR, "Log thread start failed");
+            }
 
             if (!isImport) {
                 saveToFile(getLog(), logStoragePath());

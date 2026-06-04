@@ -19,12 +19,15 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -91,6 +94,34 @@ class LogServiceTest {
 
         // Then
         assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void createLog_cleansReferencesWhenThreadSubmitFails() {
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        @SuppressWarnings("unchecked")
+        Sender<Object> sender = Mockito.mock(Sender.class);
+        ExecutorService executor = Mockito.mock(ExecutorService.class);
+
+        when(makerService.getMakerNames()).thenReturn(Set.of("myMaker"));
+        when(senderService.getSenderNames()).thenReturn(Set.of("mySender"));
+        when(makerService.getMaker("myMaker")).thenReturn(Optional.of(Map.entry("plugin", maker)));
+        when(senderService.getSender("mySender")).thenReturn(Optional.of(Map.entry("plugin", sender)));
+        when(executor.submit(any(Runnable.class))).thenThrow(new RejectedExecutionException("closed"));
+        ReflectionTestUtils.setField(logService, "executorService", executor);
+
+        LogDto logDto = new LogDto();
+        logDto.setName("submitFailure");
+        logDto.setFormat("<myMaker>");
+        logDto.setSender(List.of("mySender"));
+
+        ResponseEntity<Result> response = logService.createLog(logDto);
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertNull(logService.getLog("submitFailure"));
+        Mockito.verify(maker).decreaseRef();
+        Mockito.verify(sender).decreaseRef();
     }
 
     @Test

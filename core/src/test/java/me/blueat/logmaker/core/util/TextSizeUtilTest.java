@@ -8,9 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TextSizeUtilTest {
     @Test
-    void utf8Length_matchesJdkEncodingLength() {
-        String value = "ascii-\u00E9-\u20AC-\uD83D\uDE00-\uD83D";
+    void utf8Length_matchesJdkEncodingLengthForValidCodePoints() {
+        String value = "ascii-\u00E9-\u20AC-\uD83D\uDE00";
 
         assertEquals(value.getBytes(StandardCharsets.UTF_8).length, TextSizeUtil.utf8Length(value));
+    }
+
+    @Test
+    void utf8Length_countsUnpairedSurrogateAsReplacementCharacter() {
+        assertEquals(3, TextSizeUtil.utf8Length("\uD83D"));
+        assertEquals(3, TextSizeUtil.utf8Length("\uDE00"));
     }
 }

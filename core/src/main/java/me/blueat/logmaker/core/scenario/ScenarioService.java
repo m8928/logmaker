@@ -103,12 +103,10 @@ public class ScenarioService implements DisposableBean {
     }
 
     public ResponseEntity<Result> createScenario(ScenarioDto scenarioDto, boolean isImport) {
-        if (scenarioMap.containsKey(scenarioDto.getName())) {
+        if (scenarioMap.putIfAbsent(scenarioDto.getName(), scenarioDto) != null) {
             return Result.createResultSet(Result.Type.ERROR,
                     String.format("%s is the scenario name already in use", scenarioDto.getName()));
         }
-
-        scenarioMap.put(scenarioDto.getName(), scenarioDto);
 
         if (!isImport) {
             saveScenarios();

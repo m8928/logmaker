@@ -247,8 +247,13 @@ public class ScenarioThread implements Runnable {
         VelocityContext context = new VelocityContext();
         resolvedVars.forEach(context::put);
         StringWriter writer = new StringWriter();
-        overrideEngine.evaluate(context, writer, "scenario-step-override", value);
-        return writer.toString();
+        try {
+            overrideEngine.evaluate(context, writer, "scenario-step-override", value);
+            return writer.toString();
+        } catch (Exception e) {
+            log.error("Failed to evaluate override template: {}", value, e);
+            return value;
+        }
     }
 
     private void sendToSender(Sender<?> sender, String data, int dataBytes) {

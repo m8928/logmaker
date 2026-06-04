@@ -131,6 +131,26 @@ class ScenarioThreadTest {
     }
 
     @Test
+    void keepsScenarioRunningWhenOverrideTemplateIsInvalid() {
+        makerService.add(new FixedMaker("value", "maker-value"));
+        makerService.add(new FixedMaker("src-maker", "10.10.10.10"));
+        LogThread loginLog = logThread("login", "<value>");
+        logService.add(loginLog);
+
+        CapturingSender sender = new CapturingSender("scenario-sender");
+        senderService.add(sender);
+
+        ScenarioStepDto step = step("login", List.of("scenario-sender"));
+        step.setOverrides(Map.of("value", "${"));
+        ScenarioDto scenario = scenario(List.of(step));
+        scenario.setSharedVariables(Map.of("src_ip", "src-maker"));
+
+        assertDoesNotThrow(() -> new ScenarioThread(makerService, senderService, logService, scenario).run());
+
+        assertEquals(List.of("${"), sender.getSentData());
+    }
+
+    @Test
     void continuesScenarioWhenOneSenderFails() {
         LogThread loginLog = logThread("login", "login-event");
         logService.add(loginLog);

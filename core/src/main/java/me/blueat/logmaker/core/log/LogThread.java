@@ -351,9 +351,14 @@ public class LogThread implements Runnable {
     }
 
     void releaseReferences() {
-        makers.values().forEach(Maker::decreaseRef);
-        senders.values().forEach(Sender::decreaseRef);
-        makers.clear();
-        senders.clear();
+        updateLock.lock();
+        try {
+            makers.values().forEach(Maker::decreaseRef);
+            senders.values().forEach(Sender::decreaseRef);
+            makers.clear();
+            senders.clear();
+        } finally {
+            updateLock.unlock();
+        }
     }
 }
