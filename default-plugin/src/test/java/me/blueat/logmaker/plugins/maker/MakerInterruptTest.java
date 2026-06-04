@@ -6,9 +6,12 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests that verify getData() never returns null when the thread is interrupted.
@@ -19,39 +22,13 @@ class MakerInterruptTest {
     @Test
     void ipMaker_getData_returnsNotNull_whenInterrupted() throws InterruptedException {
         IPMaker maker = new IPMaker("testIP", "ip");
-        // Do NOT start the thread - queue is empty, take() will block then be interrupted
-        AtomicReference<String> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Thread caller = new Thread(() -> {
-            result.set(maker.getData());
-            latch.countDown();
-        });
-        caller.start();
-        // Give caller time to block on queue.take()
-        Thread.sleep(50);
-        caller.interrupt();
-        latch.await();
-
-        assertNotNull(result.get(), "getData() must not return null on interrupt");
+        assertInterruptedGetDataReturnsNotNull(maker::getData);
     }
 
     @Test
     void uuidMaker_getData_returnsNotNull_whenInterrupted() throws InterruptedException {
         UUIDMaker maker = new UUIDMaker("testUUID", "uuid");
-        AtomicReference<String> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Thread caller = new Thread(() -> {
-            result.set(maker.getData());
-            latch.countDown();
-        });
-        caller.start();
-        Thread.sleep(50);
-        caller.interrupt();
-        latch.await();
-
-        assertNotNull(result.get(), "getData() must not return null on interrupt");
+        assertInterruptedGetDataReturnsNotNull(maker::getData);
     }
 
     @Test
@@ -59,21 +36,7 @@ class MakerInterruptTest {
         Map<String, Object> args = new HashMap<>();
         args.put("picker", Arrays.asList("a", "b", "c"));
         PickMaker maker = new PickMaker("testPick", "pick", args);
-        // Do NOT start thread
-
-        AtomicReference<String> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Thread caller = new Thread(() -> {
-            result.set(maker.getData());
-            latch.countDown();
-        });
-        caller.start();
-        Thread.sleep(50);
-        caller.interrupt();
-        latch.await();
-
-        assertNotNull(result.get(), "getData() must not return null on interrupt");
+        assertInterruptedGetDataReturnsNotNull(maker::getData);
     }
 
     @Test
@@ -82,21 +45,7 @@ class MakerInterruptTest {
         args.put("start", 1L);
         args.put("end", 100L);
         NumberRangeMaker maker = new NumberRangeMaker("testNum", "number", args);
-        // Do NOT start thread
-
-        AtomicReference<Long> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Thread caller = new Thread(() -> {
-            result.set(maker.getData());
-            latch.countDown();
-        });
-        caller.start();
-        Thread.sleep(50);
-        caller.interrupt();
-        latch.await();
-
-        assertNotNull(result.get(), "getData() must not return null on interrupt");
+        assertInterruptedGetDataReturnsNotNull(maker::getData);
     }
 
     @Test
@@ -105,21 +54,7 @@ class MakerInterruptTest {
         args.put("start", "10.0.0.1");
         args.put("end", "10.0.0.255");
         IPRangeMaker maker = new IPRangeMaker("testIPRange", "iprange", args);
-        // Do NOT start thread
-
-        AtomicReference<String> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Thread caller = new Thread(() -> {
-            result.set(maker.getData());
-            latch.countDown();
-        });
-        caller.start();
-        Thread.sleep(50);
-        caller.interrupt();
-        latch.await();
-
-        assertNotNull(result.get(), "getData() must not return null on interrupt");
+        assertInterruptedGetDataReturnsNotNull(maker::getData);
     }
 
     @Test
@@ -127,19 +62,23 @@ class MakerInterruptTest {
         Map<String, Object> args = new HashMap<>();
         args.put("regex", "[a-z]{5}");
         RegexMaker maker = new RegexMaker("testRegex", "regex", args);
-        // Do NOT start thread
+        assertInterruptedGetDataReturnsNotNull(maker::getData);
+    }
 
-        AtomicReference<String> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
+    private <T> void assertInterruptedGetDataReturnsNotNull(Supplier<T> getData) throws InterruptedException {
+        AtomicReference<T> result = new AtomicReference<>();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
 
         Thread caller = new Thread(() -> {
-            result.set(maker.getData());
-            latch.countDown();
+            started.countDown();
+            result.set(getData.get());
+            finished.countDown();
         });
         caller.start();
-        Thread.sleep(50);
+        assertTrue(started.await(1, TimeUnit.SECONDS));
         caller.interrupt();
-        latch.await();
+        assertTrue(finished.await(1, TimeUnit.SECONDS));
 
         assertNotNull(result.get(), "getData() must not return null on interrupt");
     }

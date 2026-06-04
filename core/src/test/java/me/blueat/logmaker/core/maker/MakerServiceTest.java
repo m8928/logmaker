@@ -282,9 +282,6 @@ class MakerServiceTest {
 
     @Test
     void testDeleteMaker_withRef_returnsError() {
-        // Note: MakerService.deleteMaker does NOT check ref count before deleting.
-        // The ref check is the responsibility of the caller (LogService).
-        // This test verifies deleteMaker succeeds regardless of ref count.
         MakerDto makerDto = new MakerDto();
         makerDto.setName("refMaker");
         makerDto.setType("testType");
@@ -304,8 +301,9 @@ class MakerServiceTest {
         // When
         ResponseEntity<Result> response = makerService.deleteMaker("refMaker");
 
-        // Then: service deletes regardless of ref (ref is tracked externally)
-        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertTrue(makerService.getMaker("refMaker").isPresent());
+        Mockito.verify(maker, Mockito.never()).close();
     }
 
     @Test

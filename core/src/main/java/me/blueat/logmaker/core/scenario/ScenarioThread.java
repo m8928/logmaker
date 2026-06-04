@@ -8,6 +8,7 @@ import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.util.TextSizeUtil;
 import me.blueat.logmaker.core.util.VelocityTemplateUtil;
+import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
@@ -53,6 +54,7 @@ public class ScenarioThread implements Runnable {
     public void run() {
         running.set(true);
         Map<String, Sender<?>> senders = new ConcurrentHashMap<>();
+        Map<String, Maker<?>> makers = new ConcurrentHashMap<>();
         try {
             if (interrupted) {
                 Thread.currentThread().interrupt();
@@ -62,19 +64,22 @@ public class ScenarioThread implements Runnable {
             List<ScenarioStepDto> steps = scenarioDto.getSteps() != null ? scenarioDto.getSteps() : Collections.emptyList();
             stepCounts = new long[steps.size()];
 
+            resolveMakers(makers);
             resolveSenders(steps, senders);
-            executeLoops(steps, senders);
+            executeLoops(steps, senders, makers);
         } catch (RuntimeException | Error e) {
             log.error("Scenario thread failed: {}", scenarioDto.getName(), e);
             throw e;
         } finally {
             senders.values().forEach(Sender::decreaseRef);
+            makers.values().forEach(Maker::decreaseRef);
             running.set(false);
             runningTask = null;
         }
     }
 
-    private void executeLoops(List<ScenarioStepDto> steps, Map<String, Sender<?>> senders) {
+    private void executeLoops(List<ScenarioStepDto> steps, Map<String, Sender<?>> senders,
+                              Map<String, Maker<?>> makers) {
         int loopCount = scenarioDto.getLoopCount();
         long intervalMinMs = scenarioDto.getIntervalMinMs();
         long intervalMaxMs = scenarioDto.getIntervalMaxMs();
@@ -83,7 +88,7 @@ public class ScenarioThread implements Runnable {
 
         while (shouldRunLoop(infinite, loop, loopCount)) {
             currentLoop.set(loop + 1);
-            executeSteps(steps, senders, resolveSharedVariables());
+            executeSteps(steps, senders, resolveSharedVariables(makers));
             loop++;
             sleepBetweenLoops(infinite, loop, loopCount, intervalMinMs, intervalMaxMs);
         }
@@ -185,6 +190,16 @@ public class ScenarioThread implements Runnable {
         });
     }
 
+    private void resolveMakers(Map<String, Maker<?>> makers) {
+        Set<String> makerNames = new LinkedHashSet<>(sharedVariables().values());
+        makerNames.forEach(makerName -> {
+            Map.Entry<String, Maker<?>> entry = makerService.getMaker(makerName)
+                    .orElseThrow(() -> new IllegalStateException("maker not found. " + makerName));
+            entry.getValue().increaseRef();
+            makers.put(makerName, entry.getValue());
+        });
+    }
+
     private List<Sender<?>> getSendersForStep(Map<String, Sender<?>> senders, ScenarioStepDto step) {
         List<String> senderNames = step.getSenders();
         if (senderNames == null || senderNames.isEmpty()) {
@@ -215,14 +230,15 @@ public class ScenarioThread implements Runnable {
         return ThreadLocalRandom.current().nextLong(min, max + 1);
     }
 
-    private Map<String, String> resolveSharedVariables() {
+    private Map<String, String> resolveSharedVariables(Map<String, Maker<?>> makers) {
         Map<String, String> resolved = new HashMap<>();
-        sharedVariables().forEach((varName, makerName) ->
-                makerService.getMaker(makerName).ifPresent(entry -> {
-                    Object data = entry.getValue().getData();
-                    resolved.put(varName, data != null ? data.toString() : "");
-                })
-        );
+        sharedVariables().forEach((varName, makerName) -> {
+            Maker<?> maker = makers.get(makerName);
+            if (maker != null) {
+                Object data = maker.getData();
+                resolved.put(varName, data != null ? data.toString() : "");
+            }
+        });
         return resolved;
     }
 
@@ -238,27 +254,25 @@ public class ScenarioThread implements Runnable {
 
     private Map<String, Object> buildTemplateData(LogThread logThread, ScenarioStepDto step, Map<String, String> resolvedVars) {
         Map<String, Object> data = new HashMap<>();
-
-        Set<String> suppliedKeys = new HashSet<>(stepOverrides(step).keySet());
-        suppliedKeys.addAll(resolvedVars.keySet());
+        Map<String, String> overrides = stepOverrides(step);
 
         logThread.getMakerName().forEach(makerName -> {
-            if (!suppliedKeys.contains(makerName)) {
+            if (!overrides.containsKey(makerName) && !resolvedVars.containsKey(makerName)) {
                 makerService.getMaker(makerName).ifPresent(entry ->
                         data.put(makerName, entry.getValue().getData())
                 );
             }
         });
 
-        data.putAll(resolveStepOverrides(step, resolvedVars));
+        data.putAll(resolveStepOverrides(overrides, resolvedVars));
         data.putAll(resolvedVars);
 
         return data;
     }
 
-    private Map<String, String> resolveStepOverrides(ScenarioStepDto step, Map<String, String> resolvedVars) {
+    private Map<String, String> resolveStepOverrides(Map<String, String> overrides, Map<String, String> resolvedVars) {
         Map<String, String> resolved = new HashMap<>();
-        stepOverrides(step).forEach((key, value) -> resolved.put(key, resolveOverrideValue(value, resolvedVars)));
+        overrides.forEach((key, value) -> resolved.put(key, resolveOverrideValue(value, resolvedVars)));
         return resolved;
     }
 

@@ -43,10 +43,10 @@ public class RegexMaker extends Maker<String> implements Runnable {
     }
 
     private Thread newRegexWorker(Runnable task) {
-        Thread thread = new Thread(task,
+        Thread worker = new Thread(task,
                 String.format("THREAD_%s-regex-generator-%d", makerName, regexThreadId.incrementAndGet()));
-        thread.setDaemon(true);
-        return thread;
+        worker.setDaemon(true);
+        return worker;
     }
 
     private ThreadPoolExecutor createRegexExecutor() {

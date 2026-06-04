@@ -113,6 +113,9 @@ public class SenderService implements DisposableBean {
                 return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
             }
             Sender<?> sender = existsSender.get().getValue();
+            if (sender.getRef() > 0) {
+                return Result.createResultSet(Result.Type.ERROR, "Sender is currently in use");
+            }
             closeSender(name, sender, "delete");
             senderTable.remove(existsSender.get().getKey(), name);
         }

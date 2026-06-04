@@ -61,7 +61,7 @@ class NumberRangeMakerTest {
 
     @Test
     @DisplayName("업데이트 후 새 범위의 숫자를 생성하는지 테스트")
-    void testGetDataAfterUpdate() throws InterruptedException {
+    void testGetDataAfterUpdate() {
         Map<String, Object> initialArgs = new HashMap<>();
         initialArgs.put("start", 1L);
         initialArgs.put("end", 5L);
@@ -75,8 +75,6 @@ class NumberRangeMakerTest {
         newArgs.put("random", true);
 
         numberRangeMaker.update(newArgs);
-
-        Thread.sleep(100); // Allow queue to populate
 
         for (int i = 0; i < 10; i++) {
             Long number = numberRangeMaker.getData();

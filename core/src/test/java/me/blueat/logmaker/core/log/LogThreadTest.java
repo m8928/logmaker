@@ -147,8 +147,7 @@ class LogThreadTest {
         Thread thread = new Thread(logThread);
         thread.start();
 
-        // Allow thread to start
-        Thread.sleep(100);
+        awaitLogThreadStart(logThread);
         assertTrue(thread.isAlive());
 
         // When
@@ -157,6 +156,14 @@ class LogThreadTest {
 
         // Then
         assertFalse(thread.isAlive());
+    }
+
+    private void awaitLogThreadStart(LogThread logThread) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (logThread.getStart() == null && System.nanoTime() < deadline) {
+            Thread.yield();
+        }
+        assertNotNull(logThread.getStart(), "LogThread did not start");
     }
 
     @Test

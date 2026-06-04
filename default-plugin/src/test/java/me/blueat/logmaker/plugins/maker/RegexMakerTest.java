@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -58,7 +57,7 @@ class RegexMakerTest {
 
     @Test
     @DisplayName("업데이트 후 새로운 정규식으로 문자열을 생성하는지 테스트")
-    void testGenerationAfterUpdate() throws InterruptedException {
+    void testGenerationAfterUpdate() {
         Map<String, Object> initialArgs = new HashMap<>();
         initialArgs.put("regex", "[0-9]{3}");
         regexMaker = new RegexMaker("test-update-regex", "regex", initialArgs);
@@ -69,8 +68,6 @@ class RegexMakerTest {
         newArgs.put("regex", newRegex);
 
         regexMaker.update(newArgs);
-
-        Thread.sleep(100); // Allow queue to populate
 
         for (int i = 0; i < 5; i++) {
             String generated = regexMaker.getData();
@@ -115,10 +112,11 @@ class RegexMakerTest {
         regexMaker = new RegexMaker("test-lock-free-close-regex", "regex", args);
 
         CountDownLatch generationStarted = new CountDownLatch(1);
+        CountDownLatch releaseGeneration = new CountDownLatch(1);
         RgxGen generator = Mockito.mock(RgxGen.class);
         Mockito.when(generator.generate()).thenAnswer(invocation -> {
             generationStarted.countDown();
-            Thread.sleep(2_000);
+            releaseGeneration.await(2, TimeUnit.SECONDS);
             return "abcde";
         });
 
@@ -132,6 +130,7 @@ class RegexMakerTest {
 
         long startedAt = System.nanoTime();
         regexMaker.close();
+        releaseGeneration.countDown();
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
 
         assertThat(elapsedMs).isLessThan(500L);

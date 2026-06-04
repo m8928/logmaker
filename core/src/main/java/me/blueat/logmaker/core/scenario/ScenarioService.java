@@ -38,6 +38,7 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Getter
 public class ScenarioService implements DisposableBean {
     private static final String SCENARIO_NOT_FOUND = "Scenario does not exist";
+    private static final String SCENARIO_BUSY = "Scenario is busy";
     private static final long STOP_TIMEOUT_MS = 5_000L;
     private static final long STOP_POLL_MS = 25L;
 
@@ -53,6 +54,21 @@ public class ScenarioService implements DisposableBean {
     @Getter(AccessLevel.NONE)
     private Set<String> scenarioTransitions;
     private ExecutorService executorService;
+
+    private record TransitionResult(ScenarioThread thread, boolean active, ResponseEntity<Result> error) {
+        private boolean failed() {
+            return error != null;
+        }
+    }
+
+    private record StartLookup(ScenarioDto scenarioDto, ResponseEntity<Result> error) {
+        private boolean failed() {
+            return error != null;
+        }
+    }
+
+    private record StartAttempt(boolean retry, ResponseEntity<Result> response) {
+    }
 
     @PostConstruct
     protected void init() {
@@ -128,13 +144,9 @@ public class ScenarioService implements DisposableBean {
     }
 
     public ResponseEntity<Result> updateScenario(String name, ScenarioDto scenarioDto) {
-        synchronized (scenarioStateLock) {
-            if (!scenarioMap.containsKey(name)) {
-                return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
-            }
-        }
-        if (scenarioDto == null) {
-            return Result.createResultSet(Result.Type.ERROR, "Scenario payload is required");
+        ResponseEntity<Result> requestError = validateUpdateRequest(name, scenarioDto);
+        if (requestError != null) {
+            return requestError;
         }
 
         ScenarioDto storedScenario = copyScenarioConfig(scenarioDto);
@@ -144,49 +156,30 @@ public class ScenarioService implements DisposableBean {
             return Result.createResultSet(Result.Type.ERROR, validationError.get());
         }
 
-        ScenarioThread existing;
-        boolean wasRunning = false;
-        synchronized (scenarioStateLock) {
-            if (!scenarioMap.containsKey(name)) {
-                return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
-            }
-            if (!scenarioTransitions.add(name)) {
-                return Result.createResultSet(Result.Type.ERROR, "Scenario is busy");
-            }
-            existing = scenarioThreadMap.remove(name);
-            wasRunning = existing != null && isScenarioThreadActive(existing);
+        TransitionResult transition = removeScenarioThreadForTransition(name);
+        if (transition.failed()) {
+            return transition.error();
         }
 
         try {
-            if (wasRunning && !stopScenarioThread(name, existing)) {
-                synchronized (scenarioStateLock) {
-                    scenarioThreadMap.putIfAbsent(name, existing);
-                }
-                return Result.createResultSet(Result.Type.ERROR, "Scenario did not stop before update");
+            ResponseEntity<Result> stopError = stopForUpdate(name, transition);
+            if (stopError != null) {
+                return stopError;
             }
 
-            synchronized (scenarioStateLock) {
-                if (!scenarioMap.containsKey(name)) {
-                    if (wasRunning && existing != null) {
-                        scenarioThreadMap.putIfAbsent(name, existing);
-                    }
-                    return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
-                }
-                scenarioMap.put(name, storedScenario);
+            ResponseEntity<Result> replaceError = replaceScenarioConfig(name, storedScenario, transition);
+            if (replaceError != null) {
+                return replaceError;
             }
+
             saveScenarios();
         } finally {
-            synchronized (scenarioStateLock) {
-                scenarioTransitions.remove(name);
-            }
+            exitScenarioTransition(name);
         }
 
-        if (wasRunning) {
-            ResponseEntity<Result> startResult = startScenario(name);
-            Result startBody = startResult.getBody();
-            if (startBody == null || !Result.Type.SUCCESS.equals(startBody.getType())) {
-                return startResult;
-            }
+        ResponseEntity<Result> restartError = restartScenarioIfNeeded(name, transition.active());
+        if (restartError != null) {
+            return restartError;
         }
 
         return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated scenario");
@@ -196,14 +189,15 @@ public class ScenarioService implements DisposableBean {
         ScenarioDto removed;
         ScenarioThread thread;
         synchronized (scenarioStateLock) {
-            if (!scenarioMap.containsKey(name)) {
-                return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
-            }
             if (!scenarioTransitions.add(name)) {
-                return Result.createResultSet(Result.Type.ERROR, "Scenario is busy");
+                return Result.createResultSet(Result.Type.ERROR, SCENARIO_BUSY);
             }
 
             removed = scenarioMap.remove(name);
+            if (removed == null) {
+                scenarioTransitions.remove(name);
+                return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
+            }
             thread = scenarioThreadMap.remove(name);
         }
 
@@ -227,51 +221,19 @@ public class ScenarioService implements DisposableBean {
 
     public ResponseEntity<Result> startScenario(String name) {
         while (true) {
-            ScenarioDto scenarioDto;
-            synchronized (scenarioStateLock) {
-                if (scenarioTransitions.contains(name)) {
-                    return Result.createResultSet(Result.Type.ERROR, "Scenario is busy");
-                }
-                scenarioDto = scenarioMap.get(name);
-                if (scenarioDto == null) {
-                    return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
-                }
+            StartLookup lookup = findScenarioForStart(name);
+            if (lookup.failed()) {
+                return lookup.error();
             }
 
-            Optional<String> validationError = validateScenarioReferences(scenarioDto);
+            Optional<String> validationError = validateScenarioReferences(lookup.scenarioDto());
             if (validationError.isPresent()) {
                 return Result.createResultSet(Result.Type.ERROR, validationError.get());
             }
 
-            synchronized (scenarioStateLock) {
-                if (scenarioTransitions.contains(name)) {
-                    return Result.createResultSet(Result.Type.ERROR, "Scenario is busy");
-                }
-                if (scenarioMap.get(name) != scenarioDto) {
-                    continue;
-                }
-
-                ScenarioThread existing = scenarioThreadMap.get(name);
-                if (existing != null && existing.getRunning().get()) {
-                    return Result.createResultSet(Result.Type.ERROR, "Scenario is already running");
-                }
-                if (existing != null) {
-                    scenarioThreadMap.remove(name);
-                }
-
-                ScenarioThread thread = new ScenarioThread(makerService, senderService, logService, scenarioDto);
-                scenarioThreadMap.put(name, thread);
-
-                try {
-                    Future<?> task = executorService.submit(thread);
-                    thread.attachRunningTask(task);
-                } catch (RuntimeException e) {
-                    scenarioThreadMap.remove(name, thread);
-                    thread.interrupt();
-                    log.error("Failed to start scenario thread: {}", name, e);
-                    return Result.createResultSet(Result.Type.ERROR, "Scenario thread start failed");
-                }
-                return Result.createResultSet(Result.Type.SUCCESS, "Scenario started");
+            StartAttempt attempt = submitScenarioIfUnchanged(name, lookup.scenarioDto());
+            if (!attempt.retry()) {
+                return attempt.response();
             }
         }
     }
@@ -280,7 +242,7 @@ public class ScenarioService implements DisposableBean {
         ScenarioThread thread;
         synchronized (scenarioStateLock) {
             if (scenarioTransitions.contains(name)) {
-                return Result.createResultSet(Result.Type.ERROR, "Scenario is busy");
+                return Result.createResultSet(Result.Type.ERROR, SCENARIO_BUSY);
             }
 
             thread = scenarioThreadMap.remove(name);
@@ -328,6 +290,130 @@ public class ScenarioService implements DisposableBean {
     private boolean isScenarioThreadActive(ScenarioThread thread) {
         Future<?> task = thread.getRunningTask();
         return thread.getRunning().get() || (task != null && !task.isDone());
+    }
+
+    private ResponseEntity<Result> validateUpdateRequest(String name, ScenarioDto scenarioDto) {
+        synchronized (scenarioStateLock) {
+            if (!scenarioMap.containsKey(name)) {
+                return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
+            }
+        }
+        if (scenarioDto == null) {
+            return Result.createResultSet(Result.Type.ERROR, "Scenario payload is required");
+        }
+        return null;
+    }
+
+    private TransitionResult removeScenarioThreadForTransition(String name) {
+        synchronized (scenarioStateLock) {
+            if (!scenarioMap.containsKey(name)) {
+                return new TransitionResult(null, false,
+                        Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND));
+            }
+            if (!scenarioTransitions.add(name)) {
+                return new TransitionResult(null, false,
+                        Result.createResultSet(Result.Type.ERROR, SCENARIO_BUSY));
+            }
+            ScenarioThread thread = scenarioThreadMap.remove(name);
+            return new TransitionResult(thread, thread != null && isScenarioThreadActive(thread), null);
+        }
+    }
+
+    private ResponseEntity<Result> stopForUpdate(String name, TransitionResult transition) {
+        if (!transition.active() || stopScenarioThread(name, transition.thread())) {
+            return null;
+        }
+
+        synchronized (scenarioStateLock) {
+            scenarioThreadMap.putIfAbsent(name, transition.thread());
+        }
+        return Result.createResultSet(Result.Type.ERROR, "Scenario did not stop before update");
+    }
+
+    private ResponseEntity<Result> replaceScenarioConfig(String name, ScenarioDto storedScenario,
+                                                         TransitionResult transition) {
+        synchronized (scenarioStateLock) {
+            if (scenarioMap.containsKey(name)) {
+                scenarioMap.put(name, storedScenario);
+                return null;
+            }
+            restoreScenarioThread(name, transition);
+            return Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND);
+        }
+    }
+
+    private void restoreScenarioThread(String name, TransitionResult transition) {
+        if (transition.active() && transition.thread() != null) {
+            scenarioThreadMap.putIfAbsent(name, transition.thread());
+        }
+    }
+
+    private void exitScenarioTransition(String name) {
+        synchronized (scenarioStateLock) {
+            scenarioTransitions.remove(name);
+        }
+    }
+
+    private ResponseEntity<Result> restartScenarioIfNeeded(String name, boolean wasRunning) {
+        if (!wasRunning) {
+            return null;
+        }
+
+        ResponseEntity<Result> startResult = startScenario(name);
+        Result startBody = startResult.getBody();
+        if (startBody == null || !Result.Type.SUCCESS.equals(startBody.getType())) {
+            return startResult;
+        }
+        return null;
+    }
+
+    private StartLookup findScenarioForStart(String name) {
+        synchronized (scenarioStateLock) {
+            if (scenarioTransitions.contains(name)) {
+                return new StartLookup(null, Result.createResultSet(Result.Type.ERROR, SCENARIO_BUSY));
+            }
+            ScenarioDto scenarioDto = scenarioMap.get(name);
+            if (scenarioDto == null) {
+                return new StartLookup(null, Result.createResultSet(Result.Type.ERROR, SCENARIO_NOT_FOUND));
+            }
+            return new StartLookup(scenarioDto, null);
+        }
+    }
+
+    private StartAttempt submitScenarioIfUnchanged(String name, ScenarioDto scenarioDto) {
+        synchronized (scenarioStateLock) {
+            if (scenarioTransitions.contains(name)) {
+                return new StartAttempt(false, Result.createResultSet(Result.Type.ERROR, SCENARIO_BUSY));
+            }
+            if (scenarioMap.get(name) != scenarioDto) {
+                return new StartAttempt(true, null);
+            }
+
+            ScenarioThread existing = scenarioThreadMap.get(name);
+            if (existing != null && isScenarioThreadActive(existing)) {
+                return new StartAttempt(false, Result.createResultSet(Result.Type.ERROR, "Scenario is already running"));
+            }
+            if (existing != null) {
+                scenarioThreadMap.remove(name);
+            }
+
+            ScenarioThread thread = new ScenarioThread(makerService, senderService, logService, scenarioDto);
+            scenarioThreadMap.put(name, thread);
+            return new StartAttempt(false, submitScenarioThread(name, thread));
+        }
+    }
+
+    private ResponseEntity<Result> submitScenarioThread(String name, ScenarioThread thread) {
+        try {
+            Future<?> task = executorService.submit(thread);
+            thread.attachRunningTask(task);
+            return Result.createResultSet(Result.Type.SUCCESS, "Scenario started");
+        } catch (RuntimeException e) {
+            scenarioThreadMap.remove(name, thread);
+            thread.interrupt();
+            log.error("Failed to start scenario thread: {}", name, e);
+            return Result.createResultSet(Result.Type.ERROR, "Scenario thread start failed");
+        }
     }
 
     private Optional<String> validateScenarioReferences(ScenarioDto scenarioDto) {
@@ -401,8 +487,7 @@ public class ScenarioService implements DisposableBean {
 
     private boolean senderExists(String senderName) {
         try {
-            Optional<?> sender = senderService.getSender(senderName);
-            return sender != null && sender.isPresent();
+            return senderService.getSender(senderName).isPresent();
         } catch (RuntimeException e) {
             log.warn("Failed to validate scenario sender reference: {}", senderName, e);
             return false;
@@ -411,8 +496,7 @@ public class ScenarioService implements DisposableBean {
 
     private boolean makerExists(String makerName) {
         try {
-            Optional<?> maker = makerService.getMaker(makerName);
-            return maker != null && maker.isPresent();
+            return makerService.getMaker(makerName).isPresent();
         } catch (RuntimeException e) {
             log.warn("Failed to validate scenario maker reference: {}", makerName, e);
             return false;
@@ -444,7 +528,7 @@ public class ScenarioService implements DisposableBean {
 
     private ScenarioThread activeThread(String name) {
         ScenarioThread thread = scenarioThreadMap.get(name);
-        if (thread != null && !thread.getRunning().get()) {
+        if (thread != null && !isScenarioThreadActive(thread)) {
             scenarioThreadMap.remove(name, thread);
             return null;
         }

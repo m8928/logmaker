@@ -26,6 +26,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -315,8 +316,6 @@ class SenderServiceTest {
 
     @Test
     void testDeleteSender_withRef_returnsError() throws Exception {
-        // Note: SenderService.deleteSender does NOT check ref count.
-        // Ref management is done by LogService. Verify delete still works.
         SenderDto senderDto = new SenderDto();
         senderDto.setName("refSender");
         senderDto.setType("testType");
@@ -331,8 +330,9 @@ class SenderServiceTest {
         // When
         ResponseEntity<Result> response = senderService.deleteSender("refSender");
 
-        // Then: service deletes regardless of ref
-        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertTrue(senderService.getSender("refSender").isPresent());
+        verify(sender, never()).close();
     }
 
     @Test

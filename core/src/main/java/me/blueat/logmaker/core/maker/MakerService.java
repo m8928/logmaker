@@ -110,6 +110,9 @@ public class MakerService implements DisposableBean {
                 return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
             }
             Maker<?> maker = existsMaker.get().getValue();
+            if (maker.getRef() > 0) {
+                return Result.createResultSet(Result.Type.ERROR, "Maker is currently in use");
+            }
             closeMaker(name, maker, "delete");
             makerTable.remove(existsMaker.get().getKey(), name);
         }

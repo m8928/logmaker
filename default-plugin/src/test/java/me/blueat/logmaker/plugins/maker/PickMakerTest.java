@@ -40,7 +40,7 @@ class PickMakerTest {
 
     @Test
     @DisplayName("업데이트 후 새로운 리스트에서 아이템을 선택하는지 테스트")
-    void testPickAfterUpdate() throws InterruptedException {
+    void testPickAfterUpdate() {
         List<String> initialList = Arrays.asList("a", "b", "c");
         Map<String, Object> initialArgs = new HashMap<>();
         initialArgs.put("picker", initialList);
@@ -53,8 +53,6 @@ class PickMakerTest {
         newArgs.put("picker", newList);
 
         pickMaker.update(newArgs);
-
-        Thread.sleep(100); // Allow queue to populate
 
         for (int i = 0; i < 10; i++) {
             String picked = pickMaker.getData();
@@ -90,14 +88,14 @@ class PickMakerTest {
 
     @Test
     @DisplayName("빈 리스트는 drain 중에도 빠르게 큐를 채우며 busy-spin하지 않는다")
-    void testEmptyListBacksOff() throws InterruptedException {
+    void testEmptyListBacksOff() {
         Map<String, Object> args = new HashMap<>();
         args.put("picker", List.of());
 
         pickMaker = new PickMaker("test-empty-list-backoff", "pick", args);
         pickMaker.getThread().start();
 
-        Thread.sleep(250);
+        assertThat(pickMaker.getData()).isEmpty();
 
         assertThat(pickMaker.getSize()).isLessThan(10);
     }

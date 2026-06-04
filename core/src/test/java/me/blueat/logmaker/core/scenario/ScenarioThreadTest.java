@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -236,6 +237,27 @@ class ScenarioThreadTest {
         assertThrows(IllegalStateException.class, scenarioThread::run);
         assertEquals(0, retainedSender.getRef());
         assertFalse(scenarioThread.getRunning().get());
+    }
+
+    @Test
+    void retainsSharedVariableMakerRefsUntilScenarioFinishes() {
+        makerService.add(new FixedMaker("sharedValue", "base-shared"));
+        TrackingMaker sharedMaker = new TrackingMaker("shared-maker", "shared-value");
+        makerService.add(sharedMaker);
+        LogThread loginLog = logThread("login", "<sharedValue>");
+        logService.add("login", loginLog);
+
+        CapturingSender sender = new CapturingSender("scenario-sender");
+        senderService.add(sender);
+
+        ScenarioDto scenario = scenario(List.of(step("login", List.of("scenario-sender"))));
+        scenario.setSharedVariables(Map.of("sharedValue", "shared-maker"));
+
+        new ScenarioThread(makerService, senderService, logService, scenario).run();
+
+        assertEquals(List.of("shared-value"), sender.getSentData());
+        assertEquals(1, sharedMaker.maxRef());
+        assertEquals(0, sharedMaker.getRef());
     }
 
     @Test
@@ -478,6 +500,24 @@ class ScenarioThreadTest {
         @Override
         public String getData() {
             throw new AssertionError("Overridden makers should not be evaluated");
+        }
+    }
+
+    private static class TrackingMaker extends FixedMaker {
+        private final AtomicInteger maxRef = new AtomicInteger();
+
+        private TrackingMaker(String name, String value) {
+            super(name, value);
+        }
+
+        @Override
+        public void increaseRef() {
+            super.increaseRef();
+            maxRef.accumulateAndGet(getRef(), Math::max);
+        }
+
+        private int maxRef() {
+            return maxRef.get();
         }
     }
 

@@ -20,6 +20,8 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class ValidExceptionHandler {
+    private static final String INDEX_HTML = "/index.html";
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Result> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
@@ -37,7 +39,7 @@ public class ValidExceptionHandler {
     public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws Exception {
         String uri = request.getRequestURI();
         // API paths and already-forwarded SPA fallbacks return 404 JSON instead of entering a forward loop.
-        if (uri.startsWith("/api/") || "/index.html".equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
+        if (uri.startsWith("/api/") || INDEX_HTML.equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.setContentType("application/json");
             response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
@@ -50,7 +52,7 @@ public class ValidExceptionHandler {
     public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String uri = request.getRequestURI();
         if (!uri.startsWith("/api/")) {
-            if ("/index.html".equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
+            if (INDEX_HTML.equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                 return null;
             }
@@ -68,7 +70,7 @@ public class ValidExceptionHandler {
 
     private void forwardToSpa(HttpServletRequest request, HttpServletResponse response, int missingDispatcherStatus)
             throws ServletException, IOException {
-        RequestDispatcher dispatcher = request.getRequestDispatcher("/index.html");
+        RequestDispatcher dispatcher = request.getRequestDispatcher(INDEX_HTML);
         if (dispatcher == null) {
             response.sendError(missingDispatcherStatus);
             return;
