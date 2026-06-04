@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Modifier;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
@@ -223,6 +224,13 @@ class LogServiceTest {
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
         Mockito.verify(logThread).setPaused(true);
         Mockito.verify(logThread).stopRunningTask();
+    }
+
+    @Test
+    void setPausedSerializesPauseResumeTransitions() throws NoSuchMethodException {
+        int modifiers = LogService.class.getDeclaredMethod("setPaused", String.class, boolean.class).getModifiers();
+
+        assertTrue(Modifier.isSynchronized(modifiers));
     }
 
     @Test

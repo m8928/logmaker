@@ -18,8 +18,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -141,6 +144,54 @@ class ScenarioServiceTest {
         if (restarted != null) {
             restarted.interrupt();
         }
+    }
+
+    @Test
+    void getScenarioReturnsSnapshotWithoutMutatingStoredConfiguration() {
+        ScenarioDto scenarioDto = scenario("snapshotScenario", 1, 0);
+        scenarioDto.setDescription("original");
+        scenarioDto.setSharedVariables(new HashMap<>(Map.of("customer", "customerMaker")));
+
+        ScenarioStepDto step = new ScenarioStepDto();
+        step.setLogName("auditLog");
+        step.setSenders(new ArrayList<>(List.of("tcpSender")));
+        step.setOverrides(new HashMap<>(Map.of("customer", "overrideMaker")));
+        scenarioDto.setSteps(new ArrayList<>(List.of(step)));
+
+        scenarioService.createScenario(scenarioDto);
+        scenarioDto.setDescription("mutated input");
+        scenarioDto.getSharedVariables().put("customer", "mutatedMaker");
+        scenarioDto.getSteps().get(0).getSenders().add("mutatedSender");
+
+        ScenarioDto snapshot = scenarioService.getScenario("snapshotScenario");
+        snapshot.setDescription("mutated snapshot");
+        snapshot.setStatus(true);
+        snapshot.getSharedVariables().put("customer", "snapshotMaker");
+        snapshot.getSteps().get(0).getSenders().add("snapshotSender");
+        snapshot.getSteps().get(0).getOverrides().put("customer", "snapshotOverride");
+
+        ScenarioDto freshSnapshot = scenarioService.getScenario("snapshotScenario");
+
+        assertEquals("original", freshSnapshot.getDescription());
+        assertFalse(freshSnapshot.isStatus());
+        assertEquals("customerMaker", freshSnapshot.getSharedVariables().get("customer"));
+        assertEquals(List.of("tcpSender"), freshSnapshot.getSteps().get(0).getSenders());
+        assertEquals("overrideMaker", freshSnapshot.getSteps().get(0).getOverrides().get("customer"));
+    }
+
+    @Test
+    void startScenarioReportsRuntimeStateWithoutMutatingStoredConfiguration() throws InterruptedException {
+        ScenarioDto scenarioDto = scenario("runningSnapshot", 0, 1000);
+        scenarioService.createScenario(scenarioDto);
+
+        ResponseEntity<Result> response = scenarioService.startScenario("runningSnapshot");
+        ScenarioThread thread = awaitScenarioThread("runningSnapshot");
+
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        assertFalse(scenarioService.getScenarioMap().get("runningSnapshot").isStatus());
+        assertTrue(scenarioService.getScenario("runningSnapshot").isStatus());
+
+        thread.interrupt();
     }
 
     private ScenarioDto scenario(String name, int loopCount, long intervalMs) {

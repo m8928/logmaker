@@ -153,7 +153,7 @@ public class LogService implements DisposableBean {
         return logThreadMap.get(name);
     }
 
-    public ResponseEntity<Result> setPaused(String name, boolean paused) {
+    public synchronized ResponseEntity<Result> setPaused(String name, boolean paused) {
         LogThread logThread = logThreadMap.get(name);
         if (logThread != null) {
             boolean wasPaused = logThread.isPaused();

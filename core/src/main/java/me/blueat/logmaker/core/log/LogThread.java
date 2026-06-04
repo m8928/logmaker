@@ -288,21 +288,26 @@ public class LogThread implements Runnable {
     }
 
     public LogDto getLogDto() {
-        LogDto currentLogDto = logDto;
         LogDto snapshot = new LogDto();
-        snapshot.setName(currentLogDto.getName());
-        snapshot.setFormat(currentLogDto.getFormat());
-        snapshot.setEps(currentLogDto.getEps());
-        snapshot.setEpsUnit(currentLogDto.getEpsUnit());
-        snapshot.setEpsTimeUnit(currentLogDto.getEpsTimeUnit());
-        snapshot.setSender(currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList());
-        snapshot.setPaused(paused);
-        snapshot.setRegTime(currentLogDto.getRegTime());
+        updateLock.lock();
+        try {
+            LogDto currentLogDto = logDto;
+            snapshot.setName(currentLogDto.getName());
+            snapshot.setFormat(currentLogDto.getFormat());
+            snapshot.setEps(currentLogDto.getEps());
+            snapshot.setEpsUnit(currentLogDto.getEpsUnit());
+            snapshot.setEpsTimeUnit(currentLogDto.getEpsTimeUnit());
+            snapshot.setSender(currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList());
+            snapshot.setPaused(paused);
+            snapshot.setRegTime(currentLogDto.getRegTime());
+            snapshot.setSample(getSample(this.vTemplate, this.getTemplateData()));
+        } finally {
+            updateLock.unlock();
+        }
         snapshot.setCount(count.get());
         snapshot.setCurrentEps(lastSecondEvents);
         snapshot.setBytes(bytes.get());
         snapshot.setBytesPerSec(lastSecondBytes);
-        snapshot.setSample(getSample(this.vTemplate, this.getTemplateData()));
         return snapshot;
     }
 

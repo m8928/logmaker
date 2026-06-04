@@ -118,6 +118,20 @@ class ValidExceptionHandlerTest {
     }
 
     @Test
+    void genericForwardedFailuresDoNotForwardToIndexAgain() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(request.getRequestURI()).thenReturn("/scenario");
+        when(request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI)).thenReturn("/scenario");
+
+        ResponseEntity<Result> result = handler.handleAllExceptions(new RuntimeException("boom"), request, response);
+
+        assertNull(result);
+        verify(response).sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(request, never()).getRequestDispatcher("/index.html");
+    }
+
+    @Test
     void returnsApiErrorsAsJsonResult() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);

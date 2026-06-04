@@ -14,8 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,34 +72,14 @@ public class ScenarioService implements DisposableBean {
 
     public List<ScenarioDto> getScenarios() {
         return scenarioMap.values().stream()
-                .map(dto -> {
-                    ScenarioThread thread = scenarioThreadMap.get(dto.getName());
-                    boolean isRunning = thread != null && thread.getRunning().get();
-                    if (thread != null && !isRunning) scenarioThreadMap.remove(dto.getName());
-                    dto.setStatus(isRunning);
-                    dto.setCount(thread != null ? thread.getCount().get() : 0);
-                    dto.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
-                    dto.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
-                    dto.setTotalSteps(dto.getSteps() != null ? dto.getSteps().size() : 0);
-                    dto.setStepCounts(thread != null ? thread.getStepCounts() : null);
-                    return dto;
-                })
+                .map(this::scenarioSnapshot)
                 .toList();
     }
 
     public ScenarioDto getScenario(String name) {
         ScenarioDto dto = scenarioMap.get(name);
         if (dto == null) return null;
-        ScenarioThread thread = scenarioThreadMap.get(name);
-        boolean isRunning = thread != null && thread.getRunning().get();
-        if (thread != null && !isRunning) scenarioThreadMap.remove(name);
-        dto.setStatus(isRunning);
-        dto.setCount(thread != null ? thread.getCount().get() : 0);
-        dto.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
-        dto.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
-        dto.setTotalSteps(dto.getSteps() != null ? dto.getSteps().size() : 0);
-        dto.setStepCounts(thread != null ? thread.getStepCounts() : null);
-        return dto;
+        return scenarioSnapshot(dto);
     }
 
     public ResponseEntity<Result> createScenario(ScenarioDto scenarioDto) {
@@ -108,9 +91,10 @@ public class ScenarioService implements DisposableBean {
             return Result.createResultSet(Result.Type.ERROR, "Scenario name is required");
         }
 
-        if (scenarioMap.putIfAbsent(scenarioDto.getName(), scenarioDto) != null) {
+        ScenarioDto storedScenario = copyScenarioConfig(scenarioDto);
+        if (scenarioMap.putIfAbsent(storedScenario.getName(), storedScenario) != null) {
             return Result.createResultSet(Result.Type.ERROR,
-                    String.format("%s is the scenario name already in use", scenarioDto.getName()));
+                    String.format("%s is the scenario name already in use", storedScenario.getName()));
         }
 
         if (!isImport) {
@@ -139,8 +123,9 @@ public class ScenarioService implements DisposableBean {
             }
         }
 
-        scenarioDto.setName(name);
-        scenarioMap.put(name, scenarioDto);
+        ScenarioDto storedScenario = copyScenarioConfig(scenarioDto);
+        storedScenario.setName(name);
+        scenarioMap.put(name, storedScenario);
         saveScenarios();
 
         if (wasRunning) {
@@ -198,8 +183,6 @@ public class ScenarioService implements DisposableBean {
                 log.error("Failed to start scenario thread: {}", name, e);
                 return Result.createResultSet(Result.Type.ERROR, "Scenario thread start failed");
             }
-            scenarioDto.setStatus(true);
-
             return Result.createResultSet(Result.Type.SUCCESS, "Scenario started");
         }
     }
@@ -211,11 +194,6 @@ public class ScenarioService implements DisposableBean {
         }
 
         stopScenarioThread(name, thread);
-        ScenarioDto dto = scenarioMap.get(name);
-        if (dto != null) {
-            dto.setStatus(false);
-        }
-
         return Result.createResultSet(Result.Type.SUCCESS, "Scenario stopped");
     }
 
@@ -240,20 +218,80 @@ public class ScenarioService implements DisposableBean {
 
     private void saveScenarios() {
         List<ScenarioDto> toSave = scenarioMap.values().stream()
-                .map(dto -> {
-                    // Save without runtime fields
-                    ScenarioDto clean = new ScenarioDto();
-                    clean.setName(dto.getName());
-                    clean.setDescription(dto.getDescription());
-                    clean.setSharedVariables(dto.getSharedVariables());
-                    clean.setSteps(dto.getSteps());
-                    clean.setIntervalMinMs(dto.getIntervalMinMs());
-                    clean.setIntervalMaxMs(dto.getIntervalMaxMs());
-                    clean.setLoopCount(dto.getLoopCount());
-                    return clean;
-                })
+                .map(this::copyScenarioConfig)
                 .toList();
         saveToFile(toSave, scenarioStoragePath());
+    }
+
+    private ScenarioDto scenarioSnapshot(ScenarioDto dto) {
+        ScenarioThread thread = activeThread(dto.getName());
+        ScenarioDto snapshot = copyScenarioConfig(dto);
+        snapshot.setStatus(thread != null);
+        snapshot.setCount(thread != null ? thread.getCount().get() : 0);
+        snapshot.setCurrentStep(thread != null ? thread.getCurrentStep().get() : 0);
+        snapshot.setCurrentLoop(thread != null ? thread.getCurrentLoop().get() : 0);
+        snapshot.setTotalSteps(snapshot.getSteps() != null ? snapshot.getSteps().size() : 0);
+        snapshot.setStepCounts(thread != null ? copyStepCounts(thread.getStepCounts()) : null);
+        return snapshot;
+    }
+
+    private ScenarioThread activeThread(String name) {
+        ScenarioThread thread = scenarioThreadMap.get(name);
+        if (thread != null && !thread.getRunning().get()) {
+            scenarioThreadMap.remove(name, thread);
+            return null;
+        }
+        return thread;
+    }
+
+    private ScenarioDto copyScenarioConfig(ScenarioDto dto) {
+        ScenarioDto copy = new ScenarioDto();
+        copy.setName(dto.getName());
+        copy.setDescription(dto.getDescription());
+        copy.setSharedVariables(copyMap(dto.getSharedVariables()));
+        copy.setSteps(copySteps(dto.getSteps()));
+        copy.setSenders(copyList(dto.getSenders()));
+        copy.setIntervalMinMs(dto.getIntervalMinMs());
+        copy.setIntervalMaxMs(dto.getIntervalMaxMs());
+        copy.setLoopCount(dto.getLoopCount());
+        return copy;
+    }
+
+    private List<ScenarioStepDto> copySteps(List<ScenarioStepDto> steps) {
+        List<ScenarioStepDto> copies = new ArrayList<>();
+        if (steps == null) {
+            return copies;
+        }
+        for (ScenarioStepDto step : steps) {
+            copies.add(copyStep(step));
+        }
+        return copies;
+    }
+
+    private ScenarioStepDto copyStep(ScenarioStepDto step) {
+        if (step == null) {
+            return null;
+        }
+        ScenarioStepDto copy = new ScenarioStepDto();
+        copy.setLogName(step.getLogName());
+        copy.setRepeat(step.getRepeat());
+        copy.setDelayMinMs(step.getDelayMinMs());
+        copy.setDelayMaxMs(step.getDelayMaxMs());
+        copy.setSenders(copyList(step.getSenders()));
+        copy.setOverrides(copyMap(step.getOverrides()));
+        return copy;
+    }
+
+    private List<String> copyList(List<String> values) {
+        return values != null ? new ArrayList<>(values) : new ArrayList<>();
+    }
+
+    private Map<String, String> copyMap(Map<String, String> values) {
+        return values != null ? new HashMap<>(values) : new HashMap<>();
+    }
+
+    private long[] copyStepCounts(long[] stepCounts) {
+        return stepCounts != null ? Arrays.copyOf(stepCounts, stepCounts.length) : null;
     }
 
     private String scenarioStoragePath() {

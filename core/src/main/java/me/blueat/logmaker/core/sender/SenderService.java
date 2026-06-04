@@ -39,7 +39,6 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 public class SenderService {
     private Table<String, String, Sender<?>> senderTable;
     private Table<String, String, SenderPlugin> senderPluginTable;
-    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> senderNameRegistry = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final ObjectMapper mapper;
     private final SpringPluginManager springPluginManager;
@@ -102,11 +101,13 @@ public class SenderService {
     }
 
     public ResponseEntity<Result> deleteSender(String name) {
-        if (senderNameRegistry.remove(name) == null) {
-            return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
-        }
-        Optional<Map.Entry<String, Sender<?>>> existsSender = getSender(name);
-        if (existsSender.isPresent()) {
+        synchronized (senderTable) {
+            Optional<Map.Entry<String, Sender<?>>> existsSender = senderTable.column(name).entrySet().stream()
+                    .findFirst()
+                    .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+            if (existsSender.isEmpty()) {
+                return Result.createResultSet(Result.Type.ERROR, "Sender does not exist");
+            }
             Sender<?> sender = existsSender.get().getValue();
             stopSenderThread(name, sender);
             try {
@@ -114,9 +115,7 @@ public class SenderService {
             } catch (Exception e) {
                 log.warn("Failed to close sender: {}", name, e);
             } finally {
-                synchronized (senderTable) {
-                    senderTable.remove(existsSender.get().getKey(), name);
-                }
+                senderTable.remove(existsSender.get().getKey(), name);
             }
         }
         saveToFile(getSender(), senderStoragePath());
@@ -200,31 +199,28 @@ public class SenderService {
     }
 
     public boolean addSender(SenderDto senderDto, String pluginId, Sender<?> sender) {
-        if (senderNameRegistry.putIfAbsent(senderDto.getName(), Boolean.TRUE) != null) {
-            try {
-                sender.close();
-            } catch (Exception e) {
-                log.warn("Failed to close sender after duplicate name check: {}", senderDto.getName(), e);
+        synchronized (senderTable) {
+            if (senderTable.containsColumn(senderDto.getName())) {
+                try {
+                    sender.close();
+                } catch (Exception e) {
+                    log.warn("Failed to close sender after duplicate name check: {}", senderDto.getName(), e);
+                }
+                return false;
             }
-            return false;
-        }
-        try {
-            synchronized (senderTable) {
+            try {
                 senderTable.put(pluginId, senderDto.getName(), sender);
-            }
-            startSenderThread(senderDto.getName(), sender);
-            return true;
-        } catch (Exception e) {
-            try {
-                sender.close();
-            } catch (Exception closeException) {
-                log.warn("Failed to close sender after registration failure: {}", senderDto.getName(), closeException);
-            }
-            synchronized (senderTable) {
+                startSenderThread(senderDto.getName(), sender);
+                return true;
+            } catch (Exception e) {
+                try {
+                    sender.close();
+                } catch (Exception closeException) {
+                    log.warn("Failed to close sender after registration failure: {}", senderDto.getName(), closeException);
+                }
                 senderTable.remove(pluginId, senderDto.getName());
+                throw e;
             }
-            senderNameRegistry.remove(senderDto.getName());
-            throw e;
         }
     }
 

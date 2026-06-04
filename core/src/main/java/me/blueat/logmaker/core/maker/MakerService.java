@@ -42,7 +42,6 @@ public class MakerService {
     private final ObjectMapper mapper;
     private Table<String, String, Maker<?>> makerTable;
     private Table<String, String, MakerPlugin> makerPluginTable;
-    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> makerNameRegistry = new java.util.concurrent.ConcurrentHashMap<>();
 
     private record MakerSnapshot(String name, Maker<?> maker) {
     }
@@ -102,11 +101,13 @@ public class MakerService {
     }
 
     public ResponseEntity<Result> deleteMaker(String name) {
-        if (makerNameRegistry.remove(name) == null) {
-            return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
-        }
-        Optional<Map.Entry<String, Maker<?>>> existsMaker = getMaker(name);
-        if (existsMaker.isPresent()) {
+        synchronized (makerTable) {
+            Optional<Map.Entry<String, Maker<?>>> existsMaker = makerTable.column(name).entrySet().stream()
+                    .findFirst()
+                    .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+            if (existsMaker.isEmpty()) {
+                return Result.createResultSet(Result.Type.ERROR, "Maker does not exist");
+            }
             Maker<?> maker = existsMaker.get().getValue();
             stopMakerThread(name, maker);
             try {
@@ -114,9 +115,7 @@ public class MakerService {
             } catch (Exception e) {
                 log.warn("Failed to close maker: {}", name, e);
             } finally {
-                synchronized (makerTable) {
-                    makerTable.remove(existsMaker.get().getKey(), name);
-                }
+                makerTable.remove(existsMaker.get().getKey(), name);
             }
         }
         saveToFile(getMaker(), makerStoragePath());
@@ -188,31 +187,28 @@ public class MakerService {
     }
 
     public boolean addMaker(MakerDto makerDto, String pluginId, Maker maker) {
-        if (makerNameRegistry.putIfAbsent(makerDto.getName(), Boolean.TRUE) != null) {
-            try {
-                maker.close();
-            } catch (Exception e) {
-                log.warn("Failed to close maker after duplicate name check: {}", makerDto.getName(), e);
+        synchronized (makerTable) {
+            if (makerTable.containsColumn(makerDto.getName())) {
+                try {
+                    maker.close();
+                } catch (Exception e) {
+                    log.warn("Failed to close maker after duplicate name check: {}", makerDto.getName(), e);
+                }
+                return false;
             }
-            return false;
-        }
-        try {
-            synchronized (makerTable) {
+            try {
                 makerTable.put(pluginId, makerDto.getName(), maker);
-            }
-            startMakerThread(makerDto.getName(), maker);
-            return true;
-        } catch (Exception e) {
-            try {
-                maker.close();
-            } catch (Exception closeException) {
-                log.warn("Failed to close maker after registration failure: {}", makerDto.getName(), closeException);
-            }
-            synchronized (makerTable) {
+                startMakerThread(makerDto.getName(), maker);
+                return true;
+            } catch (Exception e) {
+                try {
+                    maker.close();
+                } catch (Exception closeException) {
+                    log.warn("Failed to close maker after registration failure: {}", makerDto.getName(), closeException);
+                }
                 makerTable.remove(pluginId, makerDto.getName());
+                throw e;
             }
-            makerNameRegistry.remove(makerDto.getName());
-            throw e;
         }
     }
 

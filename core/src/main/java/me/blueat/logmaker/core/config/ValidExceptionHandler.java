@@ -50,7 +50,7 @@ public class ValidExceptionHandler {
     public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String uri = request.getRequestURI();
         if (!uri.startsWith("/api/")) {
-            if ("/index.html".equals(uri)) {
+            if ("/index.html".equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                 return null;
             }
