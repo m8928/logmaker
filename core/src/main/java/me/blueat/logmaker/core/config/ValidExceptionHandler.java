@@ -1,5 +1,9 @@
 package me.blueat.logmaker.core.config;
 
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.model.Result;
 import org.springframework.http.ResponseEntity;
@@ -7,13 +11,23 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @RestControllerAdvice
 @Slf4j
 public class ValidExceptionHandler {
+    private static final String INDEX_HTML = "/index.html";
+    private static final Set<String> STATIC_ASSET_EXTENSIONS = Set.of(
+            ".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
+            ".ico", ".svg", ".woff", ".woff2", ".ttf", ".eot", ".wasm"
+    );
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Result> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
@@ -27,9 +41,61 @@ public class ValidExceptionHandler {
         return Result.createResultSet(Result.Type.ERROR, "Validation failed", errors);
     }
 
+    @ExceptionHandler(NoResourceFoundException.class)
+    public void handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response) throws Exception {
+        String uri = request.getRequestURI();
+        if (shouldReturnJsonNotFound(request, uri)) {
+            writeJsonNotFound(response);
+            return;
+        }
+        forwardToSpa(request, response, HttpServletResponse.SC_NOT_FOUND);
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result> handleAllExceptions(Exception ex) {
-        log.error("An unexpected error occurred", ex);
+    public ResponseEntity<Result> handleAllExceptions(Exception ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String uri = request.getRequestURI();
+        if (!uri.startsWith("/api/")) {
+            if (INDEX_HTML.equals(uri) || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null) {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                return null;
+            }
+            try {
+                forwardToSpa(request, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            } catch (ServletException | IOException forwardException) {
+                log.error("Failed to forward non-API error to SPA: {}", uri, forwardException);
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
+            return null;
+        }
+        log.error("API error: {} {}", request.getMethod(), uri, ex);
         return Result.createResultSet(Result.Type.ERROR, "An unexpected internal server error occurred");
+    }
+
+    private boolean shouldReturnJsonNotFound(HttpServletRequest request, String uri) {
+        return uri.startsWith("/api/")
+                || INDEX_HTML.equals(uri)
+                || isStaticAsset(uri)
+                || request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI) != null;
+    }
+
+    private boolean isStaticAsset(String uri) {
+        String lowerUri = uri.toLowerCase(Locale.ROOT);
+        return STATIC_ASSET_EXTENSIONS.stream().anyMatch(lowerUri::endsWith);
+    }
+
+    private void writeJsonNotFound(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"type\":\"ERROR\",\"message\":\"Not found\"}");
+    }
+
+    private void forwardToSpa(HttpServletRequest request, HttpServletResponse response, int missingDispatcherStatus)
+            throws ServletException, IOException {
+        RequestDispatcher dispatcher = request.getRequestDispatcher(INDEX_HTML);
+        if (dispatcher == null) {
+            response.sendError(missingDispatcherStatus);
+            return;
+        }
+        dispatcher.forward(request, response);
     }
 }

@@ -14,6 +14,10 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class Sender<T> {
     private AtomicInteger ref = new AtomicInteger(0);
     private AtomicLong count = new AtomicLong(0);
+    private AtomicLong bytes = new AtomicLong(0);
+    private final AtomicLong currentSecondBytes = new AtomicLong(0);
+    private volatile long lastTickSec = 0;
+    private long limit = 0; // 0 = unlimited
     private long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
 
     abstract public String getSenderName();
@@ -38,9 +42,41 @@ public abstract class Sender<T> {
     public void increaseCount() {
         count.incrementAndGet();
     }
+    public synchronized void addBytes(long size) {
+        bytes.addAndGet(size);
+        long now = currentEpochSecond();
+        if (lastTickSec == 0 || now == lastTickSec) {
+            currentSecondBytes.addAndGet(size);
+            lastTickSec = now;
+        } else {
+            currentSecondBytes.set(size);
+            lastTickSec = now;
+        }
+    }
+    public long getBytes() {
+        return bytes.get();
+    }
+    public synchronized long getBytesPerSec() {
+        long now = currentEpochSecond();
+        if (lastTickSec == 0 || now - lastTickSec > 1) {
+            return 0;
+        }
+        return currentSecondBytes.get();
+    }
+
+    protected long currentEpochSecond() {
+        return System.currentTimeMillis() / 1000;
+    }
     public void decreaseCount() { count.decrementAndGet(); }
 
+    public long getLimit() { return limit; }
+    public void setLimit(long limit) { this.limit = limit; }
+    public boolean isLimitReached() { return limit > 0 && count.get() >= limit; }
+
     abstract public void update(Map<String, Object> args);
+    public void close() {
+    }
+
     public long getRegTime() {
         return this.regTime;
     }

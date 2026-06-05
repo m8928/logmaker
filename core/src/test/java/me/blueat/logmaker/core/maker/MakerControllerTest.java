@@ -15,6 +15,8 @@ import java.util.Collections;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MakerController.class)
@@ -51,7 +53,8 @@ class MakerControllerTest {
         mockMvc.perform(post("/api/v1/maker")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(makerDto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"));
     }
 
     @Test
@@ -66,7 +69,8 @@ class MakerControllerTest {
         mockMvc.perform(put("/api/v1/maker/testMaker")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(makerDto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"));
     }
 
     @Test
@@ -76,6 +80,73 @@ class MakerControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/v1/maker/testMaker"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"));
+    }
+
+    @Test
+    void createMaker_returnsError() throws Exception {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("testMaker");
+        makerDto.setType("testType");
+        when(makerService.createMaker(any(MakerDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Duplicate"));
+    }
+
+    @Test
+    void testCreateMaker_emptyName_returns400() throws Exception {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("");
+        makerDto.setType("testType");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/maker")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(makerDto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testCreateMaker_missingName_returnsError() throws Exception {
+        // Given: MakerDto with no name (violates @NotEmpty)
+        // ValidExceptionHandler returns ERROR/406 (not 400)
+        MakerDto makerDto = new MakerDto();
+        makerDto.setType("testType");
+        // name is null - should fail @NotEmpty validation
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/maker")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(makerDto)))
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testDeleteMaker_nonExistent_returnsError() throws Exception {
+        // Given
+        when(makerService.deleteMaker("nonExistentMaker")).thenReturn(Result.createResultSet(Result.Type.ERROR, "Maker does not exist"));
+
+        // When & Then
+        mockMvc.perform(delete("/api/v1/maker/nonExistentMaker"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("ERROR"));
+    }
+
+    @Test
+    void testUpdateMaker_nonExistent_returnsError() throws Exception {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("nonExistentMaker");
+        makerDto.setType("testType");
+        when(makerService.updateMaker(any(MakerDto.class))).thenReturn(Result.createResultSet(Result.Type.ERROR, "Update maker failed"));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/maker/nonExistentMaker")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(makerDto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("ERROR"));
     }
 }

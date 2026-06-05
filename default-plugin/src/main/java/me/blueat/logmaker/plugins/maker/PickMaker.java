@@ -8,12 +8,16 @@ import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class PickMaker extends Maker<String> implements Runnable {
+    private static final long EMPTY_PICKER_BACKOFF_MS = 100L;
+
     private String makerName;
     private String type;
     private List<String> picker;
@@ -21,6 +25,7 @@ public class PickMaker extends Maker<String> implements Runnable {
     private Map<String, Object> args;
     private Thread thread;
     private Lock updateLock;
+    private final AtomicLong configurationVersion = new AtomicLong();
 
     public PickMaker(String makerName, String type, Map<String, Object> args) {
         thread = new Thread(this);
@@ -38,15 +43,29 @@ public class PickMaker extends Maker<String> implements Runnable {
     }
 
     @Override
+    @SuppressWarnings("java:S2245")
     public void run() {
         while(!Thread.currentThread().isInterrupted()) {
             updateLock.lock();
             String pick;
+            long version;
+            boolean emptyPicker;
             try {
-                pick = picker.get((int) ((Math.random() * ((picker.size()) - 0)) + 0));
+                version = configurationVersion.get();
+                if (picker != null && !picker.isEmpty()) {
+                    pick = picker.get(ThreadLocalRandom.current().nextInt(picker.size()));
+                    emptyPicker = false;
+                } else {
+                    pick = "";
+                    emptyPicker = true;
+                }
             }
             finally {
                 updateLock.unlock();
+            }
+
+            if (version != configurationVersion.get()) {
+                continue;
             }
 
             try {
@@ -54,6 +73,17 @@ public class PickMaker extends Maker<String> implements Runnable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+            if (emptyPicker) {
+                backOffEmptyPicker();
+            }
+        }
+    }
+
+    private void backOffEmptyPicker() {
+        try {
+            Thread.sleep(EMPTY_PICKER_BACKOFF_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -62,7 +92,8 @@ public class PickMaker extends Maker<String> implements Runnable {
         try {
             return queue.take();
         } catch (InterruptedException e) {
-            return null;
+            Thread.currentThread().interrupt();
+            return "";
         }
     }
 
@@ -96,9 +127,9 @@ public class PickMaker extends Maker<String> implements Runnable {
         updateLock.lock();
         try {
             this.args = args;
+            configurationVersion.incrementAndGet();
             init();
             this.queue.clear();
-            // NOTHING
         } finally {
             updateLock.unlock();
         }

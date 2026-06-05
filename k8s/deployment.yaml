@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logmaker
+  namespace: logmaker
+  labels:
+    app: logmaker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logmaker
+  template:
+    metadata:
+      labels:
+        app: logmaker
+    spec:
+      containers:
+        - name: logmaker
+          image: logmaker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 19999
+              name: http
+          env:
+            - name: JAVA_OPTS
+              value: "-Xms256m -Xmx512m"
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: plugins
+              mountPath: /app/plugins
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: logmaker-data
+        - name: plugins
+          persistentVolumeClaim:
+            claimName: logmaker-plugins

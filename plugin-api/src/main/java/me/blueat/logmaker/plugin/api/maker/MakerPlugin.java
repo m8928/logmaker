@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class MakerPlugin implements ExtensionPoint {
     public abstract String getType();
-    public abstract Maker getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException;
+    public abstract Maker<?> getMaker(String name, Map<String, Object> args) throws ArgumentsNotValidException;
     public abstract Map<String, MakerArgs> getMakerArgsMap();
 
     /**
@@ -21,8 +21,8 @@ public abstract class MakerPlugin implements ExtensionPoint {
      * @return
      */
     public boolean checkArgs(Map<String, MakerArgs> makerArgsMap, Map<String, Object> args) throws ArgumentsNotValidException {
-        log.info("{}", makerArgsMap);
-        log.info("{}", args);
+        log.debug("{}", makerArgsMap);
+        log.debug("{}", args);
 
         if (!args.keySet().containsAll(makerArgsMap.entrySet().stream()
                 .filter(e -> e.getValue().isRequired())
@@ -31,12 +31,12 @@ public abstract class MakerPlugin implements ExtensionPoint {
 
         args.keySet().forEach(key -> {
             if (makerArgsMap.containsKey(key)) {
-                Class argsClass = makerArgsMap.get(key).getType();
+                Class<?> argsClass = makerArgsMap.get(key).getType();
                 if (args.get(key) == null || !argsClass.isInstance(args.get(key))) {
                     throw new ArgumentsNotValidException(key);
                 }
 
-                if (makerArgsMap.get(key).isRequired() && List.class.isInstance(args.get(key)) && ((List)args.get(key)).size() == 0) {
+                if (makerArgsMap.get(key).isRequired() && args.get(key) instanceof List && ((List<?>) args.get(key)).isEmpty()) {
                     throw new ArgumentsNotValidException(key);
                 }
             }

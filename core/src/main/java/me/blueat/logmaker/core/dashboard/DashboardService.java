@@ -6,11 +6,15 @@ import me.blueat.logmaker.core.log.LogService;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.plugin.PluginService;
+import me.blueat.logmaker.core.scenario.ScenarioService;
 import me.blueat.logmaker.core.sender.SenderService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.stereotype.Service;
 
 import javax.management.*;
 import java.lang.management.ManagementFactory;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -20,22 +24,35 @@ public class DashboardService {
     private final LogService logService;
     private final SenderService senderService;
     private final PluginService pluginService;
+    private final ScenarioService scenarioService;
+
+    @Autowired(required = false)
+    private BuildProperties buildProperties;
 
     public DashboardDto getDashboard() {
-        long eps = logService.getLog().stream().map(LogDto::getEps).reduce(0L, Long::sum);
-        long actualEps = logService.getLog().stream().map(LogDto::getCurrentEps).reduce(0L, Long::sum);
+        List<LogDto> logs = logService.getLog();
+        long eps = logs.stream().filter(l -> !"bytes".equals(l.getEpsUnit())).map(LogDto::getEps).reduce(0L, Long::sum);
+        long actualEps = logs.stream().map(LogDto::getCurrentEps).reduce(0L, Long::sum);
+        long bps = logs.stream().filter(l -> "bytes".equals(l.getEpsUnit())).map(LogDto::getEps).reduce(0L, Long::sum);
+        long actualBps = logs.stream().map(LogDto::getBytesPerSec).reduce(0L, Long::sum);
 
         return DashboardDto.builder()
                 .maker(makerService.getMaker().size())
-                .log(logService.getLog().size())
+                .log(logs.size())
                 .sender(senderService.getSender().size())
                 .plugin(pluginService.getPlugin().size())
                 .eps(eps)
                 .actualEps(actualEps)
+                .bps(bps)
+                .actualBps(actualBps)
                 .cpu(getProcessCpuLoad())
                 .memory((Runtime.getRuntime().totalMemory()
                         - Runtime.getRuntime().freeMemory())/1024/1024)
+                .maxMemory(Runtime.getRuntime().maxMemory() / (1024 * 1024))
                 .thread(Thread.activeCount())
+                .scenario(scenarioService.getScenarios().size())
+                .version(buildProperties != null ? buildProperties.getVersion() : "dev")
+                .buildTime(buildProperties != null && buildProperties.getTime() != null ? buildProperties.getTime().toString() : null)
                 .build();
     }
 

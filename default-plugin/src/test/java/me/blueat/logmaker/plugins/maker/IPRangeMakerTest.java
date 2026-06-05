@@ -79,16 +79,13 @@ class IPRangeMakerTest {
 
     @Test
     @DisplayName("업데이트 후에도 IP가 새 범위 내에서 생성되는지 테스트")
-    void testGetDataAfterUpdate() throws InterruptedException {
+    void testGetDataAfterUpdate() {
         Map<String, Object> newArgs = new HashMap<>();
         newArgs.put("start", START_IP_2);
         newArgs.put("end", END_IP_2);
         newArgs.put("deviation", 2L);
 
         ipRangeMaker.update(newArgs);
-
-        // Allow some time for the queue to be populated by the worker thread
-        Thread.sleep(100);
 
         for (int i = 0; i < 5; i++) {
             String ip = ipRangeMaker.getData();

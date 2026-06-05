@@ -1,1 +1,15 @@
-nohup java -Xms1G -Xmx2G -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+G1SummarizeConcMark -XX:InitiatingHeapOccupancyPercent=35 -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=19998 -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=false -Dplugin.root=./plugins -Ddata.root=./data -jar logmaker-core-2.0.1-exec.jar >/dev/null 2>&1 &
+#!/usr/bin/env sh
+
+JAVA_OPTS=${JAVA_OPTS:-}
+
+nohup java \
+  -Xms1G \
+  -Xmx2G \
+  -XX:+UseG1GC \
+  -XX:+UnlockDiagnosticVMOptions \
+  -XX:+G1SummarizeConcMark \
+  -XX:InitiatingHeapOccupancyPercent=35 \
+  ${JAVA_OPTS} \
+  -Dplugin.root=./plugins \
+  -Ddata.root=./data \
+  -jar logmaker-core-3.0.0-exec.jar >/dev/null 2>&1 &

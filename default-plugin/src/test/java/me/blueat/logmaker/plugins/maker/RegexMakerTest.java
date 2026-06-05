@@ -1,12 +1,16 @@
 package me.blueat.logmaker.plugins.maker;
 
+import com.github.curiousoddman.rgxgen.RgxGen;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,8 +20,8 @@ class RegexMakerTest {
 
     @AfterEach
     void tearDown() {
-        if (regexMaker != null && regexMaker.getThread() != null) {
-            regexMaker.getThread().interrupt();
+        if (regexMaker != null) {
+            regexMaker.close();
         }
     }
 
@@ -53,7 +57,7 @@ class RegexMakerTest {
 
     @Test
     @DisplayName("업데이트 후 새로운 정규식으로 문자열을 생성하는지 테스트")
-    void testGenerationAfterUpdate() throws InterruptedException {
+    void testGenerationAfterUpdate() {
         Map<String, Object> initialArgs = new HashMap<>();
         initialArgs.put("regex", "[0-9]{3}");
         regexMaker = new RegexMaker("test-update-regex", "regex", initialArgs);
@@ -65,11 +69,72 @@ class RegexMakerTest {
 
         regexMaker.update(newArgs);
 
-        Thread.sleep(100); // Allow queue to populate
-
         for (int i = 0; i < 5; i++) {
             String generated = regexMaker.getData();
             assertThat(generated).isNotNull().matches(newRegex);
         }
+    }
+
+    @Test
+    @DisplayName("close 호출 시 maker thread를 종료하는지 테스트")
+    void testCloseStopsMakerThread() throws InterruptedException {
+        Map<String, Object> args = new HashMap<>();
+        args.put("regex", "[a-z]{5}");
+        regexMaker = new RegexMaker("test-close-regex", "regex", args);
+        Thread worker = regexMaker.getThread();
+        worker.start();
+
+        regexMaker.close();
+        worker.join(2_000);
+
+        assertThat(worker.isAlive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("정규식 생성 executor는 maker 당 worker 1개로 제한한다")
+    void testRegexExecutorUsesSingleWorkerPerMaker() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("regex", "[a-z]{5}");
+        regexMaker = new RegexMaker("test-worker-limit-regex", "regex", args);
+
+        var executorField = RegexMaker.class.getDeclaredField("regexExecutor");
+        executorField.setAccessible(true);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) executorField.get(regexMaker);
+
+        assertThat(executor.getMaximumPoolSize()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("정규식 생성 대기 중에도 close가 updateLock에 막히지 않는다")
+    void testCloseDoesNotWaitForRegexGenerationTimeout() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("regex", "[a-z]{5}");
+        regexMaker = new RegexMaker("test-lock-free-close-regex", "regex", args);
+
+        CountDownLatch generationStarted = new CountDownLatch(1);
+        CountDownLatch releaseGeneration = new CountDownLatch(1);
+        RgxGen generator = Mockito.mock(RgxGen.class);
+        Mockito.when(generator.generate()).thenAnswer(invocation -> {
+            generationStarted.countDown();
+            releaseGeneration.await(2, TimeUnit.SECONDS);
+            return "abcde";
+        });
+
+        var generatorField = RegexMaker.class.getDeclaredField("rgxGen");
+        generatorField.setAccessible(true);
+        generatorField.set(regexMaker, generator);
+
+        Thread worker = regexMaker.getThread();
+        worker.start();
+        assertThat(generationStarted.await(1, TimeUnit.SECONDS)).isTrue();
+
+        long startedAt = System.nanoTime();
+        regexMaker.close();
+        releaseGeneration.countDown();
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+        assertThat(elapsedMs).isLessThan(500L);
+        worker.join(2_000);
+        assertThat(worker.isAlive()).isFalse();
     }
 }

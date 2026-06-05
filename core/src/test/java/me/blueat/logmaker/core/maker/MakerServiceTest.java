@@ -1,9 +1,11 @@
 package me.blueat.logmaker.core.maker;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import me.blueat.logmaker.core.config.LogMakerConfig;
 import me.blueat.logmaker.core.model.MakerDto;
 import me.blueat.logmaker.core.model.Result;
 import me.blueat.logmaker.core.util.FileUtil;
+import me.blueat.logmaker.plugin.api.exception.ArgumentsNotValidException;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.maker.MakerPlugin;
 import org.junit.jupiter.api.AfterEach;
@@ -20,10 +22,11 @@ import org.pf4j.spring.SpringPluginManager;
 import org.springframework.http.ResponseEntity;
 
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -40,6 +43,9 @@ class MakerServiceTest {
     @Mock
     private LogMakerConfig logMakerConfig;
 
+    @Mock
+    private ObjectMapper mapper;
+
     private MockedStatic<FileUtil> fileUtilMockedStatic;
 
     @BeforeEach
@@ -55,6 +61,14 @@ class MakerServiceTest {
         fileUtilMockedStatic.close();
     }
 
+    private void loadPlugin(MakerPlugin plugin) {
+        PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
+        when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
+        when(springPluginManager.getPlugins(any())).thenReturn(List.of(pluginWrapper));
+        when(springPluginManager.getExtensions(eq(MakerPlugin.class), any())).thenReturn(List.of(plugin));
+        makerService.loadPlugin();
+    }
+
     @Test
     void createMaker() {
         // Given
@@ -64,7 +78,85 @@ class MakerServiceTest {
 
         MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
         when(makerPlugin.getType()).thenReturn("testType");
-        when(makerPlugin.getMaker(any(), any())).thenReturn(Mockito.mock(Maker.class));
+        Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+
+        // When
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void testCreateMaker_duplicateName_returnsError() {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("dupMaker");
+        makerDto.setType("testType");
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+        makerService.createMaker(makerDto);
+
+        // When: create again with same name
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void addMakerClosesDuplicateInstance() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("dupMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> firstMaker = Mockito.mock(Maker.class);
+        when(firstMaker.isThread()).thenReturn(false);
+        @SuppressWarnings("unchecked")
+        Maker<Object> duplicateMaker = Mockito.mock(Maker.class);
+
+        assertTrue(makerService.addMaker(makerDto, "testPlugin", firstMaker));
+        assertFalse(makerService.addMaker(makerDto, "testPlugin", duplicateMaker));
+
+        Mockito.verify(duplicateMaker).close();
+    }
+
+    @Test
+    void testCreateMaker_specialCharsInName() {
+        // Given: maker name with special characters
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("maker-name_123!@#");
+        makerDto.setType("testType");
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+        makerService.createMaker(makerDto);
+
+        // When: create again with same name
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void testCreateMaker_invalidArgs_returnsError() {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("badArgsMaker");
+        makerDto.setType("testType");
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
 
         PluginWrapper pluginWrapper = Mockito.mock(PluginWrapper.class);
         when(pluginWrapper.getPluginId()).thenReturn("testPlugin");
@@ -74,10 +166,270 @@ class MakerServiceTest {
 
         makerService.loadPlugin();
 
+        when(makerPlugin.getMaker(any(), any())).thenThrow(new ArgumentsNotValidException());
+
         // When
         ResponseEntity<Result> response = makerService.createMaker(makerDto);
 
         // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void testCreateMaker_unknownType_returnsError() {
+        // Given: no plugins loaded for "unknownType"
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("unknownMaker");
+        makerDto.setType("unknownType");
+
+        // When
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then: no plugin found for the type, returns ERROR
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void testCreateMaker_emptyName() {
+        // Given: maker name is empty string (no plugin type match expected)
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("");
+        makerDto.setType("nonExistentType");
+
+        // When
+        ResponseEntity<Result> response = makerService.createMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void testDeleteMaker_success() {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("deleteMaker");
+        makerDto.setType("testType");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(maker).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+        makerService.createMaker(makerDto);
+
+        // When
+        ResponseEntity<Result> response = makerService.deleteMaker("deleteMaker");
+
+        // Then
         assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+    }
+
+    @Test
+    void deleteMaker_interruptsThreadModeMaker() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("threadMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(thread);
+
+        makerService.addMaker(makerDto, "testPlugin", maker);
+
+        ResponseEntity<Result> response = makerService.deleteMaker("threadMaker");
+
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        Mockito.verify(thread).interrupt();
+        Mockito.verify(maker).close();
+    }
+
+    @Test
+    void deleteMakersByPluginRemovesActiveMakers() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("pluginMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+
+        makerService.addMaker(makerDto, "testPlugin", maker);
+
+        makerService.deleteMakersByPlugin("testPlugin");
+
+        assertTrue(makerService.getMaker("pluginMaker").isEmpty());
+        Mockito.verify(maker).close();
+    }
+
+    @Test
+    void hasReferencedMakersByPluginDetectsActiveRefs() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("referencedMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+        when(maker.getRef()).thenReturn(1);
+
+        makerService.addMaker(makerDto, "testPlugin", maker);
+
+        assertTrue(makerService.hasReferencedMakersByPlugin("testPlugin"));
+    }
+
+    @Test
+    void testDeleteMaker_withRef_returnsError() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("refMaker");
+        makerDto.setType("testType");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+        when(maker.getRef()).thenReturn(1);
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(maker).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+        makerService.createMaker(makerDto);
+
+        // When
+        ResponseEntity<Result> response = makerService.deleteMaker("refMaker");
+
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+        assertTrue(makerService.getMaker("refMaker").isPresent());
+        Mockito.verify(maker, Mockito.never()).close();
+    }
+
+    @Test
+    void testDeleteMaker_nonExistent_returnsError() {
+        // When
+        ResponseEntity<Result> response = makerService.deleteMaker("noSuchMaker");
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void testUpdateMaker_success() {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("updateMaker");
+        makerDto.setType("testType");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(false);
+
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(maker).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+        makerService.createMaker(makerDto);
+
+        // When
+        ResponseEntity<Result> response = makerService.updateMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.SUCCESS, response.getBody().getType());
+        Mockito.verify(maker, Mockito.times(1)).update(any());
+    }
+
+    @Test
+    void testUpdateMaker_nonExistent_returnsError() {
+        // Given
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("nonExistentMaker");
+
+        // When
+        ResponseEntity<Result> response = makerService.updateMaker(makerDto);
+
+        // Then
+        assertEquals(Result.Type.ERROR, response.getBody().getType());
+    }
+
+    @Test
+    void addMaker_removesTableEntryWhenThreadStartFails() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("brokenMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(thread);
+        Mockito.doThrow(new IllegalThreadStateException("already started")).when(thread).start();
+
+        assertThrows(IllegalThreadStateException.class,
+                () -> makerService.addMaker(makerDto, "testPlugin", maker));
+        assertTrue(makerService.getMaker("brokenMaker").isEmpty());
+        assertFalse(makerService.getMakerNames().contains("brokenMaker"));
+        Mockito.verify(maker).close();
+    }
+
+    @Test
+    void addMaker_allowsThreadModeMakerWithoutThread() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("threadlessMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(null);
+
+        assertTrue(makerService.addMaker(makerDto, "testPlugin", maker));
+        assertTrue(makerService.getMaker("threadlessMaker").isPresent());
+        Mockito.verify(maker, Mockito.never()).close();
+    }
+
+    @Test
+    void destroyStopsAndClosesActiveMakers() {
+        MakerDto makerDto = new MakerDto();
+        makerDto.setName("shutdownMaker");
+
+        @SuppressWarnings("unchecked")
+        Maker<Object> maker = Mockito.mock(Maker.class);
+        Thread thread = Mockito.mock(Thread.class);
+        when(maker.isThread()).thenReturn(true);
+        when(maker.getThread()).thenReturn(thread);
+
+        assertTrue(makerService.addMaker(makerDto, "testPlugin", maker));
+
+        makerService.destroy();
+
+        Mockito.verify(thread).interrupt();
+        Mockito.verify(maker).close();
+        assertTrue(makerService.getMakerNames().isEmpty());
+    }
+
+    @Test
+    void testImportMaker_success() throws Exception {
+        // Given
+        MakerPlugin makerPlugin = Mockito.mock(MakerPlugin.class);
+        when(makerPlugin.getType()).thenReturn("testType");
+        Mockito.doReturn(Mockito.mock(Maker.class)).when(makerPlugin).getMaker(any(), any());
+
+        loadPlugin(makerPlugin);
+
+        MakerDto importedDto = MakerDto.builder().name("importedMaker").type("testType").build();
+        when(mapper.readValue(any(byte[].class), eq(MakerDto[].class)))
+                .thenReturn(new MakerDto[]{importedDto});
+
+        org.springframework.web.multipart.MultipartFile file =
+                Mockito.mock(org.springframework.web.multipart.MultipartFile.class);
+        when(file.getBytes()).thenReturn("[]".getBytes());
+
+        // When
+        List<ResponseEntity<Result>> results = makerService.importMaker(file);
+
+        // Then
+        assertFalse(results.isEmpty());
+        assertEquals(Result.Type.SUCCESS, results.get(0).getBody().getType());
     }
 }

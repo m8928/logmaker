@@ -1,47 +1,91 @@
 package me.blueat.logmaker.core.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
 public class FileUtil {
     private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ReentrantLock writeLock = new ReentrantLock();
 
-    public static <T> void saveToFile(T dto, String filePath) {
+    public static class FileOperationException extends RuntimeException {
+        public FileOperationException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    public static <T> void saveToFile(T data, String filePath) {
+        writeLock.lock();
+        Path tempFile = null;
         try {
-            File file = new File(filePath);
-            if (!file.getParentFile().exists()) {
-                Files.createDirectories(file.getParentFile().toPath());
+            Path targetPath = Paths.get(filePath);
+            Path parent = targetPath.getParent();
+            if (parent != null && !Files.exists(parent)) {
+                Files.createDirectories(parent);
             }
-            mapper.writeValue(new File(filePath), dto);
+            Path tempDirectory = parent != null ? parent : Paths.get(".");
+            tempFile = Files.createTempFile(tempDirectory, "logmaker-", ".tmp");
+            mapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), data);
+            moveIntoPlace(tempFile, targetPath);
+            tempFile = null;
             log.info("Saved to {}", filePath);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("JSON 처리 중 오류 발생", e);
         } catch (IOException e) {
-            throw new RuntimeException("파일 저장 중 오류 발생", e);
+            throw new FileOperationException("Failed to save file: " + filePath, e);
+        } finally {
+            deleteTempFile(tempFile);
+            writeLock.unlock();
+        }
+    }
+
+    private static void moveIntoPlace(Path tempFile, Path targetPath) throws IOException {
+        try {
+            Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            log.warn("Atomic move is not supported for {}, falling back to replace move", targetPath);
+            Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static void deleteTempFile(Path tempFile) {
+        if (tempFile == null) {
+            return;
+        }
+
+        try {
+            Files.deleteIfExists(tempFile);
+        } catch (IOException e) {
+            log.error("Failed to delete temp file: {}", tempFile, e);
         }
     }
 
     public static <T> T loadFromFile(String filePath, Class<T> valueType) {
         try {
-            File file = new File(filePath);
+            Path path = Paths.get(filePath);
 
-            if (!file.exists()) {
+            if (!Files.exists(path)) {
                 return createNewInstance(valueType);
             }
 
-            T dto = mapper.readValue(file, valueType);
+            if (Files.size(path) == 0) {
+                log.warn("Storage file is empty, using default value: {}", filePath);
+                return createNewInstance(valueType);
+            }
+
+            T dto = mapper.readValue(path.toFile(), valueType);
             log.info("Loaded from file {}", filePath);
             return dto;
         } catch (IOException e) {
-            throw new RuntimeException("파일 로드 중 오류 발생", e);
+            throw new FileOperationException("Failed to load file: " + filePath, e);
         }
     }
 
@@ -52,12 +96,11 @@ public class FileUtil {
                 T array = (T) Array.newInstance(valueType.getComponentType(), 0);
                 return array;
             } else {
-                // 일반 클래스인 경우 기본 생성자로 생성
                 return valueType.getDeclaredConstructor().newInstance();
             }
         } catch (InstantiationException | IllegalAccessException |
                  NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException("새 인스턴스 생성 중 오류 발생: " + e.getMessage(), e);
+            throw new FileOperationException("Failed to create new instance: " + e.getMessage(), e);
         }
     }
 }

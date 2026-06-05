@@ -12,7 +12,13 @@ public class DashboardDto {
     private int plugin;
     private long eps;
     private long actualEps;
+    private long bps;
+    private long actualBps;
     private double cpu;
     private long memory;
+    private long maxMemory;
     private int thread;
+    private int scenario;
+    private String version;
+    private String buildTime;
 }

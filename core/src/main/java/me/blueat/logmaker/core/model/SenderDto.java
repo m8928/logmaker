@@ -29,11 +29,21 @@ public class SenderDto {
     @Builder.Default
     Map<String, Object> args = new HashMap<>();
 
+    @Schema(description = "Send limit (0 = unlimited)")
+    @Builder.Default
+    Long limit = 0L;
+
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     Integer ref;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     Long count;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    Long bytes;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    Long bytesPerSec;
 
     @Builder.Default
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)

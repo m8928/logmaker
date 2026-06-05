@@ -31,6 +31,12 @@ public abstract class Maker<T> {
     }
     public void decreaseRef() { ref.decrementAndGet(); }
     abstract public void update(Map<String, Object> args);
+    public void close() {
+        Thread thread = getThread();
+        if (thread != null) {
+            thread.interrupt();
+        }
+    }
     public long getRegTime() {
         return this.regTime;
     }

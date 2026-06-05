@@ -2,33 +2,35 @@ package me.blueat.logmaker.core.log;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import jakarta.annotation.PostConstruct;
 import jakarta.xml.bind.DataBindingException;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.config.LogMakerConfig;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
 import me.blueat.logmaker.core.model.Result;
+import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.RuntimeServices;
-import org.apache.velocity.runtime.RuntimeSingleton;
-import org.apache.velocity.runtime.parser.ParseException;
-import org.apache.velocity.runtime.parser.node.SimpleNode;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import me.blueat.logmaker.core.maker.MakerService;
@@ -42,22 +44,41 @@ import static me.blueat.logmaker.core.util.FileUtil.saveToFile;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Getter
 @Order(3)
-public class LogService {
+public class LogService implements DisposableBean {
     private final ObjectMapper mapper;
     private ConcurrentHashMap<String, LogThread> logThreadMap;
 
     private final LogMakerConfig logMakerConfig;
     private final MakerService makerService;
     private final SenderService senderService;
+    private final VelocityEngine previewEngine = VelocityTemplateUtil.createSecureEngine(1);
+    private final Object previewTemplateLock = new Object();
+
+    private ExecutorService executorService;
 
     @PostConstruct
     protected void init() {
         logThreadMap = new ConcurrentHashMap<>();
-        Arrays.stream(Objects.requireNonNull(loadFromFile(String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json")
-                        , LogDto[].class)))
-                .forEach(logDto -> createLog(logDto, true));
+        executorService = Executors.newCachedThreadPool();
+        LogDto[] loadedLogs = loadFromFile(logStoragePath(), LogDto[].class);
+        if (loadedLogs != null) {
+            Arrays.stream(loadedLogs).forEach(logDto -> createLog(logDto, true));
+        }
         log.info("Initializing Log Service");
+    }
+
+    @Override
+    public void destroy() {
+        executorService.shutdownNow();
+        try {
+            if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("ExecutorService did not terminate within 5 seconds");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public ResponseEntity<Result> createLog(LogDto logDto) {
@@ -65,29 +86,36 @@ public class LogService {
     }
 
     public ResponseEntity<Result> createLog(LogDto logDto, boolean isImport) {
-        ResponseEntity<Result> result;
-
-        if (!logThreadMap.containsKey(logDto.getName())) {
+        if (logThreadMap.containsKey(logDto.getName())) {
+            return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
+        }
+        try {
+            LogThread logThread = new LogThread(makerService, senderService, logDto);
+            if (logThreadMap.putIfAbsent(logDto.getName(), logThread) != null) {
+                logThread.interrupt();
+                logThread.releaseReferences();
+                return Result.createResultSet(Result.Type.ERROR, String.format("%s is the log name already in use", logDto.getName()));
+            }
             try {
-                LogThread logThread =
-                        new LogThread(makerService, senderService, logDto);
-                logThread.start();
-                logThreadMap.put(logDto.getName(), logThread);
-                result = Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
-
-                if (!isImport) {
-                    saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+                if (!logThread.isPaused()) {
+                    startLogThread(logDto.getName(), logThread);
                 }
+            } catch (RuntimeException e) {
+                logThreadMap.remove(logDto.getName(), logThread);
+                logThread.interrupt();
+                logThread.releaseReferences();
+                log.error("Failed to start log thread: {}", logDto.getName(), e);
+                return Result.createResultSet(Result.Type.ERROR, "Log thread start failed");
             }
-            catch (IllegalStateException e) {
-                result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid log argument (%s)",logDto.getFormat()));
-            }
-        }
-        else {
-            result = Result.createResultSet(Result.Type.ERROR, String.format("%s is the sender name already in use", logDto.getName()));
-        }
 
-        return result;
+            if (!isImport) {
+                saveToFile(getLog(), logStoragePath());
+            }
+            return Result.createResultSet(Result.Type.SUCCESS, "Successful log registration");
+        }
+        catch (IllegalStateException e) {
+            return Result.createResultSet(Result.Type.ERROR, String.format("Invalid log argument (%s)", logDto.getFormat()));
+        }
     }
 
     public List<ResponseEntity<Result>> importLog(MultipartFile json) {
@@ -104,7 +132,7 @@ public class LogService {
         Optional<LogThread> existsLog = Optional.ofNullable(logThreadMap.get(logDto.getName()));
 
         if (existsLog.isPresent() && existsLog.get().updateLogDto(logDto)) {
-            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
+            saveToFile(getLog(), logStoragePath());
             return Result.createResultSet(Result.Type.SUCCESS, "Successfully updated log");
         }
         else {
@@ -122,20 +150,44 @@ public class LogService {
     }
 
     public LogThread getLog(String name) {
-        if (logThreadMap.containsKey(name)) {
-            return logThreadMap.get(name);
+        return logThreadMap.get(name);
+    }
+
+    public synchronized ResponseEntity<Result> setPaused(String name, boolean paused) {
+        LogThread logThread = logThreadMap.get(name);
+        if (logThread != null) {
+            boolean wasPaused = logThread.isPaused();
+            logThread.setPaused(paused);
+            if (paused) {
+                logThread.stopRunningTask();
+            } else if (wasPaused) {
+                try {
+                    startLogThread(name, logThread);
+                } catch (RuntimeException e) {
+                    logThread.setPaused(true);
+                    log.error("Failed to resume log thread: {}", name, e);
+                    return Result.createResultSet(Result.Type.ERROR, "Log thread start failed");
+                }
+            }
+            saveToFile(getLog(), logStoragePath());
+            return Result.createResultSet(Result.Type.SUCCESS, paused ? "Log stopped" : "Log started");
         }
-        return null;
+        return Result.createResultSet(Result.Type.ERROR, "Log does not exist");
+    }
+
+    private void startLogThread(String name, LogThread logThread) {
+        Future<?> task = executorService.submit(logThread);
+        logThread.attachRunningTask(task);
+        log.info("Started log thread: {}", name);
     }
 
     public ResponseEntity<Result> deleteLog(String name) {
-        if (logThreadMap.containsKey(name)) {
-            logThreadMap.get(name).interrupt();
-            logThreadMap.get(name).getMakerName().forEach(e -> makerService.getMaker(e).ifPresent(o -> o.getValue().decreaseRef()));
-            logThreadMap.get(name).getSenderName().forEach(e -> senderService.getSender(e).ifPresent(s -> s.getValue().decreaseRef()));
-            logThreadMap.remove(name);
-            saveToFile(getLog(), String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json"));
-            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted sender");
+        LogThread removed = logThreadMap.remove(name);
+        if (removed != null) {
+            removed.interrupt();
+            removed.releaseReferences();
+            saveToFile(getLog(), logStoragePath());
+            return Result.createResultSet(Result.Type.SUCCESS, "Successfully deleted log");
         }
         else {
             return Result.createResultSet(Result.Type.ERROR, "Log does not exist");
@@ -146,8 +198,6 @@ public class LogService {
         ResponseEntity<Result> result;
 
         try {
-            VelocityEngine ve;
-            Template vTemplate;
             String vFormat;
             ST template = new ST(format);
             Set<String> expressions = new HashSet<>();
@@ -165,47 +215,31 @@ public class LogService {
             }
 
             vFormat = template.render();
-
-            ve = new VelocityEngine();
-            ve.setProperty("parser.pool.size", 1);
-            ve.init();
-
-            RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
-            StringReader sr = new StringReader(vFormat);
-
-            vTemplate = new Template();
-            vTemplate.setName("preview");
-            vTemplate.setRuntimeServices(rs);
-
-            SimpleNode sn = null;
-            try {
-                sn = rs.parse(sr, vTemplate);
-            } catch (ParseException e) {
-                log.error("log template parsing error. {}", format);
-            }
-
-            vTemplate.setData(sn);
-            vTemplate.initDocument();
-
-            VelocityContext context = new VelocityContext();
             Map<String, Object> templateData = getTemplateData(expressions);
 
-            templateData.keySet().forEach(key -> {
-                if (templateData.containsKey(key)) {
-                    context.put(key, templateData.get(key));
-                }
-            });
-
-            StringWriter writer = new StringWriter();
-            vTemplate.merge(context, writer);
-
-            result = Result.createResultSet(Result.Type.SUCCESS, writer.toString(), false);
+            result = Result.createResultSet(Result.Type.SUCCESS, renderPreview(vFormat, templateData), false);
         }
         catch (Exception e) {
             result = Result.createResultSet(Result.Type.ERROR, String.format("Invalid log template (%s)", format), false);
         }
 
         return result;
+    }
+
+    private String renderPreview(String vFormat, Map<String, Object> templateData) {
+        synchronized (previewTemplateLock) {
+            Template vTemplate = VelocityTemplateUtil.compile(previewEngine, "preview", vFormat);
+            VelocityContext context = new VelocityContext();
+            templateData.forEach((key, value) -> {
+                if (value != null) {
+                    context.put(key, value);
+                }
+            });
+
+            StringWriter writer = new StringWriter();
+            vTemplate.merge(context, writer);
+            return writer.toString();
+        }
     }
 
     private Map<String, Object> getTemplateData(Set<String> expressions) {
@@ -218,5 +252,9 @@ public class LogService {
         }
 
         return result;
+    }
+
+    private String logStoragePath() {
+        return String.format("%s%s%s", logMakerConfig.getDataRootPath(), File.separator, "logs.json");
     }
 }

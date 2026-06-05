@@ -8,12 +8,16 @@ import me.blueat.logmaker.plugin.api.maker.MakerArgs;
 
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class RegexMaker extends Maker<String> implements Runnable {
+    private static final int REGEX_WORKERS_PER_MAKER = 1;
+    private static final long GENERATION_FAILURE_BACKOFF_MS = 10L;
+
     private String makerName;
     private String type;
     private String regex;
@@ -22,16 +26,39 @@ public class RegexMaker extends Maker<String> implements Runnable {
     private Thread thread;
     private Lock updateLock;
     private RgxGen rgxGen;
+    private final AtomicLong configurationVersion = new AtomicLong();
+    private final AtomicLong regexThreadId = new AtomicLong();
+    private ExecutorService regexExecutor;
+    private volatile boolean closed;
 
     public RegexMaker(String makerName, String type, Map<String, Object> args) {
-        thread = new Thread(this);
-        thread.setName(String.format("THREAD_%s", makerName));
-        this.updateLock = new ReentrantLock(true);
-        this.queue = new ArrayBlockingQueue<>(getQueueSize());
         this.type = type;
         this.makerName = makerName;
         this.args = args;
+        this.thread = new Thread(this, String.format("THREAD_%s", makerName));
+        this.updateLock = new ReentrantLock(true);
+        this.queue = new ArrayBlockingQueue<>(getQueueSize());
+        this.regexExecutor = createRegexExecutor();
         init();
+    }
+
+    private Thread newRegexWorker(Runnable task) {
+        Thread worker = new Thread(task,
+                String.format("THREAD_%s-regex-generator-%d", makerName, regexThreadId.incrementAndGet()));
+        worker.setDaemon(true);
+        return worker;
+    }
+
+    private ThreadPoolExecutor createRegexExecutor() {
+        return new ThreadPoolExecutor(
+                0,
+                REGEX_WORKERS_PER_MAKER,
+                30L,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(),
+                this::newRegexWorker,
+                new ThreadPoolExecutor.AbortPolicy()
+        );
     }
 
     public void init() {
@@ -41,12 +68,43 @@ public class RegexMaker extends Maker<String> implements Runnable {
 
     @Override
     public void run() {
-        while(!Thread.currentThread().isInterrupted()) {
+        while(!closed && !Thread.currentThread().isInterrupted()) {
+            long version;
+            RgxGen generator;
+            ExecutorService executor;
+            updateLock.lock();
             try {
-                queue.put(getRegexRandomString(regex));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                version = configurationVersion.get();
+                generator = rgxGen;
+                executor = regexExecutor;
+            } finally {
+                updateLock.unlock();
             }
+
+            String generated = getRegexRandomString(generator, executor);
+            if (version == configurationVersion.get()) {
+                if (generated == null) {
+                    pauseAfterGenerationFailure();
+                } else {
+                    enqueueGenerated(generated);
+                }
+            }
+        }
+    }
+
+    private void enqueueGenerated(String generated) {
+        try {
+            queue.put(generated);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void pauseAfterGenerationFailure() {
+        try {
+            Thread.sleep(GENERATION_FAILURE_BACKOFF_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -55,26 +113,28 @@ public class RegexMaker extends Maker<String> implements Runnable {
         try {
             return queue.take();
         } catch (InterruptedException e) {
-            return null;
+            Thread.currentThread().interrupt();
+            return "";
         }
     }
 
-    private String getRegexRandomString(String regex) {
-        updateLock.lock();
-        String s;
+    private String getRegexRandomString(RgxGen generator, ExecutorService executor) {
+        Future<String> generated;
         try {
-            CompletableFuture<String> withTimeout = CompletableFuture.supplyAsync(() -> rgxGen.generate());
-            try {
-                s = withTimeout.get(1, TimeUnit.SECONDS);
-            }
-            catch (ExecutionException | InterruptedException | TimeoutException e) {
-                s = "";
-            }
-
-            return s;
+            generated = executor.submit(() -> generator.generate());
+        } catch (RejectedExecutionException e) {
+            return null;
         }
-        finally {
-            updateLock.unlock();
+
+        try {
+            return generated.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            generated.cancel(true);
+            return null;
+        } catch (ExecutionException | TimeoutException e) {
+            generated.cancel(true);
+            return null;
         }
     }
 
@@ -108,13 +168,38 @@ public class RegexMaker extends Maker<String> implements Runnable {
         updateLock.lock();
         try {
             this.getThread().interrupt();
+            shutdownRegexExecutor();
             this.args = args;
+            configurationVersion.incrementAndGet();
+            this.regexExecutor = createRegexExecutor();
+            this.closed = false;
             init();
             this.queue.clear();
-            this.thread = new Thread(this);
+            this.thread = new Thread(this, String.format("THREAD_%s", makerName));
             this.thread.start();
         } finally {
             updateLock.unlock();
+        }
+    }
+
+    @Override
+    public void close() {
+        updateLock.lock();
+        try {
+            this.closed = true;
+            Thread currentThread = this.getThread();
+            if (currentThread != null) {
+                currentThread.interrupt();
+            }
+            shutdownRegexExecutor();
+        } finally {
+            updateLock.unlock();
+        }
+    }
+
+    private void shutdownRegexExecutor() {
+        if (regexExecutor != null) {
+            regexExecutor.shutdownNow();
         }
     }
 }

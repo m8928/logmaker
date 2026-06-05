@@ -92,6 +92,13 @@ public class KafkaSender extends Sender<String> {
     }
 
     @Override
+    public void close() {
+        if (producer != null) {
+            producer.close();
+        }
+    }
+
+    @Override
     public void update(Map<String, Object> args) {
         updateLock.lock();
         try {

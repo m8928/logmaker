@@ -55,7 +55,7 @@ public class Result {
             return new ResponseEntity<>(result, HttpStatus.OK);
         }
         else if (result.type == Type.ERROR) {
-            return new ResponseEntity<>(result, HttpStatus.NOT_ACCEPTABLE);
+            return new ResponseEntity<>(result, HttpStatus.BAD_REQUEST);
         }
         return new ResponseEntity<>(result, HttpStatus.ACCEPTED);
     }

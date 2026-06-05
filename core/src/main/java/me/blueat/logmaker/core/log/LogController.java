@@ -43,7 +43,7 @@ public class LogController {
     }
 
     @PostMapping(value = "/log:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public List<ResponseEntity<Result>> uploadLogFile(@RequestBody MultipartFile file) {
+    public List<ResponseEntity<Result>> uploadLogFile(@RequestPart("file") MultipartFile file) {
         return logService.importLog(file);
     }
 
@@ -55,5 +55,15 @@ public class LogController {
     @PostMapping("/log:preview")
     public ResponseEntity<Result> previewLog(@RequestBody LogDto logDto) {
         return logService.previewLog(logDto.getFormat());
+    }
+
+    @PostMapping("/log/{name}:start")
+    public ResponseEntity<Result> startLog(@PathVariable("name") String name) {
+        return logService.setPaused(name, false);
+    }
+
+    @PostMapping("/log/{name}:stop")
+    public ResponseEntity<Result> stopLog(@PathVariable("name") String name) {
+        return logService.setPaused(name, true);
     }
 }

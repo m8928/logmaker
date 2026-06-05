@@ -1,12 +1,13 @@
 package me.blueat.logmaker.core.log;
 
 import com.google.common.collect.Maps;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.maker.MakerService;
 import me.blueat.logmaker.core.model.LogDto;
 import me.blueat.logmaker.core.sender.SenderService;
+import me.blueat.logmaker.core.util.TextSizeUtil;
+import me.blueat.logmaker.core.util.VelocityTemplateUtil;
 import me.blueat.logmaker.plugin.api.maker.Maker;
 import me.blueat.logmaker.plugin.api.sender.Sender;
 import org.antlr.runtime.Token;
@@ -14,57 +15,78 @@ import org.antlr.runtime.TokenStream;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.RuntimeServices;
-import org.apache.velocity.runtime.RuntimeSingleton;
-import org.apache.velocity.runtime.parser.ParseException;
-import org.apache.velocity.runtime.parser.node.SimpleNode;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.compiler.STLexer;
 
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-@EqualsAndHashCode(callSuper = true)
 @Slf4j
-@Data
-public class LogThread extends Thread {
+@Getter
+public class LogThread implements Runnable {
+    private static final int BATCH_SIZE = 1000;
+
     private Instant start = null;
 
-    private AtomicLong count = new AtomicLong(0);
+    private final AtomicLong count = new AtomicLong(0);
+    private final AtomicLong bytes = new AtomicLong(0);
+    private volatile long lastSecondEvents = 0;
+    private volatile long lastSecondBytes = 0;
     private Set<String> makerName;
     private List<String> senderName;
-    private VelocityEngine ve;
+    private final VelocityEngine ve;
     private Template vTemplate;
     private String vFormat;
-    private MakerService makerService;
-    private SenderService senderService;
+    private final MakerService makerService;
+    private final SenderService senderService;
     private Map<String, Sender<?>> senders;
     private Map<String, Maker<?>> makers;
 
-    private Lock updateLock = new ReentrantLock(true);
+    private final ReentrantReadWriteLock updateLock = new ReentrantReadWriteLock(true);
+    private final Lock updateReadLock = updateLock.readLock();
+    private final Lock updateWriteLock = updateLock.writeLock();
 
-    private LogDto logDto;
+    private volatile LogDto logDto;
+    private volatile boolean paused;
+    private volatile String lastSample;
+
+    private volatile Future<?> runningTask;
+    private volatile boolean interrupted;
+    private final AtomicLong eventTargetRemainder = new AtomicLong(0L);
+    private final AtomicLong byteTargetRemainder = new AtomicLong(0L);
+
+    private record GenerationStats(long events, long bytes) {
+    }
 
     public LogThread(MakerService makerService, SenderService senderService, LogDto logDto) {
         this.makerService = makerService;
         this.senderService = senderService;
         this.logDto = logDto;
+        this.paused = logDto.isPaused();
         this.senders = new ConcurrentHashMap<>();
         this.makers = new ConcurrentHashMap<>();
-        super.setName(logDto.getName());
-        init();
+        this.ve = VelocityTemplateUtil.createSecureEngine(1);
+        try {
+            init();
+        } catch (RuntimeException e) {
+            releaseReferences();
+            throw e;
+        }
     }
 
     private void init() {
-        this.senderName = logDto.getSender();
-        ST template = new ST(logDto.getFormat());
+        LogDto currentLogDto = logDto;
+        makers.clear();
+        senders.clear();
+        this.senderName = currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList();
+        ST template = new ST(currentLogDto.getFormat());
         makerName = new HashSet<>();
         TokenStream tokens = template.impl.tokens;
 
@@ -80,35 +102,25 @@ public class LogThread extends Thread {
         }
 
         this.vFormat = template.render();
-
-        ve = new VelocityEngine();
-        ve.setProperty("parser.pool.size", 20);
-        ve.init();
-
-        vTemplate = new Template();
-        vTemplate.setName(logDto.getName());
-
-        RuntimeServices rs = RuntimeSingleton.getRuntimeServices();
-        StringReader sr = new StringReader(vFormat);
-        SimpleNode sn = null;
         try {
-            sn = rs.parse(sr, vTemplate);
-        } catch (ParseException e) {
-            e.printStackTrace();
+            vTemplate = VelocityTemplateUtil.compile(ve, currentLogDto.getName(), vFormat);
+        } catch (Exception e) {
+            log.error("Template parsing failed: {}", currentLogDto.getName(), e);
+            throw new IllegalStateException("Template parsing failed", e);
         }
 
-        vTemplate.setRuntimeServices(rs);
-        vTemplate.setData(sn);
-        vTemplate.initDocument();
-
-        if (!makerService.getMakerNames().containsAll(makerName)) {
-            makerName.removeAll(makerService.getMakerNames());
-            throw new IllegalStateException("maker not found. " + makerName);
+        Set<String> registeredMakers = makerService.getMakerNames();
+        if (!registeredMakers.containsAll(makerName)) {
+            Set<String> missingMakers = new HashSet<>(makerName);
+            missingMakers.removeAll(registeredMakers);
+            throw new IllegalStateException("maker not found. " + missingMakers);
         }
 
-        if (!senderService.getSenderNames().containsAll(senderName)) {
-            senderName.removeAll(senderService.getSenderNames());
-            throw new IllegalStateException("sender not found. " + makerName);
+        Set<String> registeredSenders = senderService.getSenderNames();
+        if (!registeredSenders.containsAll(senderName)) {
+            List<String> missingSenders = new ArrayList<>(senderName);
+            missingSenders.removeAll(registeredSenders);
+            throw new IllegalStateException("sender not found. " + missingSenders);
         }
 
         senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
@@ -122,16 +134,14 @@ public class LogThread extends Thread {
         }));
     }
 
-    @Override
-    public synchronized void start() {
-        super.start();
-    }
-
     private Map<String, Object> getTemplateData() {
         Map<String, Object> result = Maps.newHashMap();
 
         for (String key : makerName) {
-            result.put(key, makers.get(key).getData());
+            Maker<?> maker = makers.get(key);
+            if (maker != null) {
+                result.put(key, maker.getData());
+            }
         }
 
         return result;
@@ -139,116 +149,224 @@ public class LogThread extends Thread {
 
     @Override
     public void run() {
-        start = Instant.now();
-        AtomicLong createCount = new AtomicLong(0);
-        while(!Thread.currentThread().isInterrupted()) {
-            createCount.set(0);
-            Instant currentStart = Instant.now();
-
-            if (!senderName.isEmpty()) {
-                updateLock.lock();
-                try {
-                    while (createCount.get() < logDto.getEps()) {
-                        String data = generate(vTemplate, getTemplateData());
-
-                        senders.values().forEach(sender -> {
-                            sender.sendData(data);
-                            sender.increaseCount();
-                        });
-                        createCount.incrementAndGet();
-                        count.incrementAndGet();
-                    }
-                } finally {
-                    updateLock.unlock();
-                }
-            }
-
-            try {
-                long processingTime = 1000 - Duration.between(currentStart, Instant.now()).toMillis();
-                if (processingTime > 0) {
-                    Thread.sleep(processingTime);
-                }
-            } catch (InterruptedException e) {
+        try {
+            if (interrupted) {
                 Thread.currentThread().interrupt();
+                return;
             }
+
+            start = Instant.now();
+            while (!Thread.currentThread().isInterrupted() && !interrupted) {
+                Instant currentStart = Instant.now();
+                updateSecondMetrics(currentStart);
+                sleepUntilNextSecond(currentStart);
+            }
+        } finally {
+            runningTask = null;
         }
     }
 
-    private long getCurrentEps() {
-        if (start == null) {
+    private void updateSecondMetrics(Instant currentStart) {
+        LogDto currentLogDto = logDto;
+        if (senders.isEmpty() || paused) {
+            recordLastSecond(new GenerationStats(0, 0));
+            return;
+        }
+
+        boolean bytesMode = "bytes".equals(currentLogDto.getEpsUnit());
+        long targetUnits = nextTargetUnits(bytesMode, currentLogDto.getEps(), targetDivisor(currentLogDto.getEpsTimeUnit()));
+        recordLastSecond(generateForCurrentSecond(currentStart, bytesMode, targetUnits));
+    }
+
+    private long targetDivisor(String timeUnit) {
+        if (timeUnit == null) {
+            return 1;
+        }
+        return switch (timeUnit) {
+            case "min" -> 60;
+            case "hour" -> 3600;
+            case "day" -> 86400;
+            default -> 1;
+        };
+    }
+
+    private GenerationStats generateForCurrentSecond(Instant currentStart, boolean bytesMode, long targetUnits) {
+        long secBytes = 0;
+        long secEvents = 0;
+
+        while (shouldGenerateMore(currentStart, bytesMode, secBytes, secEvents, targetUnits)) {
+            GenerationStats batch = generateBatch(bytesMode, secBytes, secEvents, targetUnits);
+            secBytes += batch.bytes();
+            secEvents += batch.events();
+        }
+
+        return new GenerationStats(secEvents, secBytes);
+    }
+
+    private boolean shouldGenerateMore(Instant currentStart, boolean bytesMode,
+                                       long secBytes, long secEvents, long targetUnits) {
+        return !Thread.currentThread().isInterrupted()
+                && !interrupted
+                && isBelowTarget(bytesMode, secBytes, secEvents, targetUnits)
+                && Duration.between(currentStart, Instant.now()).toMillis() < 1000;
+    }
+
+    private boolean isBelowTarget(boolean bytesMode, long secBytes, long secEvents, long targetUnits) {
+        return bytesMode ? secBytes < targetUnits : secEvents < targetUnits;
+    }
+
+    private GenerationStats generateBatch(boolean bytesMode, long secBytes, long secEvents, long targetUnits) {
+        long batchBytes = 0;
+        long batchEvents = 0;
+
+        updateReadLock.lock();
+        try {
+            for (int i = 0; i < BATCH_SIZE
+                    && !Thread.currentThread().isInterrupted()
+                    && !interrupted
+                    && isBelowTarget(bytesMode, secBytes + batchBytes, secEvents + batchEvents, targetUnits);
+                 i++, batchEvents++) {
+                String data = generate(vTemplate, getTemplateData());
+                lastSample = data;
+                int dataBytes = TextSizeUtil.utf8Length(data);
+                senders.values().forEach(sender -> sendToSender(sender, data, dataBytes));
+                bytes.addAndGet(dataBytes);
+                count.incrementAndGet();
+                batchBytes += dataBytes;
+            }
+        } finally {
+            updateReadLock.unlock();
+        }
+
+        return new GenerationStats(batchEvents, batchBytes);
+    }
+
+    private void recordLastSecond(GenerationStats stats) {
+        lastSecondEvents = stats.events();
+        lastSecondBytes = stats.bytes();
+    }
+
+    private void sleepUntilNextSecond(Instant currentStart) {
+        try {
+            long processingTime = 1000 - Duration.between(currentStart, Instant.now()).toMillis();
+            if (processingTime > 0) {
+                Thread.sleep(processingTime);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    long nextTargetUnits(boolean bytesMode, long rawTarget, long divisor) {
+        if (rawTarget <= 0 || divisor <= 0) {
             return 0;
         }
 
-        Instant end = Instant.now();
-        long timing = Duration.between(start, end).toMillis();
+        return consumeTargetUnits(bytesMode ? byteTargetRemainder : eventTargetRemainder, rawTarget, divisor);
+    }
 
-        if (timing > 0) {
-            return Math.round((count.get() /(double)timing) * 1000);
+    private long consumeTargetUnits(AtomicLong remainder, long rawTarget, long divisor) {
+        long current;
+        long updated;
+        long target;
+        long nextRemainder;
+        do {
+            current = remainder.get();
+            updated = current + rawTarget;
+            target = updated / divisor;
+            nextRemainder = updated % divisor;
+        } while (!remainder.compareAndSet(current, nextRemainder));
+        return target;
+    }
+
+    private void sendToSender(Sender<?> sender, String data, int dataBytes) {
+        if (sender.isLimitReached()) {
+            return;
         }
-        else {
-            return 0;
+
+        try {
+            sender.sendData(data);
+            sender.increaseCount();
+            sender.addBytes(dataBytes);
+        } catch (Exception e) {
+            log.error("Failed to send data to sender: {}", sender.getSenderName(), e);
         }
     }
 
     public LogDto getLogDto() {
-        this.logDto.setCount(count.get());
-        this.logDto.setCurrentEps(getCurrentEps());
-        this.logDto.setSample(getSample(this.vTemplate, this.getTemplateData()));
-        return this.logDto;
-    }
-
-    private String getSample(Template vTemplate, Map<String, Object> data) {
-        VelocityContext context = new VelocityContext();
-
-        data.keySet().forEach(key -> {
-            if (data.containsKey(key)) {
-                context.put(key, data.get(key).toString());
-            }
-        });
-
-        StringWriter writer = new StringWriter();
-        vTemplate.merge(context, writer);
-
-        return writer.toString();
+        LogDto snapshot = new LogDto();
+        updateReadLock.lock();
+        try {
+            LogDto currentLogDto = logDto;
+            snapshot.setName(currentLogDto.getName());
+            snapshot.setFormat(currentLogDto.getFormat());
+            snapshot.setEps(currentLogDto.getEps());
+            snapshot.setEpsUnit(currentLogDto.getEpsUnit());
+            snapshot.setEpsTimeUnit(currentLogDto.getEpsTimeUnit());
+            snapshot.setSender(currentLogDto.getSender() != null ? new ArrayList<>(currentLogDto.getSender()) : Collections.emptyList());
+            snapshot.setPaused(paused);
+            snapshot.setRegTime(currentLogDto.getRegTime());
+            snapshot.setSample(lastSample);
+        } finally {
+            updateReadLock.unlock();
+        }
+        snapshot.setCount(count.get());
+        snapshot.setCurrentEps(lastSecondEvents);
+        snapshot.setBytes(bytes.get());
+        snapshot.setBytesPerSec(lastSecondBytes);
+        return snapshot;
     }
 
     public boolean updateLogDto(LogDto logDto) {
-        boolean result;
-        updateLock.lock();
-        start = Instant.now();
-        count.set(0);
+        updateWriteLock.lock();
+        LogDto backup = this.logDto;
+        boolean backupPaused = this.paused;
+        long backupCount = count.get();
+        long backupBytes = bytes.get();
+        long backupLastSecondEvents = lastSecondEvents;
+        long backupLastSecondBytes = lastSecondBytes;
+        String backupLastSample = lastSample;
         try {
-            makerName.forEach(e -> makerService.getMaker(e).ifPresent(o -> {
-                o.getValue().decreaseRef();
-                makers.remove(e);
-            }));
+            start = Instant.now();
+            count.set(0);
+            bytes.set(0);
+            lastSecondEvents = 0;
+            lastSecondBytes = 0;
+            lastSample = null;
+            eventTargetRemainder.set(0L);
+            byteTargetRemainder.set(0L);
 
-            senderName.forEach(s -> senderService.getSender(s).ifPresent(o -> {
-                o.getValue().decreaseRef();
-                senders.remove(s);
-            }));
-
-            LogDto backup = this.logDto;
+            releaseReferences();
+            logDto.setPaused(backupPaused);
+            this.paused = backupPaused;
             this.logDto = logDto;
 
             try {
                 init();
-                result = true;
+                return true;
             }
             catch (Exception e) {
-                makerName.clear();
-                makers.clear();
-                senderName.clear();
-                senders.clear();
+                log.error("Failed to update log configuration, reverting to backup", e);
+                releaseReferences();
                 this.logDto = backup;
-                updateLogDto(this.logDto);
-                result = false;
+                this.paused = backupPaused;
+                count.set(backupCount);
+                bytes.set(backupBytes);
+                lastSecondEvents = backupLastSecondEvents;
+                lastSecondBytes = backupLastSecondBytes;
+                lastSample = backupLastSample;
+                try {
+                    init();
+                } catch (Exception restoreException) {
+                    log.error("Failed to restore previous log configuration", restoreException);
+                    releaseReferences();
+                }
+                return false;
             }
         }
         finally {
-            updateLock.unlock();
+            updateWriteLock.unlock();
         }
-        return result;
     }
 
     public String generate(Template vTemplate, Map<String, Object> data) {
@@ -266,8 +384,38 @@ public class LogThread extends Thread {
         return writer.toString();
     }
 
-    @Override
+    public void attachRunningTask(Future<?> runningTask) {
+        this.runningTask = runningTask;
+        if ((interrupted || paused) && runningTask != null) {
+            runningTask.cancel(true);
+        }
+    }
+
+    public void stopRunningTask() {
+        Future<?> task = runningTask;
+        if (task != null) {
+            task.cancel(true);
+        }
+    }
+
     public void interrupt() {
-        super.interrupt();
+        interrupted = true;
+        stopRunningTask();
+    }
+
+    public void setPaused(boolean paused) {
+        this.paused = paused;
+    }
+
+    void releaseReferences() {
+        updateWriteLock.lock();
+        try {
+            makers.values().forEach(Maker::decreaseRef);
+            senders.values().forEach(Sender::decreaseRef);
+            makers.clear();
+            senders.clear();
+        } finally {
+            updateWriteLock.unlock();
+        }
     }
 }

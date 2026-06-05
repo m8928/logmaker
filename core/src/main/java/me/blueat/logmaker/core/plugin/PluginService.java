@@ -1,7 +1,8 @@
 package me.blueat.logmaker.core.plugin;
 
 import com.google.common.collect.Maps;
-import lombok.Data;
+import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.blueat.logmaker.core.config.PluginConfig;
@@ -16,18 +17,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Data
+@Getter
 public class PluginService {
     private final PluginConfig pluginConfig;
     private final MakerService makerService;
@@ -37,7 +39,8 @@ public class PluginService {
     public ResponseEntity<Result> uploadPlugin(MultipartFile file) {
         Path pluginPath = null;
         try {
-            pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(),file.getOriginalFilename());
+            String safeName = UUID.randomUUID() + "_" + sanitizePluginFileName(file.getOriginalFilename());
+            pluginPath = Paths.get(pluginConfig.pluginManager().getPluginsRoot().toString(), safeName);
             file.transferTo(pluginPath);
 
             String pluginId = springPluginManager.loadPlugin(pluginPath);
@@ -50,10 +53,10 @@ public class PluginService {
         catch (Exception e) {
             if (pluginPath != null) {
                 try {
-                    Files.delete(pluginPath);
+                    Files.deleteIfExists(pluginPath);
                 }
                 catch (IOException ioe) {
-                 //NOTHING
+                    log.error("Failed to delete plugin file after upload failure", ioe);
                 }
             }
             return Result.createResultSet(Result.Type.ERROR, String.format("Plugin upload failed (%s)", e.getMessage()));
@@ -68,6 +71,11 @@ public class PluginService {
     public ResponseEntity<Result> deletePlugin(String pluginId) {
         ResponseEntity<Result> result;
         try {
+            if (makerService.hasReferencedMakersByPlugin(pluginId) || senderService.hasReferencedSendersByPlugin(pluginId)) {
+                return Result.createResultSet(Result.Type.ERROR, "Plugin deletion failed (plugin is in use)");
+            }
+            makerService.deleteMakersByPlugin(pluginId);
+            senderService.deleteSendersByPlugin(pluginId);
             makerService.getMakerPluginTable().row(pluginId).clear();
             senderService.getSenderPluginTable().row(pluginId).clear();
             springPluginManager.stopPlugin(pluginId);
@@ -119,5 +127,22 @@ public class PluginService {
                 }));
 
         return result;
+    }
+
+    private String sanitizePluginFileName(String originalName) {
+        String baseName = "plugin.jar";
+        if (originalName != null && !originalName.isBlank()) {
+            try {
+                Path fileName = Paths.get(originalName).getFileName();
+                if (fileName != null && !fileName.toString().isBlank()) {
+                    baseName = fileName.toString();
+                }
+            } catch (InvalidPathException e) {
+                log.warn("Invalid plugin filename supplied, using default name: {}", originalName);
+            }
+        }
+
+        String sanitized = baseName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        return sanitized.isBlank() ? "plugin.jar" : sanitized;
     }
 }

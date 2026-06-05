@@ -22,7 +22,7 @@ public class SenderController {
     private final SenderService senderService;
 
     @GetMapping("/sender")
-    public List<SenderDto> geSender() {
+    public List<SenderDto> getSender() {
         return senderService.getSender();
     }
 
@@ -42,7 +42,7 @@ public class SenderController {
     }
 
     @PostMapping(value = "/sender:import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public List<ResponseEntity<Result>> uploadSenderFile(@RequestBody MultipartFile file) {
+    public List<ResponseEntity<Result>> uploadSenderFile(@RequestPart("file") MultipartFile file) {
         return senderService.importSender(file);
     }
 

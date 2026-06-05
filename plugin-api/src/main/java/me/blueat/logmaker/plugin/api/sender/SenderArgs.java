@@ -10,26 +10,17 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SenderArgs {
-    private Class type;
+    private Class<?> type;
     private String description;
     private boolean required = true;
-
-    @Override
-    public boolean equals(Object o){
-        boolean isT = false;
-        SenderArgs senderArgs = (SenderArgs)o;
-        if(senderArgs.type.equals(this.type)) {
-            isT = true;
-        }
-        return isT;
-    }
 
     public static String toString(Object o) {
         return o.toString();
     }
 
-    public static List toList(Object o) {
-        return (List) o;
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> toList(Object o) {
+        return (List<T>) o;
     }
 
     public static int toInt(Object o) {

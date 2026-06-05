@@ -40,6 +40,7 @@ public class SyslogSender extends Sender<String> {
         initSyslogSender();
     }
 
+    @SuppressWarnings("unchecked")
     public void init() {
         this.ip = SenderArgs.toString(args.get("ip"));
         this.port = SenderArgs.toInt(args.get("port"));
@@ -105,7 +106,7 @@ public class SyslogSender extends Sender<String> {
                 try {
                     sender.sendMessage(data);
                 } catch (Exception e) {
-                    //NOTHING
+                    log.warn("Failed to send syslog message", e);
                 }
             });
         }

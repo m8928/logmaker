@@ -19,7 +19,12 @@ public class LogDto {
     private String format;
     @Schema(example = "10")
     private long eps;
+    @Schema(example = "events", allowableValues = {"events", "bytes"})
+    private String epsUnit = "events";
+    @Schema(example = "sec", allowableValues = {"sec", "min", "hour", "day"})
+    private String epsTimeUnit = "sec";
     private List<String> sender = new ArrayList<>();
+    private boolean paused = false;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String sample;
@@ -27,6 +32,10 @@ public class LogDto {
     private long currentEps;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private long count;
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    private long bytes;
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    private long bytesPerSec;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     long regTime = LocalDateTime.now().atOffset(ZoneOffset.UTC).toEpochSecond();
